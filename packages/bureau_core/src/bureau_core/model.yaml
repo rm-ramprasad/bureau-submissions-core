@@ -1,0 +1,1150 @@
+# Canonical model: the data contract shared by every submission type (consumer, commercial, ...).
+#
+# Every adapter maps an NBFC schema INTO this model; validation and file writers read ONLY this model.
+# It holds no submission-type knowledge: what a type requires, its file codes and its rules live in
+# submissions/types/<type>/ (requirements.yaml, codes.yaml, rules.yaml, layout.yaml).
+# Built from this file: snapshot tables (c_*), canonical reference data (ref_code, ref_state_pin).
+# Changing this file is a product release: bump canonical_version and add a migration (never edit an applied one);
+#   python -m submissions.canonical.generate prints the full CREATE script as a reference.
+#
+# Column keys: type (string|code|date|decimal|integer), length (string/code), code_list (code), description.
+# Entity keys: keys {account, party} name the columns that tie a row to a record (findings point at records
+#              through them); an entity without keys (extension_attribute) has findings that hit no record.
+# Rules of the model:
+#  - Code columns hold the canonical (standard) values below, never client codes and never file codes: mappings
+#    translate client codes in, each file writer translates canonical values out (ref_code_translation).
+#    Code columns are wide enough to carry an UNMAPPED raw client value through, so validation can report it.
+#  - The snapshot accepts whatever the source holds (no unique constraints); validation judges it.
+#  - No semicolons in descriptions (the migration runner splits statements on ';').
+
+canonical_version: "1.1"           # 1.1: commercial (business borrowers, relationships, guarantors, security, cheque dishonour)
+
+code_lists:
+  gender:
+    description: Gender
+    codes:
+      FEMALE: Female
+      MALE: Male
+      TRANSGENDER: Transgender
+
+  id_type:
+    description: Identity document type
+    codes:
+      PAN: PAN
+      PASSPORT: Passport
+      VOTER_ID: Voter ID
+      DRIVING_LICENCE: Driving Licence
+      RATION_CARD: Ration Card
+      AADHAAR: UID (Aadhaar)
+      ADDITIONAL_ID_1: Additional ID 1 (future use)
+      ADDITIONAL_ID_2: Additional ID 2 (future use)
+      CKYC: CKYC
+      G_RAM_G: G RAM G
+      COMPANY_REGISTRATION: Company Registration Number (Registrar of Companies)
+      CIN: Corporate Identification Number (MCA)
+      TIN: Tax Identification Number (non-individuals)
+      SERVICE_TAX: Service Tax Registration Number
+      UDYAM: Udyam Registration Number (MSME)
+      DIN: Director Identification Number (MCA)
+
+  phone_type:
+    description: Telephone type
+    codes:
+      NOT_CLASSIFIED: Not Classified
+      MOBILE: Mobile
+      HOME: Home
+      OFFICE: Office
+
+  address_category:
+    description: Address category
+    codes:
+      PERMANENT: Permanent
+      RESIDENCE: Residence
+      OFFICE: Office
+      NOT_CATEGORIZED: Not Categorized
+      MORTGAGE_PROPERTY: Mortgage Property
+      REGISTERED_OFFICE: Registered Office (business)
+      BRANCH_OFFICE: Branch / Regional Office (business)
+      WAREHOUSE: Warehouse (business)
+      PLANT_FACTORY: Plant / Factory (business)
+      OTHERS: Other business location
+
+  residence_code:
+    description: Residence (owned / rented)
+    codes:
+      OWNED: Owned
+      RENTED: Rented
+
+  state_code:
+    description: State / union territory, with the valid first two PIN digits
+    codes:
+      JAMMU_KASHMIR: {description: Jammu & Kashmir, pin_min: 18, pin_max: 19}
+      HIMACHAL_PRADESH: {description: Himachal Pradesh, pin_min: 17, pin_max: 17}
+      PUNJAB: {description: Punjab, pin_min: 14, pin_max: 16}
+      CHANDIGARH: {description: Chandigarh, pin_min: 14, pin_max: 16}
+      UTTARAKHAND: {description: Uttarakhand, pin_min: 24, pin_max: 26}
+      HARYANA: {description: Haryana, pin_min: 12, pin_max: 13}
+      DELHI: {description: Delhi, pin_min: 11, pin_max: 11}
+      RAJASTHAN: {description: Rajasthan, pin_min: 30, pin_max: 34}
+      UTTAR_PRADESH: {description: Uttar Pradesh, pin_min: 20, pin_max: 28}
+      BIHAR: {description: Bihar, pin_min: 80, pin_max: 85}
+      SIKKIM: {description: Sikkim, pin_min: 73, pin_max: 73}
+      ARUNACHAL_PRADESH: {description: Arunachal Pradesh, pin_min: 78, pin_max: 79}
+      NAGALAND: {description: Nagaland, pin_min: 79, pin_max: 79}
+      MANIPUR: {description: Manipur, pin_min: 79, pin_max: 79}
+      MIZORAM: {description: Mizoram, pin_min: 79, pin_max: 79}
+      TRIPURA: {description: Tripura, pin_min: 72, pin_max: 79}
+      MEGHALAYA: {description: Meghalaya, pin_min: 79, pin_max: 79}
+      ASSAM: {description: Assam, pin_min: 78, pin_max: 79}
+      WEST_BENGAL: {description: West Bengal, pin_min: 70, pin_max: 74}
+      JHARKHAND: {description: Jharkhand, pin_min: 81, pin_max: 83}
+      ODISHA: {description: Orissa, pin_min: 75, pin_max: 77}
+      CHHATTISGARH: {description: Chhattisgarh, pin_min: 46, pin_max: 49}
+      MADHYA_PRADESH: {description: Madhya Pradesh, pin_min: 45, pin_max: 48}
+      GUJARAT: {description: Gujarat, pin_min: 36, pin_max: 39}
+      DADRA_NAGAR_HAVELI_DAMAN_DIU: {description: Dadra & Nagar Haveli and Daman & Diu, pin_min: 36, pin_max: 39}
+      MAHARASHTRA: {description: Maharashtra, pin_min: 40, pin_max: 44}
+      ANDHRA_PRADESH: {description: Andhra Pradesh, pin_min: 50, pin_max: 56}
+      KARNATAKA: {description: Karnataka, pin_min: 53, pin_max: 59}
+      GOA: {description: Goa, pin_min: 40, pin_max: 40}
+      LAKSHADWEEP: {description: Lakshadweep, pin_min: 67, pin_max: 68}
+      KERALA: {description: Kerala, pin_min: 67, pin_max: 69}
+      TAMIL_NADU: {description: Tamil Nadu, pin_min: 53, pin_max: 67}
+      PUDUCHERRY: {description: Pondicherry, pin_min: 53, pin_max: 67}
+      ANDAMAN_NICOBAR_ISLANDS: {description: Andaman & Nicobar Islands, pin_min: 74, pin_max: 74}
+      TELANGANA: {description: Telangana, pin_min: 50, pin_max: 56}
+      LADAKH: {description: Ladakh, pin_min: 18, pin_max: 19}
+      FOREIGN: Foreign Address
+      APO: {description: APO Address, pin_min: 90, pin_max: 99}
+
+  account_type:
+    description: Credit product (one taxonomy for every submission type)
+    codes:
+      OTHER: Other
+      AUTO_LOAN: Auto Loan (Personal)
+      HOUSING_LOAN: Housing Loan
+      PROPERTY_LOAN: Property Loan
+      LOAN_AGAINST_SHARES_SECURITIES: Loan Against Shares / Securities
+      PERSONAL_LOAN: Personal Loan
+      CONSUMER_LOAN: Consumer Loan
+      GOLD_LOAN: Gold Loan
+      EDUCATION_LOAN: Education Loan
+      LOAN_TO_PROFESSIONAL: Loan to Professional
+      CREDIT_CARD: Credit Card
+      LEASING: Leasing
+      OVERDRAFT: Overdraft
+      TWO_WHEELER_LOAN: Two-Wheeler Loan
+      NON_FUNDED_CREDIT_FACILITY: Non-Funded Credit Facility
+      LOAN_AGAINST_BANK_DEPOSITS: Loan Against Bank Deposits
+      FLEET_CARD: Fleet Card
+      COMMERCIAL_VEHICLE_LOAN: Commercial Vehicle Loan
+      TELCO_WIRELESS: Telco - Wireless
+      TELCO_BROADBAND: Telco - Broadband
+      TELCO_LANDLINE: Telco - Landline
+      SELLER_FINANCING: Seller Financing
+      GECL_LOAN_SECURED: GECL Loan Secured
+      GECL_LOAN_UNSECURED: GECL Loan Unsecured
+      WORKING_CAPITAL_LOAN: Working Capital Loan
+      COMMERCIAL_EQUIPMENT_LOAN: Commercial Equipment Loan
+      AGRICULTURE_LOAN: Agriculture Loan
+      OVERDRAFT_AGAINST_FD: Overdraft against FD
+      OVERDRAFT_AGAINST_SHARES_SECURITIES: Overdraft against Shares / Securities
+      OVERDRAFT_AGAINST_COLLATERAL: Overdraft against Collateral
+      SECURED_CREDIT_CARD: Secured Credit Card
+      USED_CAR_LOAN: Used Car Loan
+      CONSTRUCTION_EQUIPMENT_LOAN: Construction Equipment Loan
+      TRACTOR_LOAN: Tractor Loan
+      CORPORATE_CREDIT_CARD: Corporate Credit Card
+      KISAN_CREDIT_CARD: Kisan Credit Card
+      LOAN_ON_CREDIT_CARD: Loan on Credit Card
+      PMJDY_OVERDRAFT: Prime Minister Jan Dhan Yojana - Overdraft
+      MUDRA_LOAN: Mudra Loans - Shishu / Kishor / Tarun
+      MICROFINANCE_BUSINESS_LOAN: Microfinance - Business Loan
+      MICROFINANCE_PERSONAL_LOAN: Microfinance - Personal Loan
+      MICROFINANCE_HOUSING_LOAN: Microfinance - Housing Loan
+      MICROFINANCE_OTHERS: Microfinance - Others
+      PMAY_CLSS: Pradhan Mantri Awas Yojana - CLSS
+      P2P_PERSONAL_LOAN: P2P Personal Loan
+      P2P_AUTO_LOAN: P2P Auto Loan
+      P2P_EDUCATION_LOAN: P2P Education Loan
+      BUSINESS_LOAN_SECURED: Business Loan - Secured
+      BUSINESS_LOAN_GENERAL: Business Loan - General
+      BUSINESS_LOAN_PS_SMALL_BUSINESS: Business Loan - Priority Sector - Small Business
+      BUSINESS_LOAN_PS_AGRICULTURE: Business Loan - Priority Sector - Agriculture
+      BUSINESS_LOAN_PS_OTHERS: Business Loan - Priority Sector - Others
+      BUSINESS_NON_FUNDED_GENERAL: Business Non-Funded Credit Facility - General
+      BUSINESS_NON_FUNDED_PS_SMALL_BUSINESS: Business Non-Funded Credit Facility - Priority Sector - Small Business
+      BUSINESS_NON_FUNDED_PS_AGRICULTURE: Business Non-Funded Credit Facility - Priority Sector - Agriculture
+      BUSINESS_NON_FUNDED_PS_OTHERS: Business Non-Funded Credit Facility - Priority Sector - Others
+      BUSINESS_LOAN_AGAINST_BANK_DEPOSITS: Business Loan Against Bank Deposits
+      BUSINESS_LOAN_UNSECURED: Business Loan - Unsecured
+      SHORT_TERM_PERSONAL_LOAN: Short Term Personal Loan
+      PRIORITY_SECTOR_GOLD_LOAN: Priority Sector - Gold Loan
+      TEMPORARY_OVERDRAFT: Temporary Overdraft
+      CASH_CREDIT: Cash Credit
+      DEMAND_LOAN: Demand Loan
+      MEDIUM_TERM_LOAN: Medium Term Loan (above 1 and up to 3 years)
+      LONG_TERM_LOAN: Long Term Loan (above 3 years)
+      SHORT_TERM_LOAN: Short Term Loan (less than 1 year)
+      PACKING_CREDIT: Packing Credit (export pre-shipment finance)
+      EXPORT_BILLS_PURCHASED: Export Bills Purchased
+      EXPORT_BILLS_DISCOUNTED: Export Bills Discounted
+      EXPORT_BILLS_ADVANCED: Export Bills Advanced Against
+      EXPORT_INCENTIVE_ADVANCE: Advances against Export Cash Incentives and Duty Drawback
+      INLAND_BILLS_PURCHASED: Inland Bills Purchased
+      INLAND_BILLS_DISCOUNTED: Inland Bills Discounted
+      IMPORT_BILLS_ADVANCE: Advances against Import Bills
+      FOREIGN_CHEQUES_PURCHASED: Foreign Currency Cheques / TCs / DDs / TTs / MTs Purchased
+      HIRE_PURCHASE: Hire Purchase
+      BANK_GUARANTEE: Bank Guarantee
+      DEFERRED_PAYMENT_GUARANTEE: Deferred Payment Guarantee
+      LETTER_OF_CREDIT: Letter of Credit
+      FUND_BASED_AGGREGATE: Aggregation of all Fund Based Facilities
+      NON_FUND_BASED_AGGREGATE: Aggregation of all Non Fund Based Facilities
+      FUND_NON_FUND_INTERCHANGE: Facilities Interchangeable between Fund and Non Fund Based
+      DERIVATIVES: Derivatives
+      FOREX_FORWARD_CONTRACT: Plain Vanilla Forex Forward Contract
+      INTEREST_RATE_SWAP: Plain Vanilla Interest Rate Swap
+      CURRENCY_OPTION: Plain Vanilla Foreign Currency Option
+      COMPLEX_RATE_DERIVATIVE: Complex Interest Rate Derivative with Optionalities
+      COMPLEX_CURRENCY_DERIVATIVE: Complex Derivative involving Foreign Currency with Option
+      PAST_PERFORMANCE_IMPORTS: Contracts on Past Performance - Imports
+      PAST_PERFORMANCE_EXPORTS: Contracts on Past Performance - Exports
+      SUIT_FILED_AGGREGATE: Aggregate of all Borrowings due to Filing of Suit
+      HEALTHCARE_FINANCE: Healthcare Finance
+      INFRASTRUCTURE_FINANCE: Infrastructure Finance
+      FACTORING_WITH_RECOURSE: Factoring with Recourse (Seller)
+      FACTORING_WITHOUT_RECOURSE: Factoring without Recourse (Buyer)
+      COMMERCIAL_PAPER: Commercial Paper
+      NON_CONVERTIBLE_DEBENTURE: Non Convertible Debentures
+      UNHEDGED_FX_EXPOSURE: Unhedged Foreign Currency Exposure
+      PAYMENT_ACCOUNT: Payment Account (Point of Sale and Payment Gateways)
+      CURRENT_LOAN: Current Loan
+      ARC_SECURED_LOAN: ARC - Secured Loan
+      ARC_UNSECURED_LOAN: ARC - Unsecured Loan
+      MUDRA_TERM_LOAN: Mudra Term Loan
+      MUDRA_WORKING_CAPITAL: Mudra Working Capital
+      MERCHANT_ACQUIRING: Merchant Acquiring
+      GOVT_SPONSORED_LOAN: Government Sponsored Loan
+      THREE_WHEELER_LOAN: 3-Wheeler Loan
+      RESTRUCTURING_CONVERTED_EXPOSURE: Exposure converted to Debt / Equity due to Restructuring
+
+  ownership_indicator:
+    description: How a party holds an account
+    codes:
+      INDIVIDUAL: Individual
+      AUTHORISED_USER: Authorised User
+      GUARANTOR: Guarantor
+      JOINT: Joint
+      DECEASED: Deceased
+
+  suit_filed_status:
+    description: Suit filed / wilful default
+    codes:
+      NO_SUIT_FILED: No Suit Filed
+      SUIT_FILED: Suit Filed
+      WILFUL_DEFAULT: Wilful Default
+      SUIT_FILED_WILFUL_DEFAULT: Suit Filed (Wilful Default)
+      TRIAL_IN_PROGRESS: Suit Filed - Trial in Progress
+      DECREE_ISSUED: Suit Filed - Decree Issued by Court
+      DECREE_EXECUTION: Suit Filed - Execution of Decree
+      NCLT_SUIT_FILED: NCLT / NCLAT Suit Filed
+
+  credit_facility_status:
+    description: Special status of a credit facility (restructured, written off, settled ...)
+    codes:
+      RESTRUCTURED_LOAN: Restructured Loan
+      RESTRUCTURED_LOAN_GOVT_MANDATED: Restructured Loan (Govt. Mandated)
+      WRITTEN_OFF: Written-off
+      SETTLED: Settled
+      POST_WO_SETTLED: Post (WO) Settled
+      ACCOUNT_SOLD: Account Sold
+      WRITTEN_OFF_AND_ACCOUNT_SOLD: Written Off and Account Sold
+      ACCOUNT_PURCHASED: Account Purchased
+      ACCOUNT_PURCHASED_AND_WRITTEN_OFF: Account Purchased and Written Off
+      ACCOUNT_PURCHASED_AND_SETTLED: Account Purchased and Settled
+      ACCOUNT_PURCHASED_AND_RESTRUCTURED: Account Purchased and Restructured
+      RESTRUCTURED_DUE_TO_NATURAL_CALAMITY: Restructured due to Natural Calamity
+      RESTRUCTURED_DUE_TO_COVID_19: Restructured due to COVID-19
+      POST_WRITE_OFF_CLOSED: Post Write Off Closed
+      RESTRUCTURED_CLOSED: Restructured & Closed
+      AUCTIONED_SETTLED: Auctioned & Settled
+      REPOSSESSED_SETTLED: Repossessed & Settled
+      GUARANTEE_INVOKED: Guarantee Invoked
+      INVOKED: Invoked (guarantee or surety activated)
+      DEVOLVED: Devolved (member paid from own funds)
+      SOLD_TO_ARC: Sold to ARC
+      PURCHASED_FROM_BANK: Purchased from Bank (ARC)
+      CLEAR_STATUS: Clear existing status
+
+  asset_classification:
+    description: Asset classification
+    codes:
+      STANDARD: Standard
+      SUBSTANDARD: Substandard
+      DOUBTFUL: Doubtful
+      LOSS: Loss
+      SPECIAL_MENTION_ACCOUNT: Special Mention Account
+      SMA_0: SMA 0 - signs of incipient stress, not overdue over 30 days
+      SMA_1: SMA 1 - overdue 31 to 60 days
+      SMA_2: SMA 2 - overdue 61 to 90 days
+      DOUBTFUL_1: Doubtful 1
+      DOUBTFUL_2: Doubtful 2
+      DOUBTFUL_3: Doubtful 3
+      NPA: Non-Performing Asset
+      ARC_LOAN: ARC Loan
+
+  collateral_type:
+    description: Type of collateral
+    codes:
+      NONE: None
+      PROPERTY: Property
+      GOLD: Gold
+      SHARES: Shares
+      SAVINGS_ACCOUNT_FD: Savings Account & FD
+      MULTIPLE_SECURITIES: Multiple Securities
+      OTHERS: Others
+
+  payment_frequency:
+    description: Repayment frequency
+    codes:
+      WEEKLY: Weekly
+      FORTNIGHTLY: Fortnightly
+      MONTHLY: Monthly
+      QUARTERLY: Quarterly
+      BULLET: Bullet
+      DAILY: Daily
+      HALF_YEARLY: Half-yearly
+      YEARLY: Yearly
+      ON_DEMAND: On-demand
+      ROLLING: Rolling
+      OTHERS: Others
+
+  occupation:
+    description: Occupation
+    codes:
+      SALARIED: Salaried
+      SELF_EMPLOYED_PROFESSIONAL: Self-Employed Professional
+      SELF_EMPLOYED: Self-Employed
+      OTHERS: Others
+
+  income_basis:
+    description: Net / gross income
+    codes:
+      GROSS: Gross
+      NET: Net
+
+  income_period:
+    description: Monthly / annual income
+    codes:
+      MONTHLY: Monthly
+      ANNUAL: Annual
+
+  legal_constitution:
+    description: Legal constitution of a borrower (business entity, or an individual reported commercially)
+    codes:
+      PRIVATE_LIMITED: Private Limited
+      PUBLIC_LIMITED: Public Limited
+      STATUTORY_BODY: Business Entity Created by Statute
+      PROPRIETORSHIP: Proprietorship
+      PARTNERSHIP: Partnership
+      TRUST: Trust
+      HUF: Hindu Undivided Family
+      COOPERATIVE_SOCIETY: Co-operative Society
+      ASSOCIATION_OF_PERSONS: Association of Persons
+      GOVERNMENT: Government
+      SELF_HELP_GROUP: Self Help Group
+      INDIVIDUAL: Individual
+
+  business_category:
+    description: Business category (size)
+    codes:
+      MICRO: Micro
+      SMALL: Small
+      MEDIUM: Medium
+      LARGE: Large
+      OTHERS: Others
+      RETAIL: Retail
+      AGRI: Agri
+
+  industry_type:
+    description: Business / industry type
+    codes:
+      MANUFACTURING: Manufacturing
+      DISTRIBUTION: Distribution
+      WHOLESALE: Wholesale
+      TRADING: Trading
+      BROKING: Broking
+      SERVICE_PROVIDER: Service Provider
+      IMPORTING: Importing
+      EXPORTING: Exporting
+      AGRICULTURE: Agriculture
+      DEALERS: Dealers
+      OTHERS: Others
+
+  rating_agency:
+    description: Credit rating agency / assessment authority
+    codes:
+      CARE: CARE
+      CRISIL: CRISIL
+      ICRA: ICRA
+      ACUITE: Acuite Ratings and Research
+      INDIA_RATINGS: India Ratings and Research
+      ACER: Acer Credit Rating
+      BRICKWORK: Brickwork Ratings
+      INFOMERICS: Infomerics Ratings
+      OTHERS: Others
+
+  related_type:
+    description: Kind of related party or guarantor
+    codes:
+      INDIAN_ENTITY: Business entity registered in India
+      INDIAN_INDIVIDUAL: Resident Indian individual
+      FOREIGN_ENTITY: Business entity registered outside India
+      FOREIGN_INDIVIDUAL: Foreign / non-resident Indian individual
+
+  relationship_type:
+    description: How a related party is related to a borrower
+    codes:
+      SHAREHOLDER: Shareholder
+      HOLDING_COMPANY: Holding Company
+      SUBSIDIARY_COMPANY: Subsidiary Company
+      PROPRIETOR: Proprietor
+      PARTNER: Partner
+      TRUSTEE: Trustee
+      PROMOTER_DIRECTOR: Promoter Director
+      NOMINEE_DIRECTOR: Nominee Director
+      INDEPENDENT_DIRECTOR: Independent Director
+      FORMER_DIRECTOR: Director - Since Resigned
+      SHG_MEMBER: Individual Member of SHG
+      OTHER_DIRECTOR: Other Director
+      OTHERS: Others
+      KARTA: Karta (HUF)
+
+  restructuring_reason:
+    description: Main reason a facility was restructured
+    codes:
+      NON_PERFORMANCE: Restructured due to non-performance
+      NATURAL_CALAMITY: Restructured due to natural calamity
+      COVID_19: Restructured due to COVID-19
+      OTHERS: Others
+
+  coverage:
+    description: How far a facility is covered (by tangible security or by guarantees)
+    codes:
+      FULL: Full
+      PARTIAL: Partial
+      NIL: Nil
+
+  security_type:
+    description: Type of tangible security
+    codes:
+      CASH_BULLION_DEPOSITS: Cash / Bullion / Bank Deposits
+      SHARES_BONDS_SECURITIES: Shares / Bonds / Securities
+      INVENTORY: Inventory (raw material, WIP, finished goods)
+      ACCOUNTS_RECEIVABLE: Accounts Receivable
+      OTHER_CURRENT_ASSETS: Other Current Assets
+      PLANT_MACHINERY: Plant, Machinery and Equipment
+      LAND_BUILDINGS: Land and Buildings
+      OTHER_FIXED_ASSETS: Other Fixed Assets
+      OTHER_ASSETS: Other Assets
+      CURRENT_ASSETS_AGGREGATE: Aggregate of all Current Assets
+      FIXED_ASSETS_AGGREGATE: Aggregate of all Fixed Assets
+
+  security_classification:
+    description: Charge on a tangible security
+    codes:
+      PRIMARY_FIRST_CHARGE: Primary - First Charge
+      PRIMARY_SECOND_CHARGE: Primary - Second Charge
+      PRIMARY_THIRD_CHARGE: Primary - Third Charge
+      PRIMARY_PARI_PASSU: Primary - Pari Passu
+      COLLATERAL_FIRST_CHARGE: Collateral - First Charge
+      COLLATERAL_SECOND_CHARGE: Collateral - Second Charge
+      COLLATERAL_THIRD_CHARGE: Collateral - Third Charge
+      COLLATERAL_PARI_PASSU: Collateral - Pari Passu
+
+  dishonour_reason:
+    description: Reason an inward cheque was dishonoured
+    codes:
+      INSUFFICIENT_FUNDS: Insufficient Funds
+      ACCOUNT_CLOSED: Account Closed
+
+  currency:
+    description: Currency (ISO-style code)
+    codes:
+      ADF: "Andorran Franc"
+      ADP: "Andorran Peseta"
+      AED: "(United) Arab Emirates Dirham"
+      AFA: "Afghanistan Afghani"
+      ALL: "Albanian Lek"
+      ANG: "(Netherlands) Antillian Guilder"
+      AON: "Angolan New Kwanza"
+      ARA: "Argentine Austral"
+      ARS: "Argentine Peso"
+      ATS: "Austrian Schilling"
+      AUD: "Australian Dollar"
+      AWG: "Aruban Florin (old guilder)"
+      BBD: "Barbados Dollar"
+      BDT: "Bangladeshi Taka"
+      BEF: "Belgian Franc"
+      BGL: "Bulgarian Lev"
+      BHD: "Bahraini Dinar"
+      BIF: "Burundi Franc"
+      BMD: "Bermudian Dollar"
+      BND: "Brunei Dollar"
+      BOB: "Bolivian Boliviano"
+      BRC: "Brazilian Cruzeiro"
+      BRL: "Brazilian Real"
+      BSD: "Bahamian Dollar"
+      BTN: "Bhutan Ngultrum"
+      BWP: "Botswana Pula"
+      BZD: "Belize Dollar"
+      CAD: "Canadian Dollar"
+      CHF: "Swiss Franc"
+      CLP: "Chilean Peso"
+      CNY: "Chinese Yuan Renminbi"
+      COP: "Colombian Peso"
+      CRC: "Costa Rican Colon"
+      CSK: "Czech Koruna"
+      CUP: "Cuban Peso"
+      CVE: "Cape Verde Escudo"
+      CVP: "Cyprus Pound"
+      DEM: "German Mark"
+      DJF: "Djibouti Franc"
+      DKK: "Danish Krone"
+      DOP: "Dominican Peso"
+      DZD: "Algerian Dinar"
+      ECS: "Ecuador Sucre"
+      EEK: "Estonian Kroon"
+      EGP: "Egyptian Pound"
+      ESP: "Spanish Peseta"
+      ETB: "Ethiopian Birr"
+      EUR: "Euro"
+      FIM: "Finnish Markka"
+      FJD: "Fiji Dollar"
+      FKP: "Falkland Isl.Pound"
+      FRF: "French Franc"
+      GBP: "British Pound"
+      GHC: "Ghanaian Cedi"
+      GIP: "Gibraltar Pound"
+      GMD: "Gambian Dalasi"
+      GNF: "Guinea Franc"
+      GRD: "Greek Drachma"
+      GTQ: "Guatemalan Quetzal"
+      GWP: "Guinea-Bissau Peso"
+      GYD: "Guyanan Dollar"
+      HKD: "Hong Kong Dollar"
+      HNL: "Honduran Lempira"
+      HRK: "Croatian Kuna"
+      HTG: "Haitian Gourde"
+      HUF: "Hungarian Forint"
+      IDR: "Indonesian Rupiah"
+      IEP: "Irish Punt"
+      ILS: "Israeli New Shekel"
+      INR: "Indian Rupee"
+      IQD: "Iraqi Dinar"
+      IRR: "Iranian Rial"
+      ISK: "Iceland Krona"
+      ITL: "Italian Lira"
+      JMD: "Jamaican Dollar"
+      JOD: "Jordanian Dinar"
+      JPY: "Japanese Yen"
+      KES: "Kenyan Schilling"
+      KHR: "Kampuchean (Cambodian) Riel"
+      KMF: "Comoros Franc"
+      KPW: "North Korean Won"
+      KRW: "Korean Won"
+      KWD: "Kuwaiti Dinar"
+      KYD: "Cayman Islands Dollar"
+      KZT: "Kazakhstan Tenge"
+      LAK: "Lao Kip"
+      LBP: "Lebanese Pound"
+      LKR: "Sri Lanka Rupee"
+      LRD: "Liberian Dollar"
+      LSL: "Lesotho Loti"
+      LTL: "Lithuanian Litas"
+      LUF: "Luxembourg Franc"
+      LVL: "Latvian Lats"
+      LYD: "Libyan Dinar"
+      MAD: "Moroccan Dirham"
+      MGF: "Malagasy Franc"
+      MMK: "Myanmar Kyat"
+      MNT: "Mongolian Tugrik"
+      MOP: "Macau Pataca"
+      MRO: "Mauritanian Ouguiya"
+      MTL: "Maltese Lira"
+      MUR: "Mauritius Rupee"
+      MVR: "Maldive Rufiyaa"
+      MWK: "Malawi Kwacha"
+      MXP: "Mexican Peso"
+      MYR: "Malaysian Ringgit"
+      MZM: "Mozambique Metical"
+      NAD: "Namibian Dollar"
+      NGN: "Nigerian Naira"
+      NIO: "Nicaraguan Cordoba Oro"
+      NLG: "Netherlands Guilder"
+      NOK: "Norwegian Kroner"
+      NPR: "Nepalese Rupee"
+      NZD: "New Zealand Dollar"
+      OMR: "Omani Riyal"
+      PAB: "Panamanian Balboa"
+      PEN: "Peruvian Neuevo Sol"
+      PGK: "Papua New Guinea Kina"
+      PHP: "Philippine Peso"
+      PKR: "Pakistan Rupee"
+      PLZ: "Polish Zloty"
+      PTE: "Portugese Escudo"
+      PYG: "Paraguay Guarani"
+      QAR: "Qatari Rial"
+      ROL: "Romanian Leu"
+      RUB: "Russian Rouble"
+      SAR: "Saudi Riyal"
+      SBD: "Solomon Isl.Dollar"
+      SCR: "Seychelles Rupee"
+      SDD: "Sudanese Dinar"
+      SDP: "Sudanese Pound"
+      SEK: "Swedish Krona"
+      SGD: "Singapore Dollar"
+      SHP: "St. Helena Pound"
+      SIT: "Slovenian Tolar"
+      SKK: "Slovak Koruna"
+      SLL: "Sierra Leone"
+      SOS: "Somali Schilling"
+      SRG: "Suriname Guilder"
+      STD: "Sao Tome and Principe Dobra"
+      SVC: "El Salvador Colon"
+      SYP: "Syrian Pound"
+      SZL: "Swaziland Lilangeni"
+      THB: "Thai Baht"
+      TND: "Tunisian Dinar"
+      TOP: "Tongan Pa'anga"
+      TRL: "Turkish Lira"
+      TTD: "Trinidad and Tobago Dollar"
+      TWD: "Taiwan Dollar"
+      TZS: "Tanzanian Schilling"
+      UAG: "Ukraine Hryvnia"
+      UAK: "Ukraine Karbovanets"
+      UGS: "Uganda Schilling"
+      USD: "US Dollar"
+      UYP: "Uruguayan Peso"
+      VEB: "Venezuelan Bolivar"
+      VND: "Vietnamese Dong"
+      VUV: "Vanuatu Vatu"
+      WST: "Samoan Tala"
+      XAF: "CFA Franc BEAC (for Cameroon, the Central African Republic, Chad, Congo, Equatorial Guinea and Gabon)"
+      XAG: "Silver (oz.)"
+      XAU: "Gold (oz.)"
+      XOF: "Benin: CFA Franc BCEAO"
+      XPD: "Palladium (oz.)"
+      XPT: "Platinum (oz.)"
+      YUN: "Yugoslav Dinar"
+      ZAR: "South African Rand"
+      ZMK: "Zambian Kwacha"
+      ZWD: "Zimbabwe Dollar"
+
+  country:
+    description: Country / nationality
+    codes:
+      AFGHANISTAN: "Afghanistan"
+      ALBANIA: "Albania"
+      ALGERIA: "Algeria"
+      ANDORRA: "Andorra"
+      ANGOLA: "Angola"
+      ANTIGUA_AND_BARBUDA: "Antigua and Barbuda"
+      ARGENTINA: "Argentina"
+      ARMENIA: "Armenia"
+      AUSTRALIA: "Australia"
+      AUSTRIA: "Austria"
+      AZERBAIJAN: "Azerbaijan"
+      BAHAMAS: "Bahamas"
+      BAHRAIN: "Bahrain"
+      BANGLADESH: "Bangladesh"
+      BARBADOS: "Barbados"
+      BELARUS: "Belarus"
+      BELGIUM: "Belgium"
+      BELIZE: "Belize"
+      BENIN: "Benin"
+      BHUTAN: "Bhutan"
+      BOLIVIA: "Bolivia"
+      BOSNIA_AND_HERZEGOVINA: "Bosnia and Herzegovina"
+      BOTSWANA: "Botswana"
+      BRAZIL: "Brazil"
+      BRUNEI_DARUSSALAM: "Brunei Darussalam"
+      BULGARIA: "Bulgaria"
+      BURKINA_FASO: "Burkina Faso"
+      BURUNDI: "Burundi"
+      CAMBODIA: "Cambodia"
+      CAMEROON: "Cameroon"
+      CANADA: "Canada"
+      CAPE_VERDE: "Cape Verde"
+      CENTRAL_AFRICAN_REPUBLIC: "Central African Republic"
+      CHAD: "Chad"
+      CHILE: "Chile"
+      CHINA: "China"
+      COLOMBIA: "Colombia"
+      COMOROS: "Comoros"
+      CONGO: "Congo"
+      COSTA_RICA: "Costa Rica"
+      COTE_D_IVOIRE: "Cote d'Ivoire"
+      CROATIA: "Croatia"
+      CUBA: "Cuba"
+      CYPRUS: "Cyprus"
+      CZECH_REPUBLIC: "Czech Republic"
+      DEMOCRATIC_PEOPLE_S_REPUBLIC_OF_KOREA: "Democratic People's Republic of Korea"
+      DEMOCRATIC_REPUBLIC_OF_THE_CONGO: "Democratic Republic of the Congo"
+      DENMARK: "Denmark"
+      DJIBOUTI: "Djibouti"
+      DOMINICA: "Dominica"
+      DOMINICAN_REPUBLIC: "Dominican Republic"
+      EAST_TIMOR: "East Timor"
+      ECUADOR: "Ecuador"
+      EGYPT: "Egypt"
+      EL_SALVADOR: "El Salvador"
+      EQUATORIAL_GUINEA: "Equatorial Guinea"
+      ERITREA: "Eritrea"
+      ESTONIA: "Estonia"
+      ETHIOPIA: "Ethiopia"
+      FIJI: "Fiji"
+      FINLAND: "Finland"
+      FRANCE: "France"
+      GABON: "Gabon"
+      GAMBIA: "Gambia"
+      GEORGIA: "Georgia"
+      GERMANY: "Germany"
+      GHANA: "Ghana"
+      GREECE: "Greece"
+      GRENADA: "Grenada"
+      GUATEMALA: "Guatemala"
+      GUINEA: "Guinea"
+      GUINEA_BISSAU: "Guinea-Bissau"
+      GUYANA: "Guyana"
+      HAITI: "Haiti"
+      HONDURAS: "Honduras"
+      HONG_KONG: "Hong Kong"
+      HUNGARY: "Hungary"
+      ICELAND: "Iceland"
+      INDIA: "India"
+      INDONESIA: "Indonesia"
+      IRAN_ISLAMIC_REPUBLIC_OF: "Iran (Islamic Republic of)"
+      IRAQ: "Iraq"
+      IRELAND: "Ireland"
+      ISRAEL: "Israel"
+      ITALY: "Italy"
+      JAMAICA: "Jamaica"
+      JAPAN: "Japan"
+      JORDAN: "Jordan"
+      KAZAKHSTAN: "Kazakhstan"
+      KENYA: "Kenya"
+      KIRIBATI: "Kiribati"
+      KUWAIT: "Kuwait"
+      KYRGYZSTAN: "Kyrgyzstan"
+      LAO_PEOPLE_S_DEMOCRATIC_REPUBLIC: "Lao People's Democratic Republic"
+      LATVIA: "Latvia"
+      LEBANON: "Lebanon"
+      LESOTHO: "Lesotho"
+      LIBERIA: "Liberia"
+      LIBYAN_ARAB_JAMAHIRIYA: "Libyan Arab Jamahiriya"
+      LIECHTENSTEIN: "Liechtenstein"
+      LITHUANIA: "Lithuania"
+      LUXEMBOURG: "Luxembourg"
+      MADAGASCAR: "Madagascar"
+      MALAWI: "Malawi"
+      MALAYSIA: "Malaysia"
+      MALDIVES: "Maldives"
+      MALI: "Mali"
+      MALTA: "Malta"
+      MARSHALL_ISLANDS: "Marshall Islands"
+      MAURITANIA: "Mauritania"
+      MAURITIUS: "Mauritius"
+      MEXICO: "Mexico"
+      MICRONESIA_FEDERATED_STATES_OF: "Micronesia, Federated States of"
+      MONACO: "Monaco"
+      MONGOLIA: "Mongolia"
+      MOROCCO: "Morocco"
+      MOZAMBIQUE: "Mozambique"
+      MYANMAR: "Myanmar"
+      NAMIBIA: "Namibia"
+      NAURU: "Nauru"
+      NEPAL: "Nepal"
+      NETHERLANDS: "Netherlands"
+      NEW_ZEALAND: "New Zealand"
+      NICARAGUA: "Nicaragua"
+      NIGER: "Niger"
+      NIGERIA: "Nigeria"
+      NORWAY: "Norway"
+      OMAN: "Oman"
+      PAKISTAN: "Pakistan"
+      PALAU: "Palau"
+      PALESTINIAN_AUTHORITY: "Palestinian Authority"
+      PANAMA: "Panama"
+      PAPUA_NEW_GUINEA: "Papua New Guinea"
+      PARAGUAY: "Paraguay"
+      PERU: "Peru"
+      PHILIPPINES: "Philippines"
+      POLAND: "Poland"
+      PORTUGAL: "Portugal"
+      QATAR: "Qatar"
+      REPUBLIC_OF_KOREA: "Republic of Korea"
+      REPUBLIC_OF_MOLDOVA: "Republic of Moldova"
+      ROMANIA: "Romania"
+      RUSSIAN_FEDERATION: "Russian Federation"
+      RWANDA: "Rwanda"
+      SAINT_KITTS_AND_NEVIS: "Saint Kitts and Nevis"
+      SAINT_LUCIA: "Saint Lucia"
+      SAINT_VINCENT_AND_THE_GRENADINES: "Saint Vincent and the Grenadines"
+      SAMOA: "Samoa"
+      SAN_MARINO: "San Marino"
+      SAO_TOME_AND_PRINCIPE: "Sao Tome and Principe"
+      SAUDI_ARABIA: "Saudi Arabia"
+      SENEGAL: "Senegal"
+      SERBIA_AND_MONTENEGRO: "Serbia and Montenegro"
+      SEYCHELLES: "Seychelles"
+      SIERRA_LEONE: "Sierra Leone"
+      SINGAPORE: "Singapore"
+      SLOVAKIA: "Slovakia"
+      SLOVENIA: "Slovenia"
+      SOLOMON_ISLANDS: "Solomon Islands"
+      SOMALIA: "Somalia"
+      SOUTH_AFRICA: "South Africa"
+      SPAIN: "Spain"
+      SRI_LANKA: "Sri Lanka"
+      SUDAN: "Sudan"
+      SURINAME: "Suriname"
+      SWAZILAND: "Swaziland"
+      SWEDEN: "Sweden"
+      SWITZERLAND: "Switzerland"
+      SYRIAN_ARAB_REPUBLIC: "Syrian Arab Republic"
+      TAIWAN: "Taiwan"
+      TAJIKISTAN: "Tajikistan"
+      TFYR_MACEDONIA: "TFYR Macedonia"
+      THAILAND: "Thailand"
+      TOGO: "Togo"
+      TONGA: "Tonga"
+      TRINIDAD_AND_TOBAGO: "Trinidad and Tobago"
+      TUNISIA: "Tunisia"
+      TURKEY: "Turkey"
+      TURKMENISTAN: "Turkmenistan"
+      TUVALU: "Tuvalu"
+      UGANDA: "Uganda"
+      UKRAINE: "Ukraine"
+      UNITED_ARAB_EMIRATES: "United Arab Emirates"
+      UNITED_KINGDOM: "United Kingdom"
+      UNITED_REPUBLIC_OF_TANZANIA: "United Republic of Tanzania"
+      UNITED_STATES_OF_AMERICA: "United States of America"
+      URUGUAY: "Uruguay"
+      UZBEKISTAN: "Uzbekistan"
+      VANUATU: "Vanuatu"
+      VENEZUELA: "Venezuela"
+      VIETNAM: "Vietnam"
+      WESTERN_SAHARA: "Western Sahara"
+      YEMEN: "Yemen"
+      ZAMBIA: "Zambia"
+      ZIMBABWE: "Zimbabwe"
+
+entities:
+  party:
+    table: c_party
+    description: One borrower (individual)
+    indexes: [[party_key]]
+    keys: {party: party_key}
+    columns:
+      party_key:        {type: string, length: 50, description: Source borrower key}
+      full_name:        {type: string, length: 200, description: Full name. Formatter splits into 26-char fields}
+      birth_date:       {type: date}
+      gender:           {type: code, code_list: gender}
+      occupation:       {type: code, code_list: occupation}
+      income:           {type: decimal}
+      income_basis:     {type: code, code_list: income_basis}
+      income_period:    {type: code, code_list: income_period}
+      short_name:         {type: string, length: 20, description: Business borrower short name}
+      legal_constitution: {type: code, code_list: legal_constitution, description: Commercial borrowers}
+      business_category:  {type: code, code_list: business_category}
+      industry_type:      {type: code, code_list: industry_type}
+      incorporation_date: {type: date}
+      activity_class_1:   {type: string, length: 5, description: RBI BSR activity / occupation classification}
+      activity_class_2:   {type: string, length: 5}
+      activity_class_3:   {type: string, length: 5}
+      hsn_code:           {type: string, length: 20}
+      sales_amount:       {type: decimal, description: Sales of the previous financial year}
+      sales_year:         {type: date, description: Financial year of sales_amount (any date in it)}
+      employee_count:     {type: integer}
+      credit_rating:      {type: string, length: 10}
+      rating_agency:      {type: code, code_list: rating_agency}
+      rating_date:        {type: date}
+      rating_expiry_date: {type: date}
+
+  party_identifier:
+    table: c_party_identifier
+    description: One identity document of a borrower
+    indexes: [[party_key]]
+    keys: {party: party_key}
+    columns:
+      party_key:        {type: string, length: 50}
+      id_type:          {type: code, code_list: id_type}
+      id_number:        {type: string, length: 50, description: As held at source. Delimiters stripped by validation/formatter}
+      issue_date:       {type: date}
+      expiry_date:      {type: date}
+
+  party_phone:
+    table: c_party_phone
+    description: One telephone entry of a borrower
+    indexes: [[party_key]]
+    keys: {party: party_key}
+    columns:
+      party_key:        {type: string, length: 50}
+      phone_number:     {type: string, length: 60, description: May hold several numbers when type is 00}
+      extension:        {type: string, length: 10}
+      phone_type:       {type: code, code_list: phone_type}
+      priority:         {type: integer, description: 1 = first reported. Lower sorts first}
+
+  party_email:
+    table: c_party_email
+    description: One e-mail address of a borrower
+    indexes: [[party_key]]
+    keys: {party: party_key}
+    columns:
+      party_key:        {type: string, length: 50}
+      email:            {type: string, length: 100}
+      priority:         {type: integer}
+
+  party_address:
+    table: c_party_address
+    description: One address of a borrower
+    indexes: [[party_key]]
+    keys: {party: party_key}
+    columns:
+      party_key:        {type: string, length: 50}
+      address_line_1:   {type: string, length: 200, description: Lines are re-fitted to 40 chars by the formatter without splitting words}
+      address_line_2:   {type: string, length: 200}
+      address_line_3:   {type: string, length: 200}
+      address_line_4:   {type: string, length: 200}
+      address_line_5:   {type: string, length: 200}
+      state_code:       {type: code, code_list: state_code}
+      pin_code:         {type: string, length: 20, description: As held at source. Non-digits stripped by validation/formatter}
+      address_category: {type: code, code_list: address_category}
+      residence_code:   {type: code, code_list: residence_code}
+      priority:         {type: integer}
+      city:             {type: string, length: 40}
+      district:         {type: string, length: 40}
+      country:          {type: code, code_list: country}
+
+  account:
+    table: c_account
+    description: One credit facility
+    indexes: [[account_key]]
+    keys: {account: account_key}
+    columns:
+      account_key:              {type: string, length: 50, description: Source account key}
+      account_number:           {type: string, length: 50}
+      account_type:             {type: code, code_list: account_type}
+      date_opened:              {type: date}
+      date_last_payment:        {type: date}
+      date_closed:              {type: date}
+      date_reported:            {type: date, description: Defaults to the request as-of date}
+      high_credit_amount:       {type: decimal, description: "Sanctioned amount, or highest credit used for card types"}
+      current_balance:          {type: decimal, description: Signed. Negative = credit balance}
+      amount_overdue:           {type: decimal}
+      days_past_due:            {type: integer}
+      suit_filed_status:        {type: code, code_list: suit_filed_status}
+      credit_facility_status:   {type: code, code_list: credit_facility_status}
+      asset_classification:     {type: code, code_list: asset_classification}
+      collateral_value:         {type: decimal}
+      collateral_type:          {type: code, code_list: collateral_type}
+      credit_limit:             {type: decimal}
+      cash_limit:               {type: decimal}
+      rate_of_interest:         {type: decimal, precision: 10, scale: 4}
+      repayment_tenure:         {type: integer, description: Months}
+      emi_amount:               {type: decimal}
+      written_off_total:        {type: decimal}
+      written_off_principal:    {type: decimal}
+      settlement_amount:        {type: decimal}
+      payment_frequency:        {type: code, code_list: payment_frequency}
+      actual_payment_amount:    {type: decimal}
+      old_member_code:          {type: string, length: 10}
+      old_member_short_name:    {type: string, length: 16}
+      old_account_number:       {type: string, length: 50}
+      old_account_type:         {type: code, code_list: account_type}
+      old_ownership_indicator:  {type: code, code_list: ownership_indicator}
+      branch_code:              {type: string, length: 15, description: Member branch that granted the facility}
+      previous_branch_code:     {type: string, length: 15}
+      previous_account_number:  {type: string, length: 50}
+      sanctioned_amount:        {type: decimal, description: Sanctioned / notional amount (in currency)}
+      currency:                 {type: code, code_list: currency, description: Currency of sanctioned_amount. Other amounts are INR}
+      drawing_power:            {type: decimal}
+      restructured_notional_amount: {type: decimal, description: Derivatives only}
+      maturity_date:            {type: date}
+      renewal_date:             {type: date}
+      asset_classification_date: {type: date}
+      overdue_bucket_1:         {type: decimal, description: Overdue 1-30 days}
+      overdue_bucket_2:         {type: decimal, description: Overdue 31-60 days}
+      overdue_bucket_3:         {type: decimal, description: Overdue 61-90 days}
+      overdue_bucket_4:         {type: decimal, description: Overdue 91-180 days}
+      overdue_bucket_5:         {type: decimal, description: Overdue above 180 days}
+      status_date:              {type: date, description: Date credit_facility_status (or closure) took effect}
+      restructuring_reason:     {type: code, code_list: restructuring_reason}
+      npa_contracts_amount:     {type: decimal, description: Derivatives only}
+      security_coverage:        {type: code, code_list: coverage}
+      guarantee_coverage:       {type: code, code_list: coverage}
+      remark:                   {type: string, length: 100}
+      wilful_default_date:      {type: date, description: Set = classified as wilful defaulter on this date}
+      suit_reference:           {type: string, length: 25}
+      suit_amount:              {type: decimal}
+      suit_date:                {type: date}
+      dispute_id:               {type: string, length: 20}
+      other_lenders:            {type: string, length: 42, description: Other banks / FIs (consortium)}
+      ufce_amount:              {type: decimal, description: Unhedged foreign currency exposure}
+      ufce_date:                {type: date}
+
+  account_holder:
+    table: c_account_holder
+    description: Link of a borrower to an account. Each row becomes one UCRF record
+    indexes: [[account_key], [party_key]]
+    keys: {account: account_key, party: party_key}
+    columns:
+      account_key:          {type: string, length: 50}
+      party_key:            {type: string, length: 50}
+      ownership_indicator:  {type: code, code_list: ownership_indicator}
+
+  account_history:
+    table: c_account_history
+    description: One month of account history (initial historical load only)
+    indexes: [[account_key]]
+    keys: {account: account_key}
+    columns:
+      account_key:            {type: string, length: 50}
+      history_month:          {type: date, description: Any day of the month. Formatter resets the day to 01}
+      days_past_due:          {type: integer}
+      asset_classification:   {type: code, code_list: asset_classification, description: Used when days_past_due is absent}
+      amount_overdue:         {type: decimal}
+      high_credit_amount:     {type: decimal}
+      credit_limit:           {type: decimal}
+      cash_limit:             {type: decimal}
+      current_balance:        {type: decimal}
+      date_last_payment:      {type: date}
+      actual_payment_amount:  {type: decimal}
+
+  relationship:
+    table: c_relationship
+    description: A party related to a business borrower (director, partner, holding company ...). Commercial
+    indexes: [[party_key]]
+    keys: {party: party_key}
+    columns:
+      party_key:            {type: string, length: 50, description: The borrower}
+      relationship_type:    {type: code, code_list: relationship_type}
+      control_percentage:   {type: decimal, precision: 5, scale: 2, description: Shares held (in either direction) in percent}
+      related_key:          {type: string, length: 50, description: Source key of the related party or guarantor}
+      related_type:         {type: code, code_list: related_type}
+      full_name:            {type: string, length: 150, description: Entity name or individual full name}
+      name_prefix:          {type: string, length: 15, description: "Individuals - Mr, Ms, Dr ..."}
+      business_category:    {type: code, code_list: business_category}
+      industry_type:        {type: code, code_list: industry_type}
+      gender:               {type: code, code_list: gender}
+      birth_date:           {type: date}
+      incorporation_date:   {type: date}
+      pan:                  {type: string, length: 20}
+      voter_id:             {type: string, length: 30}
+      passport:             {type: string, length: 30}
+      driving_licence:      {type: string, length: 30}
+      aadhaar:              {type: string, length: 30}
+      ration_card:          {type: string, length: 30}
+      company_registration: {type: string, length: 30}
+      cin:                  {type: string, length: 30}
+      din:                  {type: string, length: 12}
+      tin:                  {type: string, length: 30}
+      service_tax:          {type: string, length: 30}
+      ckyc:                 {type: string, length: 30}
+      udyam:                {type: string, length: 30}
+      address_line_1:       {type: string, length: 200}
+      address_line_2:       {type: string, length: 200}
+      address_line_3:       {type: string, length: 200}
+      city:                 {type: string, length: 40}
+      district:             {type: string, length: 40}
+      state_code:           {type: code, code_list: state_code}
+      pin_code:             {type: string, length: 20}
+      country:              {type: code, code_list: country}
+      mobile:               {type: string, length: 60, description: Comma-separated numbers allowed}
+      telephone:            {type: string, length: 60}
+      telephone_area_code:  {type: string, length: 6}
+      fax:                  {type: string, length: 60}
+      fax_area_code:        {type: string, length: 6}
+
+  guarantor:
+    table: c_guarantor
+    description: A guarantor of a credit facility. Commercial
+    indexes: [[account_key]]
+    keys: {account: account_key}
+    columns:
+      account_key:          {type: string, length: 50}
+      related_key:          {type: string, length: 50, description: Source key of the related party or guarantor}
+      related_type:         {type: code, code_list: related_type}
+      full_name:            {type: string, length: 150, description: Entity name or individual full name}
+      name_prefix:          {type: string, length: 15, description: "Individuals - Mr, Ms, Dr ..."}
+      business_category:    {type: code, code_list: business_category}
+      industry_type:        {type: code, code_list: industry_type}
+      gender:               {type: code, code_list: gender}
+      birth_date:           {type: date}
+      incorporation_date:   {type: date}
+      pan:                  {type: string, length: 20}
+      voter_id:             {type: string, length: 30}
+      passport:             {type: string, length: 30}
+      driving_licence:      {type: string, length: 30}
+      aadhaar:              {type: string, length: 30}
+      ration_card:          {type: string, length: 30}
+      company_registration: {type: string, length: 30}
+      cin:                  {type: string, length: 30}
+      din:                  {type: string, length: 12}
+      tin:                  {type: string, length: 30}
+      service_tax:          {type: string, length: 30}
+      ckyc:                 {type: string, length: 30}
+      udyam:                {type: string, length: 30}
+      address_line_1:       {type: string, length: 200}
+      address_line_2:       {type: string, length: 200}
+      address_line_3:       {type: string, length: 200}
+      city:                 {type: string, length: 40}
+      district:             {type: string, length: 40}
+      state_code:           {type: code, code_list: state_code}
+      pin_code:             {type: string, length: 20}
+      country:              {type: code, code_list: country}
+      mobile:               {type: string, length: 60, description: Comma-separated numbers allowed}
+      telephone:            {type: string, length: 60}
+      telephone_area_code:  {type: string, length: 6}
+      fax:                  {type: string, length: 60}
+      fax_area_code:        {type: string, length: 6}
+      guarantee_invocation_date: {type: date}
+
+  security:
+    table: c_security
+    description: A tangible security for a credit facility. Commercial
+    indexes: [[account_key]]
+    keys: {account: account_key}
+    columns:
+      account_key:              {type: string, length: 50}
+      security_value:           {type: decimal}
+      currency:                 {type: code, code_list: currency}
+      security_type:            {type: code, code_list: security_type}
+      security_classification:  {type: code, code_list: security_classification}
+      valuation_date:           {type: date}
+
+  cheque_dishonour:
+    table: c_cheque_dishonour
+    description: An inward cheque dishonoured on a credit facility. Commercial
+    indexes: [[account_key]]
+    keys: {account: account_key}
+    columns:
+      account_key:          {type: string, length: 50}
+      dishonour_date:       {type: date}
+      amount:               {type: decimal}
+      instrument_number:    {type: string, length: 30}
+      dishonour_count:      {type: integer}
+      cheque_issue_date:    {type: date, description: Only for a single dishonoured cheque}
+      reason:               {type: code, code_list: dishonour_reason}
+
+  extension_attribute:
+    table: c_extension_attribute
+    description: NBFC-specific values for custom validation rules. Never written to bureau files
+    indexes: [[entity, entity_key]]
+    columns:
+      entity:       {type: string, length: 30, description: party or account}
+      entity_key:   {type: string, length: 50}
+      attr_name:    {type: string, length: 64}
+      attr_value:   {type: string, length: 500}

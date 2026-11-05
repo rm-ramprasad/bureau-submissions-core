@@ -1,0 +1,16 @@
+# Commercial UCRF 3.10: canonical columns the commercial file needs (Required fields, sections 7.2-7.8).
+# Each becomes a generated REQUIRED rule once rules.yaml exists, and is checked when a mapping is compiled.
+# Conditional requirements (identifiers, related-type specific fields, suit details ...) are rules, not listed here.
+
+submission_type: COMMERCIAL
+
+required:
+  party: [party_key, full_name, legal_constitution, business_category, industry_type, activity_class_1]
+  party_address: [party_key, address_category, country]
+  account: [account_key, account_number, date_opened, sanctioned_amount, currency, account_type, current_balance,
+            amount_overdue]
+  account_holder: [account_key, party_key]
+  relationship: [party_key, related_type, relationship_type, country]
+  guarantor: [account_key, related_type, country]
+  security: [account_key, security_value, currency, security_type, security_classification]
+  cheque_dishonour: [account_key, dishonour_date, amount, instrument_number, dishonour_count, reason]

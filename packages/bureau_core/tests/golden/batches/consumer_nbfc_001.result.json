@@ -1,0 +1,1793 @@
+{
+ "format": "validation-result/1",
+ "outcomes": [
+  [
+   "L00001",
+   "C00001",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00002",
+   "C00002",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00002",
+   "C00003",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00003",
+   "C00004",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00004",
+   "C00005",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00004",
+   "C00006",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00005",
+   "C00007",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00006",
+   "C00008",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00007",
+   "C00001",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00008",
+   "C00009",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00008",
+   "C00010",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00009",
+   "C00011",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00010",
+   "C00012",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00011",
+   "C00013",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00012",
+   "C00014",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00013",
+   "C00015",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00014",
+   "C00016",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00015",
+   "C00017",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00016",
+   "C00018",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00017",
+   "C00019",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00018",
+   "C00020",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00019",
+   "C00021",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00020",
+   "C00022",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00021",
+   "C00023",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00022",
+   "C00024",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00023",
+   "C00025",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00024",
+   "C00026",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00025",
+   "C00027",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00026",
+   "C00028",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00027",
+   "C00029",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00028",
+   "C00030",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00029",
+   "C00031",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00030",
+   "C00032",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00030",
+   "C00033",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00031",
+   "C00034",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00032",
+   "C00035",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00033",
+   "C00036",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00034",
+   "C00037",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00035",
+   "C00038",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00036",
+   "C00039",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00037",
+   "C00040",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00038",
+   "C00041",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00039",
+   "C00042",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00040",
+   "C00043",
+   "REJECTED",
+   "UCRF.REC.NO_PHONE_OR_ID"
+  ],
+  [
+   "L00041",
+   "C00044",
+   "REJECTED",
+   "UCRF.PN.NAME_DIGITS"
+  ],
+  [
+   "L00042",
+   "C00045",
+   "REJECTED",
+   "UCRF.REC.NO_PHONE_OR_ID"
+  ],
+  [
+   "L00043",
+   "C00046",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00044",
+   "C00047",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00045",
+   "C00048",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00046",
+   "C00049",
+   "REJECTED",
+   "UCRF.REC.NO_VALID_ADDRESS"
+  ],
+  [
+   "L00047",
+   "C00050",
+   "REJECTED",
+   "UCRF.TL.CLOSED_WITH_BALANCE"
+  ],
+  [
+   "L00048",
+   "C00051",
+   "REJECTED",
+   "UCRF.TL.DPD_WITHOUT_OVERDUE"
+  ],
+  [
+   "L00049",
+   "C00052",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00050",
+   "C00053",
+   "ACCEPTED",
+   null
+  ],
+  [
+   "L00051",
+   "C00054",
+   "REJECTED",
+   "UCRF.TL.DPD_AND_ASSET_CLASS_MISSING"
+  ],
+  [
+   "L00052",
+   "C00055",
+   "REJECTED",
+   "UCRF.PN.DOB_AFTER_DATE_OPENED"
+  ]
+ ],
+ "drops": {
+  "fields": [
+   [
+    "account",
+    1,
+    "asset_classification",
+    "L00001"
+   ],
+   [
+    "account",
+    2,
+    "asset_classification",
+    "L00002"
+   ],
+   [
+    "account",
+    3,
+    "asset_classification",
+    "L00003"
+   ],
+   [
+    "account",
+    4,
+    "asset_classification",
+    "L00004"
+   ],
+   [
+    "account",
+    5,
+    "asset_classification",
+    "L00005"
+   ],
+   [
+    "account",
+    6,
+    "asset_classification",
+    "L00006"
+   ],
+   [
+    "account",
+    7,
+    "asset_classification",
+    "L00007"
+   ],
+   [
+    "account",
+    8,
+    "asset_classification",
+    "L00008"
+   ],
+   [
+    "account",
+    9,
+    "asset_classification",
+    "L00009"
+   ],
+   [
+    "account",
+    10,
+    "asset_classification",
+    "L00010"
+   ],
+   [
+    "account",
+    11,
+    "asset_classification",
+    "L00011"
+   ],
+   [
+    "account",
+    12,
+    "asset_classification",
+    "L00012"
+   ],
+   [
+    "account",
+    13,
+    "asset_classification",
+    "L00013"
+   ],
+   [
+    "account",
+    14,
+    "asset_classification",
+    "L00014"
+   ],
+   [
+    "account",
+    15,
+    "asset_classification",
+    "L00015"
+   ],
+   [
+    "account",
+    16,
+    "asset_classification",
+    "L00016"
+   ],
+   [
+    "account",
+    17,
+    "asset_classification",
+    "L00017"
+   ],
+   [
+    "account",
+    18,
+    "asset_classification",
+    "L00018"
+   ],
+   [
+    "account",
+    19,
+    "asset_classification",
+    "L00019"
+   ],
+   [
+    "account",
+    20,
+    "asset_classification",
+    "L00020"
+   ],
+   [
+    "account",
+    21,
+    "asset_classification",
+    "L00021"
+   ],
+   [
+    "account",
+    22,
+    "asset_classification",
+    "L00022"
+   ],
+   [
+    "account",
+    23,
+    "asset_classification",
+    "L00023"
+   ],
+   [
+    "account",
+    24,
+    "asset_classification",
+    "L00024"
+   ],
+   [
+    "account",
+    25,
+    "asset_classification",
+    "L00025"
+   ],
+   [
+    "account",
+    26,
+    "asset_classification",
+    "L00026"
+   ],
+   [
+    "account",
+    27,
+    "asset_classification",
+    "L00027"
+   ],
+   [
+    "account",
+    28,
+    "asset_classification",
+    "L00028"
+   ],
+   [
+    "account",
+    29,
+    "asset_classification",
+    "L00029"
+   ],
+   [
+    "account",
+    30,
+    "asset_classification",
+    "L00030"
+   ],
+   [
+    "account",
+    32,
+    "asset_classification",
+    "L00032"
+   ],
+   [
+    "account",
+    33,
+    "asset_classification",
+    "L00033"
+   ],
+   [
+    "account",
+    34,
+    "asset_classification",
+    "L00034"
+   ],
+   [
+    "account",
+    35,
+    "asset_classification",
+    "L00035"
+   ],
+   [
+    "account",
+    36,
+    "asset_classification",
+    "L00036"
+   ],
+   [
+    "account",
+    37,
+    "asset_classification",
+    "L00037"
+   ],
+   [
+    "account",
+    38,
+    "asset_classification",
+    "L00038"
+   ],
+   [
+    "account",
+    39,
+    "asset_classification",
+    "L00039"
+   ],
+   [
+    "account",
+    40,
+    "asset_classification",
+    "L00040"
+   ],
+   [
+    "account",
+    41,
+    "asset_classification",
+    "L00041"
+   ],
+   [
+    "account",
+    42,
+    "asset_classification",
+    "L00042"
+   ],
+   [
+    "account",
+    43,
+    "asset_classification",
+    "L00043"
+   ],
+   [
+    "account",
+    44,
+    "asset_classification",
+    "L00044"
+   ],
+   [
+    "account",
+    45,
+    "asset_classification",
+    "L00045"
+   ],
+   [
+    "account",
+    46,
+    "asset_classification",
+    "L00046"
+   ],
+   [
+    "account",
+    47,
+    "asset_classification",
+    "L00047"
+   ],
+   [
+    "account",
+    47,
+    "date_last_payment",
+    "L00047"
+   ],
+   [
+    "account",
+    48,
+    "asset_classification",
+    "L00048"
+   ],
+   [
+    "account",
+    49,
+    "asset_classification",
+    "L00049"
+   ],
+   [
+    "account",
+    50,
+    "asset_classification",
+    "L00050"
+   ],
+   [
+    "account",
+    50,
+    "emi_amount",
+    "L00050"
+   ],
+   [
+    "account",
+    52,
+    "asset_classification",
+    "L00052"
+   ]
+  ],
+  "segments": [
+   [
+    "party_address",
+    49,
+    null
+   ],
+   [
+    "party_email",
+    43,
+    null
+   ],
+   [
+    "party_email",
+    52,
+    null
+   ],
+   [
+    "party_identifier",
+    40,
+    null
+   ],
+   [
+    "party_identifier",
+    97,
+    null
+   ],
+   [
+    "party_phone",
+    44,
+    null
+   ],
+   [
+    "party_phone",
+    56,
+    null
+   ]
+  ]
+ },
+ "translations": {
+  "account_type": {
+   "AGRICULTURE_LOAN": "27",
+   "AUTO_LOAN": "01",
+   "BUSINESS_LOAN_AGAINST_BANK_DEPOSITS": "59",
+   "BUSINESS_LOAN_GENERAL": "51",
+   "BUSINESS_LOAN_PS_AGRICULTURE": "53",
+   "BUSINESS_LOAN_PS_OTHERS": "54",
+   "BUSINESS_LOAN_PS_SMALL_BUSINESS": "52",
+   "BUSINESS_LOAN_SECURED": "50",
+   "BUSINESS_LOAN_UNSECURED": "61",
+   "BUSINESS_NON_FUNDED_GENERAL": "55",
+   "BUSINESS_NON_FUNDED_PS_AGRICULTURE": "57",
+   "BUSINESS_NON_FUNDED_PS_OTHERS": "58",
+   "BUSINESS_NON_FUNDED_PS_SMALL_BUSINESS": "56",
+   "COMMERCIAL_EQUIPMENT_LOAN": "26",
+   "COMMERCIAL_VEHICLE_LOAN": "17",
+   "CONSTRUCTION_EQUIPMENT_LOAN": "33",
+   "CONSUMER_LOAN": "06",
+   "CORPORATE_CREDIT_CARD": "35",
+   "CREDIT_CARD": "10",
+   "EDUCATION_LOAN": "08",
+   "FLEET_CARD": "16",
+   "GECL_LOAN_SECURED": "23",
+   "GECL_LOAN_UNSECURED": "24",
+   "GOLD_LOAN": "07",
+   "HOUSING_LOAN": "02",
+   "KISAN_CREDIT_CARD": "36",
+   "LEASING": "11",
+   "LOAN_AGAINST_BANK_DEPOSITS": "15",
+   "LOAN_AGAINST_SHARES_SECURITIES": "04",
+   "LOAN_ON_CREDIT_CARD": "37",
+   "LOAN_TO_PROFESSIONAL": "09",
+   "MICROFINANCE_BUSINESS_LOAN": "40",
+   "MICROFINANCE_HOUSING_LOAN": "42",
+   "MICROFINANCE_OTHERS": "43",
+   "MICROFINANCE_PERSONAL_LOAN": "41",
+   "MUDRA_LOAN": "39",
+   "MUDRA_TERM_LOAN": "39",
+   "MUDRA_WORKING_CAPITAL": "39",
+   "NON_FUNDED_CREDIT_FACILITY": "14",
+   "OTHER": "00",
+   "OVERDRAFT": "12",
+   "OVERDRAFT_AGAINST_COLLATERAL": "30",
+   "OVERDRAFT_AGAINST_FD": "28",
+   "OVERDRAFT_AGAINST_SHARES_SECURITIES": "29",
+   "P2P_AUTO_LOAN": "46",
+   "P2P_EDUCATION_LOAN": "47",
+   "P2P_PERSONAL_LOAN": "45",
+   "PERSONAL_LOAN": "05",
+   "PMAY_CLSS": "44",
+   "PMJDY_OVERDRAFT": "38",
+   "PRIORITY_SECTOR_GOLD_LOAN": "70",
+   "PROPERTY_LOAN": "03",
+   "SECURED_CREDIT_CARD": "31",
+   "SELLER_FINANCING": "21",
+   "SHORT_TERM_PERSONAL_LOAN": "69",
+   "TEMPORARY_OVERDRAFT": "71",
+   "TRACTOR_LOAN": "34",
+   "TWO_WHEELER_LOAN": "13",
+   "USED_CAR_LOAN": "32",
+   "WORKING_CAPITAL_LOAN": "25"
+  },
+  "address_category": {
+   "MORTGAGE_PROPERTY": "05",
+   "NOT_CATEGORIZED": "04",
+   "OFFICE": "03",
+   "PERMANENT": "01",
+   "RESIDENCE": "02"
+  },
+  "asset_classification": {
+   "DOUBTFUL": "03",
+   "DOUBTFUL_1": "03",
+   "DOUBTFUL_2": "03",
+   "DOUBTFUL_3": "03",
+   "LOSS": "04",
+   "SMA_0": "05",
+   "SMA_1": "05",
+   "SMA_2": "05",
+   "SPECIAL_MENTION_ACCOUNT": "05",
+   "STANDARD": "01",
+   "SUBSTANDARD": "02"
+  },
+  "collateral_type": {
+   "GOLD": "02",
+   "MULTIPLE_SECURITIES": "05",
+   "NONE": "00",
+   "OTHERS": "06",
+   "PROPERTY": "01",
+   "SAVINGS_ACCOUNT_FD": "04",
+   "SHARES": "03"
+  },
+  "credit_facility_status": {
+   "ACCOUNT_PURCHASED": "07",
+   "ACCOUNT_PURCHASED_AND_RESTRUCTURED": "10",
+   "ACCOUNT_PURCHASED_AND_SETTLED": "09",
+   "ACCOUNT_PURCHASED_AND_WRITTEN_OFF": "08",
+   "ACCOUNT_SOLD": "05",
+   "AUCTIONED_SETTLED": "15",
+   "CLEAR_STATUS": "99",
+   "GUARANTEE_INVOKED": "17",
+   "POST_WO_SETTLED": "04",
+   "POST_WRITE_OFF_CLOSED": "13",
+   "REPOSSESSED_SETTLED": "16",
+   "RESTRUCTURED_CLOSED": "14",
+   "RESTRUCTURED_DUE_TO_COVID_19": "12",
+   "RESTRUCTURED_DUE_TO_NATURAL_CALAMITY": "11",
+   "RESTRUCTURED_LOAN": "00",
+   "RESTRUCTURED_LOAN_GOVT_MANDATED": "01",
+   "SETTLED": "03",
+   "WRITTEN_OFF": "02",
+   "WRITTEN_OFF_AND_ACCOUNT_SOLD": "06"
+  },
+  "gender": {
+   "FEMALE": "1",
+   "MALE": "2",
+   "TRANSGENDER": "3"
+  },
+  "id_type": {
+   "AADHAAR": "06",
+   "CKYC": "09",
+   "DRIVING_LICENCE": "04",
+   "G_RAM_G": "10",
+   "PAN": "01",
+   "PASSPORT": "02",
+   "RATION_CARD": "05",
+   "VOTER_ID": "03"
+  },
+  "income_basis": {
+   "GROSS": "G",
+   "NET": "N"
+  },
+  "income_period": {
+   "ANNUAL": "A",
+   "MONTHLY": "M"
+  },
+  "occupation": {
+   "OTHERS": "04",
+   "SALARIED": "01",
+   "SELF_EMPLOYED": "03",
+   "SELF_EMPLOYED_PROFESSIONAL": "02"
+  },
+  "ownership_indicator": {
+   "AUTHORISED_USER": "2",
+   "DECEASED": "5",
+   "GUARANTOR": "3",
+   "INDIVIDUAL": "1",
+   "JOINT": "4"
+  },
+  "payment_frequency": {
+   "BULLET": "05",
+   "DAILY": "06",
+   "FORTNIGHTLY": "02",
+   "HALF_YEARLY": "07",
+   "MONTHLY": "03",
+   "ON_DEMAND": "09",
+   "QUARTERLY": "04",
+   "WEEKLY": "01",
+   "YEARLY": "08"
+  },
+  "phone_type": {
+   "HOME": "02",
+   "MOBILE": "01",
+   "NOT_CLASSIFIED": "00",
+   "OFFICE": "03"
+  },
+  "residence_code": {
+   "OWNED": "01",
+   "RENTED": "02"
+  },
+  "state_code": {
+   "ANDAMAN_NICOBAR_ISLANDS": "35",
+   "ANDHRA_PRADESH": "28",
+   "APO": "99",
+   "ARUNACHAL_PRADESH": "12",
+   "ASSAM": "18",
+   "BIHAR": "10",
+   "CHANDIGARH": "04",
+   "CHHATTISGARH": "22",
+   "DADRA_NAGAR_HAVELI_DAMAN_DIU": "25",
+   "DELHI": "07",
+   "FOREIGN": "77",
+   "GOA": "30",
+   "GUJARAT": "24",
+   "HARYANA": "06",
+   "HIMACHAL_PRADESH": "02",
+   "JAMMU_KASHMIR": "01",
+   "JHARKHAND": "20",
+   "KARNATAKA": "29",
+   "KERALA": "32",
+   "LADAKH": "37",
+   "LAKSHADWEEP": "31",
+   "MADHYA_PRADESH": "23",
+   "MAHARASHTRA": "27",
+   "MANIPUR": "14",
+   "MEGHALAYA": "17",
+   "MIZORAM": "15",
+   "NAGALAND": "13",
+   "ODISHA": "21",
+   "PUDUCHERRY": "34",
+   "PUNJAB": "03",
+   "RAJASTHAN": "08",
+   "SIKKIM": "11",
+   "TAMIL_NADU": "33",
+   "TELANGANA": "36",
+   "TRIPURA": "16",
+   "UTTARAKHAND": "05",
+   "UTTAR_PRADESH": "09",
+   "WEST_BENGAL": "19"
+  },
+  "suit_filed_status": {
+   "DECREE_EXECUTION": "01",
+   "DECREE_ISSUED": "01",
+   "NCLT_SUIT_FILED": "01",
+   "NO_SUIT_FILED": "00",
+   "SUIT_FILED": "01",
+   "SUIT_FILED_WILFUL_DEFAULT": "03",
+   "TRIAL_IN_PROGRESS": "01",
+   "WILFUL_DEFAULT": "02"
+  }
+ },
+ "findings": [
+  {
+   "rule_id": "UCRF.EC.EMAIL_INVALID",
+   "entity": "party_email",
+   "row_id": 43,
+   "account_key": null,
+   "party_key": "C00048",
+   "segment": "EC",
+   "field": "email",
+   "outcome": "REJECT_SEGMENT",
+   "value": "ramesh@@gmail",
+   "message": "E-mail fails the Appendix E checks: must contain exactly one @"
+  },
+  {
+   "rule_id": "UCRF.EC.EMAIL_INVALID",
+   "entity": "party_email",
+   "row_id": 52,
+   "account_key": null,
+   "party_key": "C00048",
+   "segment": "EC",
+   "field": "email",
+   "outcome": "REJECT_SEGMENT",
+   "value": "ab cd@yahoo.com",
+   "message": "E-mail fails the Appendix E checks: contains a space"
+  },
+  {
+   "rule_id": "UCRF.ID.NUMBER_FORMAT",
+   "entity": "party_identifier",
+   "row_id": 40,
+   "account_key": null,
+   "party_key": "C00045",
+   "segment": "ID",
+   "field": "id_number",
+   "outcome": "REJECT_SEGMENT",
+   "value": "OAMCR5227Q",
+   "message": "ID number is not valid for its ID type: PAN must be 5 letters, 4 digits, 1 letter with 4th letter P or H"
+  },
+  {
+   "rule_id": "UCRF.ID.NUMBER_FORMAT",
+   "entity": "party_identifier",
+   "row_id": 97,
+   "account_key": null,
+   "party_key": "C00046",
+   "segment": "ID",
+   "field": "id_number",
+   "outcome": "REJECT_SEGMENT",
+   "value": "8731 9664 1190",
+   "message": "ID number is not valid for its ID type: Aadhaar check digit (Verhoeff) is wrong"
+  },
+  {
+   "rule_id": "UCRF.PA.PIN_STATE_MISMATCH",
+   "entity": "party_address",
+   "row_id": 49,
+   "account_key": null,
+   "party_key": "C00049",
+   "segment": "PA",
+   "field": "pin_code",
+   "outcome": "REJECT_SEGMENT",
+   "value": "560001",
+   "message": "PIN prefix is outside the state's range (Appendix C): PIN prefix 56 outside 40-44 for state MAHARASHTRA"
+  },
+  {
+   "rule_id": "UCRF.PN.DOB_AFTER_DATE_OPENED",
+   "entity": "party",
+   "row_id": 55,
+   "account_key": "L00052",
+   "party_key": "C00055",
+   "segment": "PN",
+   "field": "birth_date",
+   "outcome": "REJECT_RECORD",
+   "value": "2025-03-01",
+   "message": "Date of birth is after the account's date opened"
+  },
+  {
+   "rule_id": "UCRF.PN.NAME_DIGITS",
+   "entity": "party",
+   "row_id": 44,
+   "account_key": null,
+   "party_key": "C00044",
+   "segment": "PN",
+   "field": "full_name",
+   "outcome": "REJECT_RECORD",
+   "value": "Anil 2nd Verma",
+   "message": "Digits are not allowed in names"
+  },
+  {
+   "rule_id": "UCRF.PN.SINGLE_WORD_NAME",
+   "entity": "party",
+   "row_id": 42,
+   "account_key": null,
+   "party_key": "C00042",
+   "segment": "PN",
+   "field": "full_name",
+   "outcome": "WARN",
+   "value": "Lakshmamma",
+   "message": "Single-word name. Accepted only with a valid ID or mobile number (see UCRF.REC.SINGLE_WORD_NAME)"
+  },
+  {
+   "rule_id": "UCRF.PN.SINGLE_WORD_NAME",
+   "entity": "party",
+   "row_id": 43,
+   "account_key": null,
+   "party_key": "C00043",
+   "segment": "PN",
+   "field": "full_name",
+   "outcome": "WARN",
+   "value": "Raju",
+   "message": "Single-word name. Accepted only with a valid ID or mobile number (see UCRF.REC.SINGLE_WORD_NAME)"
+  },
+  {
+   "rule_id": "UCRF.PT.NUMBER_INVALID",
+   "entity": "party_phone",
+   "row_id": 44,
+   "account_key": null,
+   "party_key": "C00047",
+   "segment": "PT",
+   "field": "phone_number",
+   "outcome": "REJECT_SEGMENT",
+   "value": "9876543210",
+   "message": "No valid telephone number after removing sequences, repeated digits and truncated numbers"
+  },
+  {
+   "rule_id": "UCRF.PT.NUMBER_INVALID",
+   "entity": "party_phone",
+   "row_id": 56,
+   "account_key": null,
+   "party_key": "C00047",
+   "segment": "PT",
+   "field": "phone_number",
+   "outcome": "REJECT_SEGMENT",
+   "value": "1111111",
+   "message": "No valid telephone number after removing sequences, repeated digits and truncated numbers"
+  },
+  {
+   "rule_id": "UCRF.REC.NO_PHONE_OR_ID",
+   "entity": "account_holder",
+   "row_id": 44,
+   "account_key": "L00040",
+   "party_key": "C00043",
+   "segment": "TL",
+   "field": null,
+   "outcome": "REJECT_RECORD",
+   "value": null,
+   "message": "Accounts opened on or after 01-06-2007 need a valid telephone or a valid ID (types 01-06, 09, 10)"
+  },
+  {
+   "rule_id": "UCRF.REC.NO_PHONE_OR_ID",
+   "entity": "account_holder",
+   "row_id": 46,
+   "account_key": "L00042",
+   "party_key": "C00045",
+   "segment": "TL",
+   "field": null,
+   "outcome": "REJECT_RECORD",
+   "value": null,
+   "message": "Accounts opened on or after 01-06-2007 need a valid telephone or a valid ID (types 01-06, 09, 10)"
+  },
+  {
+   "rule_id": "UCRF.REC.NO_VALID_ADDRESS",
+   "entity": "account_holder",
+   "row_id": 50,
+   "account_key": "L00046",
+   "party_key": "C00049",
+   "segment": "TL",
+   "field": null,
+   "outcome": "REJECT_RECORD",
+   "value": null,
+   "message": "No valid address segment remains for the record"
+  },
+  {
+   "rule_id": "UCRF.REC.SINGLE_WORD_NAME",
+   "entity": "account_holder",
+   "row_id": 44,
+   "account_key": "L00040",
+   "party_key": "C00043",
+   "segment": "TL",
+   "field": null,
+   "outcome": "REJECT_RECORD",
+   "value": null,
+   "message": "Single-word name without a valid ID or mobile number"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 1,
+   "account_key": "L00001",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 2,
+   "account_key": "L00002",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 3,
+   "account_key": "L00003",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 4,
+   "account_key": "L00004",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 5,
+   "account_key": "L00005",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 6,
+   "account_key": "L00006",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 7,
+   "account_key": "L00007",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 8,
+   "account_key": "L00008",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 9,
+   "account_key": "L00009",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 10,
+   "account_key": "L00010",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 11,
+   "account_key": "L00011",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 12,
+   "account_key": "L00012",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 13,
+   "account_key": "L00013",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 14,
+   "account_key": "L00014",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 15,
+   "account_key": "L00015",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 16,
+   "account_key": "L00016",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 17,
+   "account_key": "L00017",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 18,
+   "account_key": "L00018",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 19,
+   "account_key": "L00019",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 20,
+   "account_key": "L00020",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 21,
+   "account_key": "L00021",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 22,
+   "account_key": "L00022",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 23,
+   "account_key": "L00023",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 24,
+   "account_key": "L00024",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 25,
+   "account_key": "L00025",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "LOSS",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 26,
+   "account_key": "L00026",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 27,
+   "account_key": "L00027",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 28,
+   "account_key": "L00028",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 29,
+   "account_key": "L00029",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 30,
+   "account_key": "L00030",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "DOUBTFUL",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 32,
+   "account_key": "L00032",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 33,
+   "account_key": "L00033",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 34,
+   "account_key": "L00034",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 35,
+   "account_key": "L00035",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 36,
+   "account_key": "L00036",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 37,
+   "account_key": "L00037",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 38,
+   "account_key": "L00038",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 39,
+   "account_key": "L00039",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 40,
+   "account_key": "L00040",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 41,
+   "account_key": "L00041",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 42,
+   "account_key": "L00042",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 43,
+   "account_key": "L00043",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 44,
+   "account_key": "L00044",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 45,
+   "account_key": "L00045",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 46,
+   "account_key": "L00046",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 47,
+   "account_key": "L00047",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 48,
+   "account_key": "L00048",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 49,
+   "account_key": "L00049",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "LOSS",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 50,
+   "account_key": "L00050",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.ASSET_CLASS_WITH_DPD",
+   "entity": "account",
+   "row_id": 52,
+   "account_key": "L00052",
+   "party_key": null,
+   "segment": "TL",
+   "field": "asset_classification",
+   "outcome": "REJECT_FIELD",
+   "value": "STANDARD",
+   "message": "Days past due takes precedence. Asset classification is not reported when both are present"
+  },
+  {
+   "rule_id": "UCRF.TL.CLOSED_WITH_BALANCE",
+   "entity": "account",
+   "row_id": 47,
+   "account_key": "L00047",
+   "party_key": null,
+   "segment": "TL",
+   "field": "date_closed",
+   "outcome": "REJECT_RECORD",
+   "value": "15400",
+   "message": "Date closed is present but the current balance is above 0"
+  },
+  {
+   "rule_id": "UCRF.TL.DPD_ABOVE_900",
+   "entity": "account",
+   "row_id": 25,
+   "account_key": "L00025",
+   "party_key": null,
+   "segment": "TL",
+   "field": "days_past_due",
+   "outcome": "WARN",
+   "value": "1100",
+   "message": "Days past due above 900 is reported as 900"
+  },
+  {
+   "rule_id": "UCRF.TL.DPD_AND_ASSET_CLASS_MISSING",
+   "entity": "account",
+   "row_id": 51,
+   "account_key": "L00051",
+   "party_key": null,
+   "segment": "TL",
+   "field": "days_past_due",
+   "outcome": "REJECT_RECORD",
+   "value": null,
+   "message": "Either days past due or asset classification must be reported"
+  },
+  {
+   "rule_id": "UCRF.TL.DPD_WITHOUT_OVERDUE",
+   "entity": "account",
+   "row_id": 48,
+   "account_key": "L00048",
+   "party_key": null,
+   "segment": "TL",
+   "field": "amount_overdue",
+   "outcome": "REJECT_RECORD",
+   "value": "45",
+   "message": "Days past due above 0 needs an overdue amount above 0 (non-card accounts)"
+  },
+  {
+   "rule_id": "UCRF.TL.EMI_NOT_ALLOWED",
+   "entity": "account",
+   "row_id": 50,
+   "account_key": "L00050",
+   "party_key": null,
+   "segment": "TL",
+   "field": "emi_amount",
+   "outcome": "REJECT_FIELD",
+   "value": "4500",
+   "message": "EMI is not reported for card accounts or overdrafts (10, 16, 31, 35, 12)"
+  },
+  {
+   "rule_id": "UCRF.TL.GUARANTEE_INVOKED_NOT_GUARANTOR",
+   "entity": "account_holder",
+   "row_id": 33,
+   "account_key": "L00030",
+   "party_key": "C00032",
+   "segment": "TL",
+   "field": "ownership_indicator",
+   "outcome": "WARN",
+   "value": "INDIVIDUAL",
+   "message": "Facility status 17 (guarantee invoked) applies to guarantors (ownership 3) only (configurable Reject Record)"
+  },
+  {
+   "rule_id": "UCRF.TL.LAST_PAYMENT_DATE_INVALID",
+   "entity": "account",
+   "row_id": 47,
+   "account_key": "L00047",
+   "party_key": null,
+   "segment": "TL",
+   "field": "date_last_payment",
+   "outcome": "REJECT_FIELD",
+   "value": "2026-09-21",
+   "message": "Last payment date must be between date opened and the as-of date (and not after date closed when no facility status)"
+  },
+  {
+   "rule_id": "UCRF.TL.WRITTEN_OFF_AMOUNTS_MISSING",
+   "entity": "account",
+   "row_id": 49,
+   "account_key": "L00049",
+   "party_key": null,
+   "segment": "TL",
+   "field": "written_off_total",
+   "outcome": "WARN",
+   "value": "WRITTEN_OFF",
+   "message": "Facility status 02, 03 or 04 needs a written-off amount (configurable Reject Record)"
+  }
+ ]
+}

@@ -1,0 +1,685 @@
+# UCRF consumer v3.74 rule pack (built in, versioned with the code).
+#
+# Rule kinds:
+#   sql      runs on the canonical snapshot; must filter on :snapshot_id and return
+#            row_id, account_key, party_key, value   (row_id = row of `entity`; keys may be NULL)
+#            Other parameters: :as_of_date, :one_year_before
+#   python   name of a function in submissions/validation/python_rules.py
+#   cascade  applied after all rules when deciding each record (submissions/validation/engine.py)
+# Generated as well (see generated:): a REQUIRED rule per required canonical column and an ENUM rule per
+# code column. Outcomes can be changed per tenant with validation_policy, never by editing this file.
+# Business category (UI): taken from the rule ID (UCRF.<segment>.…); a rule may set `category:` to one of
+# submissions/validation/results.py CATEGORIES to override it. `expected: true` marks the spec's normal handling
+# (e.g. a field the spec says to drop): shown as "Spec rule (no action)" and never counted as a gap. Output unchanged.
+#
+# Rules check canonical values (model.yaml code lists), never file codes. Card account types are the consumer
+# group card_account_type (types/consumer/codes.yaml -> ref_code_group).
+
+pack: UCRF-3.74
+submission_type: CONSUMER
+rule_prefix: UCRF.                     # built-in rule IDs: UCRF.<segment>.<NAME>; custom rules may not use it
+
+segments: {party: PN, party_identifier: ID, party_phone: PT, party_email: EC, party_address: PA,
+           account: TL, account_holder: TL, account_history: TH}
+
+# Findings report (request and Findings pages): business categories in display order. A rule's category comes from
+# the segment in its ID (UCRF.<segment>.…), generated rules from their entity's segment, or `category:` on the rule.
+categories:
+  - {key: MINIMUM,  label: Minimum reporting requirements, segments: [REC]}
+  - {key: PERSONAL, label: Name & personal details,        segments: [PN]}
+  - {key: IDENTITY, label: Identity documents,             segments: [ID]}
+  - {key: CONTACT,  label: Contact details,                segments: [PT, EC]}
+  - {key: ADDRESS,  label: Address,                        segments: [PA]}
+  - {key: LOAN,     label: Loan details,                   segments: [TL, TH, ADJ]}
+custom_category: {key: CUSTOM, label: NBFC-specific checks}
+default_category: LOAN                 # rules whose segment is in no category (e.g. extension_attribute)
+
+# Record decision after all rules ran (validation/cascades.py): one record = one account x holder.
+cascade:
+  name: account_holder_minimums
+  settings:
+    no_valid_address_rule: UCRF.REC.NO_VALID_ADDRESS
+    no_phone_or_id_rule: UCRF.REC.NO_PHONE_OR_ID
+    phone_or_id_from_parameter: phone_or_id_required_from
+    qualifying_id_types: [PAN, PASSPORT, VOTER_ID, DRIVING_LICENCE, RATION_CARD, AADHAAR, CKYC, G_RAM_G]
+    single_word_name_rule: UCRF.REC.SINGLE_WORD_NAME
+    single_word_name_finding: UCRF.PN.SINGLE_WORD_NAME
+    mobile_phone_type: MOBILE
+
+generated:
+  required_outcome:
+    party: REJECT_RECORD
+    account: REJECT_RECORD
+    account_holder: REJECT_RECORD
+    party_identifier: REJECT_SEGMENT
+    party_phone: REJECT_SEGMENT
+    party_email: REJECT_SEGMENT
+    party_address: REJECT_SEGMENT
+    account_history: REJECT_SEGMENT
+    extension_attribute: WARN
+  enum_outcome_default: REJECT_FIELD
+  enum_outcome:
+    account.account_type: REJECT_RECORD
+    account_holder.ownership_indicator: REJECT_RECORD
+    party_identifier.id_type: REJECT_SEGMENT
+    party_address.state_code: REJECT_SEGMENT
+    account_history.asset_classification: REJECT_SEGMENT
+
+# Tunable values used by the rules below, as data (Rules & policies page; per-NBFC overrides in
+# validation_parameter). SQL rules use them as :name, messages as {name}. Values fixed by the UCRF spec
+# (DPD cap 900, earliest date 01-01-1900) are not parameters: the file writer applies them too.
+parameters:
+  - name: dob_gender_required_from
+    type: date
+    default: 2005-05-01
+    label: DOB and gender required from
+    description: Date of birth and gender are required for accounts opened on or after this date.
+    used_by: [UCRF.PN.DOB_REQUIRED, UCRF.PN.GENDER_REQUIRED]
+  - name: state_pin_required_from
+    type: date
+    default: 2006-06-01
+    label: State code and PIN required from
+    description: The address state code and PIN code are required for accounts opened on or after this date.
+    used_by: [UCRF.PA.STATE_REQUIRED, UCRF.PA.PIN_REQUIRED]
+  - name: phone_or_id_required_from
+    type: date
+    default: 2007-06-01
+    label: Phone or ID required from
+    description: Accounts opened on or after this date need a valid telephone or a valid ID to be reported.
+    used_by: [UCRF.REC.NO_PHONE_OR_ID]
+  - name: min_address_length
+    type: int
+    default: 3
+    min: 1
+    max: 40
+    label: Minimum address length
+    description: Shortest acceptable address (all lines together, in characters).
+    used_by: [UCRF.PA.ADDRESS_TOO_SHORT]
+  - name: name_salutation_pattern
+    type: regex
+    default: '^(MR|MRS|MS|DR|SMT|KUM)\.?$|^(MISS|SHRI)$'
+    label: Salutations ignored at the start of a name
+    description: >-
+      Regular expression for a first word that is a salutation (matched ignoring case), e.g. add |^SRI$ or
+      |^THIRU$. A leading salutation is not counted as part of the name.
+    used_by: [UCRF.PN.NAME_NO_VALID_TOKEN, UCRF.PN.NAME_STARTS_WITH_DESCRIPTOR, UCRF.PN.SINGLE_WORD_NAME]
+  - name: id_pattern_pan
+    type: regex
+    default: '^[A-Z]{3}[PH][A-Z][0-9]{4}[A-Z]$'
+    label: PAN pattern
+    description: Regular expression a PAN must match (after removing delimiters, upper case).
+    used_by: [UCRF.ID.NUMBER_FORMAT]
+  - name: id_pattern_passport
+    type: regex
+    default: '^(?=.{7,10}$)[A-Z]{1,2}[0-9]+$'
+    label: Passport pattern
+    description: 7-10 characters, a letter in position 1 or 2, digits after.
+    used_by: [UCRF.ID.NUMBER_FORMAT]
+  - name: id_pattern_voter
+    type: regex
+    default: '^(?=.{9,}$)[A-Z]{2,3}[A-Z0-9]+$'
+    label: Voter ID pattern
+    description: At least 9 characters starting with 2-3 letters.
+    used_by: [UCRF.ID.NUMBER_FORMAT]
+  - name: id_pattern_ckyc
+    type: regex
+    default: '^[A-Z0-9]{1,15}$'
+    label: CKYC pattern
+    description: Up to 15 letters and digits.
+    used_by: [UCRF.ID.NUMBER_FORMAT]
+  - name: id_pattern_gram_g
+    type: regex
+    default: '^[A-Z]{2}-[0-9]{2}-[0-9]{3}-[0-9]{3}-[0-9]{3}/[0-9]{3}[A-Za-z0-9]+$'
+    label: G RAM G pattern
+    description: SS-DD-BBB-GGG-VVV/HHHSurname (spaces removed, delimiters kept).
+    used_by: [UCRF.ID.NUMBER_FORMAT]
+
+rules:
+  # ------------------------------------------------------------------ PN name segment
+  - id: UCRF.PN.NAME_DIGITS
+    entity: party
+    field: full_name
+    outcome: REJECT_RECORD
+    message: Digits are not allowed in names
+    python: name_digits
+  - id: UCRF.PN.NAME_DISALLOWED_CHARS
+    entity: party
+    field: full_name
+    outcome: REJECT_RECORD
+    message: Name contains disallowed characters (Appendix A)
+    python: name_disallowed_chars
+  - id: UCRF.PN.NAME_NO_VALID_TOKEN
+    entity: party
+    field: full_name
+    outcome: REJECT_RECORD
+    message: Name needs at least one word with 2 or more letters
+    python: name_no_valid_token
+  - id: UCRF.PN.NAME_STARTS_WITH_DESCRIPTOR
+    entity: party
+    field: full_name
+    outcome: REJECT_RECORD
+    message: Name must not begin with a relationship descriptor (S/O, W/O, H/O, D/O)
+    python: name_starts_with_descriptor
+  - id: UCRF.PN.SINGLE_WORD_NAME
+    entity: party
+    field: full_name
+    outcome: WARN
+    message: Single-word name. Accepted only with a valid ID or mobile number (see UCRF.REC.SINGLE_WORD_NAME)
+    python: name_single_word
+  - id: UCRF.PN.DOB_REQUIRED
+    entity: party
+    field: birth_date
+    outcome: REJECT_RECORD
+    message: Date of birth is required for accounts opened on or after {dob_gender_required_from:%d-%m-%Y}
+    sql: |
+      SELECT p.row_id, h.account_key, p.party_key, NULL AS value
+      FROM automn.c_party p
+      JOIN automn.c_account_holder h ON h.snapshot_id = p.snapshot_id AND h.party_key = p.party_key
+      JOIN automn.c_account a ON a.snapshot_id = h.snapshot_id AND a.account_key = h.account_key
+      WHERE p.snapshot_id = :snapshot_id AND p.birth_date IS NULL AND a.date_opened >= :dob_gender_required_from
+  - id: UCRF.PN.GENDER_REQUIRED
+    entity: party
+    field: gender
+    outcome: REJECT_RECORD
+    message: Gender is required for accounts opened on or after {dob_gender_required_from:%d-%m-%Y}
+    sql: |
+      SELECT p.row_id, h.account_key, p.party_key, NULL AS value
+      FROM automn.c_party p
+      JOIN automn.c_account_holder h ON h.snapshot_id = p.snapshot_id AND h.party_key = p.party_key
+      JOIN automn.c_account a ON a.snapshot_id = h.snapshot_id AND a.account_key = h.account_key
+      WHERE p.snapshot_id = :snapshot_id AND p.gender IS NULL AND a.date_opened >= :dob_gender_required_from
+  - id: UCRF.PN.DOB_OUT_OF_RANGE
+    entity: party
+    field: birth_date
+    outcome: REJECT_RECORD
+    message: Date of birth must be after 01-01-1900 and not after the as-of date
+    sql: |
+      SELECT p.row_id, NULL AS account_key, p.party_key, p.birth_date AS value
+      FROM automn.c_party p
+      WHERE p.snapshot_id = :snapshot_id AND (p.birth_date <= '1900-01-01' OR p.birth_date > :as_of_date)
+  - id: UCRF.PN.DOB_AFTER_DATE_OPENED
+    entity: party
+    field: birth_date
+    outcome: REJECT_RECORD
+    message: Date of birth is after the account's date opened
+    sql: |
+      SELECT p.row_id, h.account_key, p.party_key, p.birth_date AS value
+      FROM automn.c_party p
+      JOIN automn.c_account_holder h ON h.snapshot_id = p.snapshot_id AND h.party_key = p.party_key
+      JOIN automn.c_account a ON a.snapshot_id = h.snapshot_id AND a.account_key = h.account_key
+      WHERE p.snapshot_id = :snapshot_id AND p.birth_date > a.date_opened
+  - id: UCRF.PN.INCOME_ZERO
+    entity: party
+    field: income
+    outcome: REJECT_FIELD
+    message: Income must be greater than 0 (TL.47)
+    sql: |
+      SELECT p.row_id, NULL AS account_key, p.party_key, p.income AS value
+      FROM automn.c_party p WHERE p.snapshot_id = :snapshot_id AND p.income <= 0
+  - id: UCRF.PN.INCOME_INDICATOR_WITHOUT_INCOME
+    entity: party
+    field: income_basis
+    outcome: REJECT_FIELD
+    message: Income indicators need a valid income (TL.48, TL.49)
+    sql: |
+      SELECT p.row_id, NULL AS account_key, p.party_key, NULL AS value
+      FROM automn.c_party p
+      WHERE p.snapshot_id = :snapshot_id AND (p.income_basis IS NOT NULL OR p.income_period IS NOT NULL)
+        AND (p.income IS NULL OR p.income <= 0)
+
+  # ------------------------------------------------------------------ ID segment
+  - id: UCRF.ID.NUMBER_FORMAT
+    entity: party_identifier
+    field: id_number
+    outcome: REJECT_SEGMENT
+    message: ID number is not valid for its ID type
+    python: id_number_format
+  - id: UCRF.ID.DUPLICATE_TYPE
+    entity: party_identifier
+    field: id_type
+    outcome: REJECT_SEGMENT
+    message: Different ID numbers for the same ID type. All of them are rejected
+    sql: |
+      SELECT i.row_id, NULL AS account_key, i.party_key, i.id_type AS value
+      FROM automn.c_party_identifier i
+      WHERE i.snapshot_id = :snapshot_id AND EXISTS (
+        SELECT 1 FROM automn.c_party_identifier j
+        WHERE j.snapshot_id = i.snapshot_id AND j.party_key = i.party_key AND j.id_type = i.id_type
+          AND j.id_number <> i.id_number)
+  - id: UCRF.ID.ISSUE_DATE_INVALID
+    entity: party_identifier
+    field: issue_date
+    outcome: REJECT_FIELD
+    message: Issue date must be after date of birth, before expiry and not after the as-of date
+    sql: |
+      SELECT i.row_id, NULL AS account_key, i.party_key, i.issue_date AS value
+      FROM automn.c_party_identifier i
+      LEFT JOIN automn.c_party p ON p.snapshot_id = i.snapshot_id AND p.party_key = i.party_key
+      WHERE i.snapshot_id = :snapshot_id AND i.issue_date IS NOT NULL
+        AND (i.issue_date > :as_of_date OR i.issue_date <= p.birth_date OR i.issue_date >= i.expiry_date)
+  - id: UCRF.ID.EXPIRY_DATE_INVALID
+    entity: party_identifier
+    field: expiry_date
+    outcome: REJECT_FIELD
+    message: Expiry date must be after date of birth and after the issue date
+    sql: |
+      SELECT i.row_id, NULL AS account_key, i.party_key, i.expiry_date AS value
+      FROM automn.c_party_identifier i
+      LEFT JOIN automn.c_party p ON p.snapshot_id = i.snapshot_id AND p.party_key = i.party_key
+      WHERE i.snapshot_id = :snapshot_id AND i.expiry_date IS NOT NULL
+        AND (i.expiry_date <= p.birth_date OR i.expiry_date <= i.issue_date)
+
+  # ------------------------------------------------------------------ PT / EC segments
+  - id: UCRF.PT.NUMBER_INVALID
+    entity: party_phone
+    field: phone_number
+    outcome: REJECT_SEGMENT
+    message: No valid telephone number after removing sequences, repeated digits and truncated numbers
+    python: phone_number_invalid
+  - id: UCRF.EC.EMAIL_INVALID
+    entity: party_email
+    field: email
+    outcome: REJECT_SEGMENT
+    message: E-mail fails the Appendix E checks
+    python: email_invalid
+
+  # ------------------------------------------------------------------ PA address segment
+  - id: UCRF.PA.ADDRESS_TOO_SHORT
+    entity: party_address
+    field: address_line_1
+    outcome: REJECT_SEGMENT
+    message: Address lines together are shorter than {min_address_length} characters
+    sql: |
+      SELECT x.row_id, NULL AS account_key, x.party_key, x.address_line_1 AS value
+      FROM automn.c_party_address x
+      WHERE x.snapshot_id = :snapshot_id
+        AND LEN(TRIM(COALESCE(x.address_line_1, ''))) + LEN(TRIM(COALESCE(x.address_line_2, '')))
+          + LEN(TRIM(COALESCE(x.address_line_3, ''))) + LEN(TRIM(COALESCE(x.address_line_4, '')))
+          + LEN(TRIM(COALESCE(x.address_line_5, ''))) < :min_address_length
+  - id: UCRF.PA.STATE_REQUIRED
+    entity: party_address
+    field: state_code
+    outcome: REJECT_SEGMENT
+    message: State code is required for accounts opened on or after {state_pin_required_from:%d-%m-%Y}
+    sql: |
+      SELECT x.row_id, h.account_key, x.party_key, NULL AS value
+      FROM automn.c_party_address x
+      JOIN automn.c_account_holder h ON h.snapshot_id = x.snapshot_id AND h.party_key = x.party_key
+      JOIN automn.c_account a ON a.snapshot_id = h.snapshot_id AND a.account_key = h.account_key
+      WHERE x.snapshot_id = :snapshot_id AND x.state_code IS NULL AND a.date_opened >= :state_pin_required_from
+  - id: UCRF.PA.PIN_REQUIRED
+    entity: party_address
+    field: pin_code
+    outcome: REJECT_SEGMENT
+    message: PIN code is required for accounts opened on or after {state_pin_required_from:%d-%m-%Y}
+    sql: |
+      SELECT x.row_id, h.account_key, x.party_key, NULL AS value
+      FROM automn.c_party_address x
+      JOIN automn.c_account_holder h ON h.snapshot_id = x.snapshot_id AND h.party_key = x.party_key
+      JOIN automn.c_account a ON a.snapshot_id = h.snapshot_id AND a.account_key = h.account_key
+      WHERE x.snapshot_id = :snapshot_id AND (x.pin_code IS NULL OR TRIM(x.pin_code) = '')
+        AND COALESCE(x.state_code, '') <> 'FOREIGN' AND a.date_opened >= :state_pin_required_from
+  - id: UCRF.PA.PIN_FORMAT
+    entity: party_address
+    field: pin_code
+    outcome: REJECT_SEGMENT
+    message: PIN must have 6 digits and must not end in 000
+    python: pin_format
+  - id: UCRF.PA.PIN_STATE_MISMATCH
+    entity: party_address
+    field: pin_code
+    outcome: REJECT_SEGMENT
+    message: PIN prefix is outside the state's range (Appendix C)
+    python: pin_state_mismatch
+  - id: UCRF.PA.FOREIGN_NOT_ALLOWED
+    entity: party_address
+    field: state_code
+    outcome: REJECT_SEGMENT
+    message: Foreign address (77) is allowed only for credit card, loan on card, education and home loans
+    sql: |
+      SELECT x.row_id, h.account_key, x.party_key, a.account_type AS value
+      FROM automn.c_party_address x
+      JOIN automn.c_account_holder h ON h.snapshot_id = x.snapshot_id AND h.party_key = x.party_key
+      JOIN automn.c_account a ON a.snapshot_id = h.snapshot_id AND a.account_key = h.account_key
+      WHERE x.snapshot_id = :snapshot_id AND x.state_code = 'FOREIGN' AND a.account_type NOT IN ('CREDIT_CARD', 'LOAN_ON_CREDIT_CARD', 'EDUCATION_LOAN', 'HOUSING_LOAN')
+
+  # ------------------------------------------------------------------ TL account segment
+  - id: UCRF.TL.DATE_OPENED_INVALID
+    entity: account
+    field: date_opened
+    outcome: REJECT_RECORD
+    message: Date opened must be after 01-01-1900 and not after the as-of date
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.date_opened AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND (a.date_opened <= '1900-01-01' OR a.date_opened > :as_of_date)
+  - id: UCRF.TL.DATE_REPORTED_INVALID
+    entity: account
+    field: date_reported
+    outcome: REJECT_RECORD
+    message: Date reported must not be after the as-of date, more than 1 year old, or before date opened
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.date_reported AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.date_reported IS NOT NULL
+        AND (a.date_reported > :as_of_date OR a.date_reported < :one_year_before OR a.date_reported < a.date_opened)
+  - id: UCRF.TL.LAST_PAYMENT_DATE_INVALID
+    entity: account
+    field: date_last_payment
+    outcome: REJECT_FIELD
+    message: Last payment date must be between date opened and the as-of date (and not after date closed when no facility status)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.date_last_payment AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.date_last_payment IS NOT NULL
+        AND (a.date_last_payment > :as_of_date OR a.date_last_payment < a.date_opened
+             OR (a.date_closed IS NOT NULL AND a.credit_facility_status IS NULL AND a.date_last_payment > a.date_closed))
+  - id: UCRF.TL.DATE_CLOSED_INVALID
+    entity: account
+    field: date_closed
+    outcome: REJECT_FIELD
+    message: Date closed must be between date opened and the as-of date
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.date_closed AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND (a.date_closed > :as_of_date OR a.date_closed < a.date_opened)
+  - id: UCRF.TL.CLOSED_WITH_BALANCE
+    entity: account
+    field: date_closed
+    outcome: REJECT_RECORD
+    message: Date closed is present but the current balance is above 0
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.current_balance AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.date_closed IS NOT NULL AND a.current_balance > 0
+  - id: UCRF.TL.HIGH_CREDIT_NEGATIVE
+    entity: account
+    field: high_credit_amount
+    outcome: REJECT_RECORD
+    message: High credit / sanctioned amount cannot be negative
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.high_credit_amount AS value
+      FROM automn.c_account a WHERE a.snapshot_id = :snapshot_id AND a.high_credit_amount < 0
+  - id: UCRF.TL.DPD_AND_ASSET_CLASS_MISSING
+    entity: account
+    field: days_past_due
+    outcome: REJECT_RECORD
+    message: Either days past due or asset classification must be reported
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, NULL AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.days_past_due IS NULL AND a.asset_classification IS NULL
+  - id: UCRF.TL.DPD_WITHOUT_OVERDUE
+    entity: account
+    field: amount_overdue
+    outcome: REJECT_RECORD
+    message: Days past due above 0 needs an overdue amount above 0 (non-card accounts)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.days_past_due AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.days_past_due > 0 AND COALESCE(a.amount_overdue, 0) <= 0
+        AND a.account_type NOT IN (SELECT g.code FROM automn.ref_code_group g WHERE g.submission_type = :submission_type AND g.group_name = 'card_account_type')
+  - id: UCRF.TL.OVERDUE_WITHOUT_DPD
+    entity: account
+    field: days_past_due
+    outcome: REJECT_RECORD
+    message: Overdue amount above 0 needs days past due above 0 (non-card accounts)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.amount_overdue AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.amount_overdue > 0 AND a.days_past_due = 0
+        AND a.account_type NOT IN (SELECT g.code FROM automn.ref_code_group g WHERE g.submission_type = :submission_type AND g.group_name = 'card_account_type')
+  - id: UCRF.TL.DPD_ABOVE_900
+    entity: account
+    field: days_past_due
+    outcome: WARN
+    message: Days past due above 900 is reported as 900
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.days_past_due AS value
+      FROM automn.c_account a WHERE a.snapshot_id = :snapshot_id AND a.days_past_due > 900
+  - id: UCRF.TL.ASSET_CLASS_WITH_DPD
+    entity: account
+    field: asset_classification
+    outcome: REJECT_FIELD
+    message: Days past due takes precedence. Asset classification is not reported when both are present
+    expected: true                     # spec precedence, not a data problem: hits most loans, not a "gap"
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.asset_classification AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.days_past_due IS NOT NULL AND a.asset_classification IS NOT NULL
+  - id: UCRF.TL.CREDIT_LIMIT_NOT_CARD
+    entity: account
+    field: credit_limit
+    outcome: REJECT_FIELD
+    message: Credit limit is reported only for card account types
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.credit_limit AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.credit_limit IS NOT NULL
+        AND a.account_type NOT IN (SELECT g.code FROM automn.ref_code_group g WHERE g.submission_type = :submission_type AND g.group_name = 'card_account_type')
+  - id: UCRF.TL.CASH_LIMIT_NOT_CARD
+    entity: account
+    field: cash_limit
+    outcome: REJECT_FIELD
+    message: Cash limit is reported only for card account types
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.cash_limit AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.cash_limit IS NOT NULL
+        AND a.account_type NOT IN (SELECT g.code FROM automn.ref_code_group g WHERE g.submission_type = :submission_type AND g.group_name = 'card_account_type')
+  - id: UCRF.TL.EMI_NOT_ALLOWED
+    entity: account
+    field: emi_amount
+    outcome: REJECT_FIELD
+    message: EMI is not reported for card accounts or overdrafts (10, 16, 31, 35, 12)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.emi_amount AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.emi_amount IS NOT NULL
+        AND (a.account_type = 'OVERDRAFT' OR a.account_type IN (SELECT g.code FROM automn.ref_code_group g WHERE g.submission_type = :submission_type AND g.group_name = 'card_account_type'))
+  - id: UCRF.TL.EMI_ZERO
+    entity: account
+    field: emi_amount
+    outcome: REJECT_FIELD
+    message: EMI must be greater than 0
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.emi_amount AS value
+      FROM automn.c_account a WHERE a.snapshot_id = :snapshot_id AND a.emi_amount <= 0
+  - id: UCRF.TL.WRITTEN_OFF_NOT_ALLOWED
+    entity: account
+    field: written_off_total
+    outcome: REJECT_FIELD
+    message: Written-off amounts are reported only with facility status 02, 03 or 04
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.credit_facility_status AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND (a.written_off_total IS NOT NULL OR a.written_off_principal IS NOT NULL)
+        AND COALESCE(a.credit_facility_status, '') NOT IN ('WRITTEN_OFF', 'SETTLED', 'POST_WO_SETTLED')
+  - id: UCRF.TL.WRITTEN_OFF_AMOUNTS_MISSING
+    entity: account
+    field: written_off_total
+    outcome: WARN
+    message: Facility status 02, 03 or 04 needs a written-off amount (configurable Reject Record)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.credit_facility_status AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.credit_facility_status IN ('WRITTEN_OFF', 'SETTLED', 'POST_WO_SETTLED')
+        AND a.written_off_total IS NULL AND a.written_off_principal IS NULL
+  - id: UCRF.TL.WRITTEN_OFF_PRINCIPAL_ABOVE_TOTAL
+    entity: account
+    field: written_off_principal
+    outcome: REJECT_FIELD
+    message: Written-off principal cannot exceed the written-off total
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.written_off_principal AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.written_off_principal > a.written_off_total
+  - id: UCRF.TL.WRITTEN_OFF_ZERO
+    entity: account
+    field: written_off_total
+    outcome: REJECT_FIELD
+    message: Written-off total and principal cannot both be 0
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.written_off_total AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.written_off_total = 0 AND a.written_off_principal = 0
+  - id: UCRF.TL.SETTLEMENT_NOT_ALLOWED
+    entity: account
+    field: settlement_amount
+    outcome: REJECT_FIELD
+    message: Settlement amount is reported only with facility status 03, 04, 15 or 16
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.credit_facility_status AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.settlement_amount IS NOT NULL
+        AND COALESCE(a.credit_facility_status, '') NOT IN ('SETTLED', 'POST_WO_SETTLED', 'AUCTIONED_SETTLED', 'REPOSSESSED_SETTLED')
+  - id: UCRF.TL.SETTLEMENT_ZERO
+    entity: account
+    field: settlement_amount
+    outcome: REJECT_FIELD
+    message: Settlement amount must be greater than 0
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.settlement_amount AS value
+      FROM automn.c_account a WHERE a.snapshot_id = :snapshot_id AND a.settlement_amount <= 0
+  - id: UCRF.TL.COLLATERAL_VALUE_WITHOUT_TYPE
+    entity: account
+    field: collateral_value
+    outcome: REJECT_FIELD
+    message: Collateral value needs a collateral type other than 00
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.collateral_value AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.collateral_value IS NOT NULL
+        AND COALESCE(a.collateral_type, 'NONE') = 'NONE'
+  - id: UCRF.TL.COLLATERAL_VALUE_NOT_POSITIVE
+    entity: account
+    field: collateral_value
+    outcome: REJECT_FIELD
+    message: Collateral value must be greater than 0
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.collateral_value AS value
+      FROM automn.c_account a WHERE a.snapshot_id = :snapshot_id AND a.collateral_value <= 0
+  - id: UCRF.TL.RATE_OF_INTEREST_INVALID
+    entity: account
+    field: rate_of_interest
+    outcome: REJECT_FIELD
+    message: Rate of interest must be above 0 with at most 4 integer digits
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.rate_of_interest AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND (a.rate_of_interest <= 0 OR a.rate_of_interest >= 10000)
+  - id: UCRF.TL.TENURE_ZERO
+    entity: account
+    field: repayment_tenure
+    outcome: REJECT_FIELD
+    message: Repayment tenure must be greater than 0
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.repayment_tenure AS value
+      FROM automn.c_account a WHERE a.snapshot_id = :snapshot_id AND a.repayment_tenure <= 0
+  - id: UCRF.TL.ACTUAL_PAYMENT_ZERO
+    entity: account
+    field: actual_payment_amount
+    outcome: REJECT_FIELD
+    message: Actual payment amount must be greater than 0
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.actual_payment_amount AS value
+      FROM automn.c_account a WHERE a.snapshot_id = :snapshot_id AND a.actual_payment_amount <= 0
+  - id: UCRF.TL.OLD_SHORT_NAME_WITHOUT_OLD_CODE
+    entity: account
+    field: old_member_short_name
+    outcome: REJECT_RECORD
+    message: Old member short name needs the old member code (TL.16)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.old_member_short_name AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.old_member_short_name IS NOT NULL AND a.old_member_code IS NULL
+  - id: UCRF.TL.OLD_ACCOUNT_WITHOUT_OLD_CODE
+    entity: account
+    field: old_account_number
+    outcome: WARN
+    message: Old account number should be reported with the old member code (TL.16)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.old_account_number AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.old_account_number IS NOT NULL AND a.old_member_code IS NULL
+  - id: UCRF.TL.AUTHORISED_USER_NOT_CREDIT_CARD
+    entity: account_holder
+    field: ownership_indicator
+    outcome: REJECT_RECORD
+    message: Ownership 2 (authorised user) is allowed only on credit cards (10)
+    sql: |
+      SELECT h.row_id, h.account_key, h.party_key, a.account_type AS value
+      FROM automn.c_account_holder h
+      JOIN automn.c_account a ON a.snapshot_id = h.snapshot_id AND a.account_key = h.account_key
+      WHERE h.snapshot_id = :snapshot_id AND h.ownership_indicator = 'AUTHORISED_USER' AND a.account_type <> 'CREDIT_CARD'
+  - id: UCRF.TL.GUARANTEE_INVOKED_NOT_GUARANTOR
+    entity: account_holder
+    field: ownership_indicator
+    outcome: WARN
+    message: Facility status 17 (guarantee invoked) applies to guarantors (ownership 3) only (configurable Reject Record)
+    sql: |
+      SELECT h.row_id, h.account_key, h.party_key, h.ownership_indicator AS value
+      FROM automn.c_account_holder h
+      JOIN automn.c_account a ON a.snapshot_id = h.snapshot_id AND a.account_key = h.account_key
+      WHERE h.snapshot_id = :snapshot_id AND a.credit_facility_status = 'GUARANTEE_INVOKED' AND h.ownership_indicator <> 'GUARANTOR'
+
+  # ------------------------------------------------------------------ record integrity
+  - id: UCRF.REC.ACCOUNT_MISSING
+    entity: account_holder
+    field: account_key
+    outcome: REJECT_RECORD
+    message: Holder points at an account that was not extracted
+    sql: |
+      SELECT h.row_id, h.account_key, h.party_key, h.account_key AS value
+      FROM automn.c_account_holder h
+      WHERE h.snapshot_id = :snapshot_id AND NOT EXISTS (
+        SELECT 1 FROM automn.c_account a WHERE a.snapshot_id = h.snapshot_id AND a.account_key = h.account_key)
+  - id: UCRF.REC.PARTY_MISSING
+    entity: account_holder
+    field: party_key
+    outcome: REJECT_RECORD
+    message: Holder points at a borrower that was not extracted
+    sql: |
+      SELECT h.row_id, h.account_key, h.party_key, h.party_key AS value
+      FROM automn.c_account_holder h
+      WHERE h.snapshot_id = :snapshot_id AND NOT EXISTS (
+        SELECT 1 FROM automn.c_party p WHERE p.snapshot_id = h.snapshot_id AND p.party_key = h.party_key)
+  - id: UCRF.REC.DUPLICATE_ACCOUNT_KEY
+    entity: account
+    field: account_key
+    outcome: REJECT_RECORD
+    message: The same account key was extracted more than once (check the mapping)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.account_key AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.account_key IN (
+        SELECT d.account_key FROM automn.c_account d WHERE d.snapshot_id = :snapshot_id
+        GROUP BY d.account_key HAVING COUNT(*) > 1)
+
+  # ------------------------------------------------------------------ user adjustments (Exceptions page)
+  - id: UCRF.ADJ.NOT_FOUND
+    entity: account
+    outcome: WARN
+    message: Exclusion or override matches no loan or customer in this snapshot
+    sql: |
+      SELECT NULL AS row_id, NULL AS account_key, NULL AS party_key,
+             CONCAT_WS(' ', v.kind, COALESCE(v.account_number, v.customer_id), v.field) AS value
+      FROM automn.v_snapshot_adjustment v
+      WHERE v.snapshot_id = :snapshot_id AND v.loans_affected = 0
+
+  # ------------------------------------------------------------------ cascade (record decisions)
+  - id: UCRF.REC.NO_VALID_ADDRESS
+    entity: account_holder
+    outcome: REJECT_RECORD
+    message: No valid address segment remains for the record
+    cascade: true
+  - id: UCRF.REC.NO_PHONE_OR_ID
+    entity: account_holder
+    outcome: REJECT_RECORD
+    message: Accounts opened on or after {phone_or_id_required_from:%d-%m-%Y} need a valid telephone or a valid ID (types 01-06, 09, 10)
+    cascade: true
+  - id: UCRF.REC.SINGLE_WORD_NAME
+    entity: account_holder
+    outcome: REJECT_RECORD
+    message: Single-word name without a valid ID or mobile number
+    cascade: true

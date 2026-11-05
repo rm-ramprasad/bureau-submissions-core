@@ -1,0 +1,202 @@
+"""Generic delimited writer: renders a validated snapshot into a file as described by a layout (layout.py).
+
+Only ACCEPTED records are written (record_outcome), grouped by borrower: the group line (e.g. BS) and its child
+lines (AS, RS) once per borrower (and split value, e.g. branch), then each accepted record's line (CR) and its child
+lines (GS, SS, CD). Validation drops apply: REJECT_FIELD empties the field, REJECT_SEGMENT leaves the row out. Values
+are canonical; `translate` writes the file code from the snapshot's frozen translations.
+"""
+
+from __future__ import annotations
+
+import functools
+from collections import Counter
+from dataclasses import dataclass
+from datetime import date
+from types import SimpleNamespace
+
+from bureau_core.bureau import BureauProfile
+from bureau_core.checks.phones import valid_numbers
+from bureau_core.data import SnapshotData
+from bureau_core.formats.delimited.formatters import VALUE_FORMATTERS
+from bureau_core.formats.delimited.layout import Field, Layout, Segment
+from bureau_core.formats.tudf.engine import FileStats, _compare
+
+ENTITY_OF = {"party": "party", "account": "account"}
+MOBILE = "MOBILE"  # canonical phone_type: mobile numbers vs other telephones
+
+
+@dataclass
+class _Context:
+    """What the source paths of one line resolve against."""
+
+    row: object
+    entity: str | None
+    party: object
+    account: object
+    account_key: str | None
+
+
+class Renderer:
+    def __init__(
+        self,
+        layout: Layout,
+        data: SnapshotData,
+        bureau: BureauProfile,
+        run: SimpleNamespace,
+        translations: dict[str, dict[str, str]],
+    ):
+        self.layout, self.data, self.bureau, self.run, self.translations = layout, data, bureau, run, translations
+        self.counts: Counter = Counter()
+        enc = layout.encoding
+        self._strip = str.maketrans("", "", enc.strip_chars + enc.delimiter + "\r\n")
+
+    # ---------------------------------------------------------------- values
+    def _resolve(self, path: str, ctx: _Context) -> tuple[object, str | None, object]:
+        """(value, entity, row) for a source path; entity / row are used for validation drops."""
+        head, _, rest = path.partition(".")
+        if not rest:
+            return getattr(ctx.row, path), ctx.entity, ctx.row
+        if head in ENTITY_OF:
+            obj = getattr(ctx, head)
+            return (getattr(obj, rest), ENTITY_OF[head], obj) if obj is not None else (None, None, None)
+        if head == "id":
+            return self._identifier(ctx, rest), None, None
+        if head == "contacts":
+            return self._contacts(ctx, rest), None, None
+        if head == "count":
+            return self.counts[rest], None, None
+        return getattr(self.bureau if head == "bureau" else self.run, rest), None, None
+
+    def _children(self, entity: str, key: str, account_key: str | None) -> list:
+        rows = self.data.children.get(entity, {}).get(key, [])
+        return [r for r in rows if not self.data.drops.segment_dropped(entity, r.row_id, account_key)]
+
+    def _identifier(self, ctx: _Context, id_type: str) -> str | None:
+        for r in self._children("party_identifier", ctx.party.party_key, ctx.account_key):
+            if r.id_type == id_type and r.id_number:
+                return r.id_number
+        return None
+
+    def _contacts(self, ctx: _Context, kind: str) -> str | None:
+        key = ctx.party.party_key
+        if kind == "email":
+            emails = sorted(
+                self._children("party_email", key, ctx.account_key),
+                key=lambda r: (r.priority is None, r.priority, r.row_id),
+            )
+            return emails[0].email if emails else None
+        numbers = []
+        for r in sorted(
+            self._children("party_phone", key, ctx.account_key),
+            key=lambda r: (r.priority is None, r.priority, r.row_id),
+        ):
+            if (r.phone_type == MOBILE) == (kind == "mobile"):
+                numbers += [n for n in valid_numbers(r.phone_number, r.phone_type) if n not in numbers]
+        return ",".join(numbers) or None
+
+    def _present(self, spec: Field, value, entity, obj, column: str, ctx: _Context) -> bool:
+        if value is None:
+            return False
+        if spec.check in ("none", "not_null"):
+            return True
+        if str(value).strip() == "":
+            return False
+        return not (
+            entity
+            and getattr(obj, "row_id", None) is not None
+            and self.data.drops.field_dropped(entity, obj.row_id, column, ctx.account_key)
+        )
+
+    def _value(self, spec: Field, ctx: _Context) -> str | None:
+        if spec.blank:
+            return None
+        if spec.alternatives:
+            for alt in spec.alternatives:
+                text = self._value(alt, ctx)
+                if text is not None:
+                    return text
+            return None
+        for path, allowed in spec.when.items():
+            if str(self._resolve(path, ctx)[0]) not in {str(a) for a in allowed}:
+                return None
+        if spec.if_present and self._resolve(spec.if_present, ctx)[0] in (None, ""):
+            return None
+        if spec.const is not None:
+            return spec.const
+        value, entity, obj = self._resolve(spec.source, ctx)
+        if not self._present(spec, value, entity, obj, spec.source.rpartition(".")[2], ctx):
+            if spec.default is None:
+                return None
+            value = spec.default
+        if spec.translate:  # no active file code: validation flagged it; left empty
+            value = self.translations.get(spec.translate, {}).get(str(value))
+            if value is None:
+                return None
+        if spec.cap is not None:
+            value = min(int(value), spec.cap)
+        text = VALUE_FORMATTERS[spec.format](value, ctx.row, spec.args)
+        if text is None:
+            return None
+        text = text.translate(self._strip)
+        return text[: spec.max_len] if spec.max_len else text
+
+    # ---------------------------------------------------------------- lines
+    def line(self, seg: Segment, ctx: _Context) -> str:
+        enc = self.layout.encoding
+        values = [seg.tag] + [self._value(f, ctx) or "" for f in seg.fields]
+        self.counts[seg.tag] += 1
+        return enc.delimiter.join(values) + (enc.delimiter if enc.trailing_delimiter else "") + enc.line_end
+
+    def child_lines(self, seg: Segment, party, account, account_key: str | None) -> list[str]:
+        out = []
+        for child in seg.children:
+            key = account_key if child.by == "account_key" else party.party_key
+            rows = list(self.data.children.get(child.rows, {}).get(key, []))
+            if child.drops:
+                rows = [r for r in rows if not self.data.drops.segment_dropped(child.rows, r.row_id, account_key)]
+            if child.order_by:
+                rows.sort(key=functools.cmp_to_key(lambda a, b, order=child.order_by: _compare(a, b, order)))
+            for row in rows[: child.max] if child.max is not None else rows:
+                out.append(self.line(child, _Context(row, child.rows, party, account, account_key)))
+        return out
+
+
+def render_file(
+    data: SnapshotData,
+    as_of_date: date,
+    bureau: BureauProfile,
+    cycle,
+    layout: Layout,
+    translations: dict[str, dict[str, str]],
+    created_date: date,
+) -> tuple[bytes, FileStats]:
+    """The file for records already in memory (no database): from a snapshot (build_file) or a capture."""
+    run = SimpleNamespace(as_of_date=as_of_date, created_date=created_date, cycle=str(cycle) if cycle else None)
+    r = Renderer(layout, data, bureau, run, translations)
+
+    groups: dict[tuple, list[str]] = {}  # (party_key, split value) -> account keys, in order
+    for account_key, party_key in sorted(data.accepted, key=lambda x: (x[1], x[0])):
+        account = data.accounts[account_key]
+        split = None
+        if layout.group_split:
+            split = r._resolve(
+                layout.group_split, _Context(account, "account", data.parties[party_key], account, account_key)
+            )[0]
+        groups.setdefault((party_key, split), []).append(account_key)
+
+    body = []
+    for (party_key, _), account_keys in groups.items():
+        party, first = data.parties[party_key], data.accounts[account_keys[0]]
+        body.append(r.line(layout.group, _Context(party, "party", party, first, account_keys[0])))
+        body += r.child_lines(layout.group, party, first, account_keys[0])
+        for account_key in account_keys:
+            account = data.accounts[account_key]
+            body.append(r.line(layout.record, _Context(account, "account", party, account, account_key)))
+            body += r.child_lines(layout.record, party, account, account_key)
+    nobody = _Context(None, None, None, None, None)
+    header = r.line(layout.header, nobody)
+    trailer = r.line(layout.trailer, nobody)
+    content = header + "".join(body) + trailer
+    written = r.counts[layout.record.tag]
+    stats = FileStats(len(data.accepted) + data.rejected, written, data.rejected, 0, [])
+    return content.encode(layout.encoding.charset), stats

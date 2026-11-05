@@ -1,0 +1,81 @@
+# Consumer Excel output: the bureaus' Data Submission Form, one row per accepted record (account x borrower).
+# The bureaus' template: 72 columns, headers and order, for every bureau; only the member code and short name differ
+# (from automn.bureau_profile). Not the upload sheet (types/consumer/inputs.yaml, 'Consumer' with labels). Format: bureau_core/formats/excel/layout.py.
+# The TUDF file is generated from this workbook (standalone converter), so this layout defines the submission.
+
+sheet: Data Submission Form
+order: party_key_suffix          # the upload's row order (party_key = <account>-<Excel row>)
+
+columns:
+  - {header: Consumer Name, source: party, field: full_name}
+  - {header: Date of Birth, source: party, field: birth_date, format: ddmmyyyy}
+  - {header: Gender, source: party, field: gender, translate: gender}
+  - {header: Income Tax ID Number, source: party_identifier, match: {id_type: PAN}, field: id_number}
+  - {header: Passport Number, source: party_identifier, match: {id_type: PASSPORT}, field: id_number}
+  - {header: Passport Issue Date, source: party_identifier, match: {id_type: PASSPORT}, field: issue_date, format: ddmmyyyy}
+  - {header: Passport Expiry Date, source: party_identifier, match: {id_type: PASSPORT}, field: expiry_date, format: ddmmyyyy}
+  - {header: Voter ID Number, source: party_identifier, match: {id_type: VOTER_ID}, field: id_number}
+  - {header: Driving License Number, source: party_identifier, match: {id_type: DRIVING_LICENCE}, field: id_number}
+  - {header: Driving License Issue Date, source: party_identifier, match: {id_type: DRIVING_LICENCE}, field: issue_date, format: ddmmyyyy}
+  - {header: Driving License Expiry Date, source: party_identifier, match: {id_type: DRIVING_LICENCE}, field: expiry_date, format: ddmmyyyy}
+  - {header: Ration Card Number, source: party_identifier, match: {id_type: RATION_CARD}, field: id_number}
+  - {header: Universal ID Number, source: party_identifier, match: {id_type: AADHAAR}, field: id_number}
+  - {header: 'Additional ID #1', source: party_identifier, match: {id_type: ADDITIONAL_ID_1}, field: id_number}
+  - {header: 'Additional ID #2', source: party_identifier, match: {id_type: ADDITIONAL_ID_2}, field: id_number}
+  - {header: Telephone No.Mobile, source: party_phone, match: {phone_type: MOBILE}, field: phone_number}
+  - {header: Telephone No.Residence, source: party_phone, match: {phone_type: HOME}, field: phone_number}
+  - {header: Telephone No.Office, source: party_phone, match: {phone_type: OFFICE}, field: phone_number}
+  - {header: Extension Office, source: party_phone, match: {phone_type: OFFICE}, field: extension}
+  - {header: 'Telephone No.Other ', source: party_phone, match: {phone_type: NOT_CLASSIFIED}, field: phone_number}
+  - {header: Extension Other, source: party_phone, match: {phone_type: NOT_CLASSIFIED}, field: extension}
+  - {header: Email ID 1, source: party_email, match: {priority: 1}, field: email}
+  - {header: Email ID 2, source: party_email, match: {priority: 2}, field: email}
+  - {header: Address Line 1, source: party_address, match: {priority: 1}, field: address_line_1}
+  - {header: State Code 1, source: party_address, match: {priority: 1}, field: state_code, translate: state_code}
+  - {header: PIN Code 1, source: party_address, match: {priority: 1}, field: pin_code}
+  - {header: Address Category 1, source: party_address, match: {priority: 1}, field: address_category, translate: address_category}
+  - {header: Residence Code 1, source: party_address, match: {priority: 1}, field: residence_code, translate: residence_code}
+  - {header: Address Line 2, source: party_address, match: {priority: 2}, field: address_line_1}
+  - {header: State Code 2, source: party_address, match: {priority: 2}, field: state_code, translate: state_code}
+  - {header: PIN Code 2, source: party_address, match: {priority: 2}, field: pin_code}
+  - {header: Address Category 2, source: party_address, match: {priority: 2}, field: address_category, translate: address_category}
+  - {header: Residence Code 2, source: party_address, match: {priority: 2}, field: residence_code, translate: residence_code}
+  - {header: Current/New Member Code, source: bureau, field: member_id}
+  - {header: Current/New Member Short Name, source: bureau, field: member_short_name}
+  - {header: Curr/New Account No, source: account, field: account_number}
+  - {header: Account Type, source: account, field: account_type, translate: account_type}
+  - {header: Ownership Indicator, source: holder, field: ownership_indicator, translate: ownership_indicator}
+  - {header: Date Opened/Disbursed, source: account, field: date_opened, format: ddmmyyyy}
+  - {header: Date of Last Payment, source: account, field: date_last_payment, format: ddmmyyyy}
+  - {header: Date Closed, source: account, field: date_closed, format: ddmmyyyy}
+  - {header: Date Reported, source: account, field: date_reported, format: ddmmyyyy}
+  - {header: High Credit/Sanctioned Amt, source: account, field: high_credit_amount, format: amount}
+  - {header: Current  Balance, source: account, field: current_balance, format: signed_amount}   # credit balance: -2451
+  - {header: Amt Overdue, source: account, field: amount_overdue, format: amount}
+  - {header: No of Days Past Due, source: account, field: days_past_due, format: integer}
+  - {header: Old Mbr Code, source: account, field: old_member_code}
+  - {header: Old Mbr Short Name, source: account, field: old_member_short_name}
+  - {header: Old Acc No, source: account, field: old_account_number}
+  - {header: Old Acc Type, source: account, field: old_account_type, translate: account_type}
+  - {header: Old Ownership Indicator, source: account, field: old_ownership_indicator, translate: ownership_indicator}
+  - {header: Suit Filed / Wilful Default, source: account, field: suit_filed_status, translate: suit_filed_status}
+  - {header: Credit Facility Status, source: account, field: credit_facility_status, translate: credit_facility_status}
+  - {header: Asset Classification, source: account, field: asset_classification, translate: asset_classification}
+  - {header: Value of Collateral, source: account, field: collateral_value, format: amount}
+  - {header: Type of Collateral, source: account, field: collateral_type, translate: collateral_type}
+  - {header: Credit Limit, source: account, field: credit_limit, format: amount}
+  - {header: Cash Limit, source: account, field: cash_limit, format: amount}
+  - {header: Rate of Interest, source: account, field: rate_of_interest, format: rate}
+  - {header: RepaymentTenure, source: account, field: repayment_tenure, format: integer}
+  - {header: EMI Amount, source: account, field: emi_amount, format: amount}
+  - {header: 'Written- off Amount (Total) ', source: account, field: written_off_total, format: amount}
+  - {header: Written- off Principal Amount, source: account, field: written_off_principal, format: amount}
+  - {header: Settlement Amt, source: account, field: settlement_amount, format: amount}
+  - {header: Payment Frequency, source: account, field: payment_frequency, translate: payment_frequency}
+  - {header: Actual Payment Amt, source: account, field: actual_payment_amount, format: amount}
+  - {header: Occupation Code, source: party, field: occupation, translate: occupation}
+  - {header: Income, source: party, field: income, format: amount}
+  - {header: Net/Gross Income Indicator, source: party, field: income_basis, translate: income_basis}
+  - {header: Monthly/Annual Income Indicator, source: party, field: income_period, translate: income_period}
+  - {header: CKYC, source: party_identifier, match: {id_type: CKYC}, field: id_number}
+  - {header: G RAM G, source: party_identifier, match: {id_type: G_RAM_G}, field: id_number}
