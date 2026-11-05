@@ -180,3 +180,30 @@ def test_mock_captures_meet_the_contract(name: str) -> None:
     """The mock sources break validation rules on purpose (code / length problems); nothing structural."""
     batch, _ = load(name)
     assert [p for p in check_batch(batch) if p.kind not in ("CODE", "LENGTH")] == []
+
+
+# ---------------------------------------------------------------- validation in the core
+@pytest.mark.parametrize("name", ["consumer_nbfc_001", "commercial_nbfc_001"])
+def test_core_validation_reproduces_the_captured_result(name: str) -> None:
+    """The core's validation of a captured batch gives the result the reference app recorded, compared like for like:
+    - finding values from decimal columns with their scale (6401.00, as Azure SQL writes them; the capture came from a
+      SQLite test database, which writes 6401);
+    - the consumer capture's account history was added after it was validated (TH coverage for the files), so it is
+      left out of the batch validated here."""
+    from bureau_core.validation.rules import builtin_rules
+    from bureau_core.validation.validate import finding_value, validate, value_scale
+
+    batch, expected = load(name)
+    scales = {r.rule_id: value_scale(r) for r in builtin_rules(batch.submission_type)}
+    for f in expected.findings:
+        f["value"] = finding_value(scales.get(f["rule_id"]), f["value"])
+    entities = {k: v for k, v in batch.entities.items() if k != "account_history"}
+    as_validated = CanonicalBatch(
+        batch.submission_type,
+        batch.as_of_date,
+        batch.canonical_version,
+        entities,
+        source=batch.source,
+        exceptions=batch.exceptions,
+    )
+    assert validate(as_validated).to_json() == expected.to_json()
