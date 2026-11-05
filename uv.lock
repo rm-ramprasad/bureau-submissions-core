@@ -251,12 +251,14 @@ version = "0.1.0"
 source = { editable = "packages/canonical" }
 dependencies = [
     { name = "bureau-core" },
+    { name = "pyyaml" },
     { name = "sqlalchemy" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "bureau-core", editable = "packages/bureau_core" },
+    { name = "pyyaml", specifier = ">=6,<7" },
     { name = "sqlalchemy", specifier = ">=2.0,<3" },
 ]
 

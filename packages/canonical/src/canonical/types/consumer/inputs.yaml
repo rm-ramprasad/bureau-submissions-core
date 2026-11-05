@@ -1,0 +1,65 @@
+# Consumer input workbook (input-templates/Consumer_Submissions_Workbook_Staging.xlsx, 2026-10-30): the visible
+# 'Consumer' sheet into automn.stg_consumer (format: submissions/inputs/spec.py). Headers must match row 1.
+# '(Name)' columns hold labels (e.g. Male, Tamil Nadu): the source views turn them into values through
+# automn.ref_code_translation.label. Hidden sheets (Master Data, Layout, ...) are never read.
+workbook: Consumer submissions workbook (staging)
+sheets:
+- sheet: Consumer
+  table: stg_consumer
+  key: curr_new_account_no
+  columns:
+    consumer_name: Consumer Name
+    date_of_birth: Date of Birth
+    gender_label: Gender (Name)
+    income_tax_id_number: Income Tax ID Number
+    passport_number: Passport Number
+    passport_issue_date: Passport Issue Date
+    passport_expiry_date: Passport Expiry Date
+    voter_id_number: Voter ID Number
+    driving_license_number: Driving License Number
+    driving_license_issue_date: Driving License Issue Date
+    driving_license_expiry_date: Driving License Expiry Date
+    ration_card_number: Ration Card Number
+    universal_id_number: Universal ID Number
+    additional_id_no_1: 'Additional ID #1'
+    additional_id_no_2: 'Additional ID #2'
+    telephone_no_mobile: Telephone No.Mobile
+    telephone_no_residence: Telephone No.Residence
+    telephone_no_office: Telephone No.Office
+    extension_office: Extension Office
+    telephone_no_other: 'Telephone No.Other '
+    extension_other: Extension Other
+    email_id_1: Email ID 1
+    email_id_2: Email ID 2
+    address_line_1: Address Line 1
+    state_code_1_label: State Code 1 (Name)
+    pin_code_1: PIN Code 1
+    address_category_1_label: Address Category 1 (Name)
+    residence_code_1_label: Residence Code 1 (Name)
+    address_line_2: Address Line 2
+    state_code_2_label: State Code 2 (Name)
+    pin_code_2: PIN Code 2
+    address_category_2_label: Address Category 2 (Name)
+    residence_code_2_label: Residence Code 2 (Name)
+    current_new_member_code: Current/New Member Code
+    current_new_member_short_name: Current/New Member Short Name
+    curr_new_account_no: Curr/New Account No
+    account_type_label: Account Type (Name)
+    account_type: Account Type
+    ownership_indicator_label: Ownership Indicator (Name)
+    old_mbr_code: Old Mbr Code
+    old_mbr_short_name: Old Mbr Short Name
+    old_acc_no: Old Acc No
+    old_acc_type: Old Acc Type
+    old_ownership_indicator: Old Ownership Indicator
+    suit_filed_wilful_default_label: Suit Filed / Wilful Default (Name)
+    value_of_collateral: Value of Collateral
+    type_of_collateral_label: Type Of Collateral (Name)
+    payment_frequency_label: Payment Frequency (Name)
+    actual_payment_amt: Actual Payment Amt
+    occupation_code_label: Occupation Code (Name)
+    income: Income
+    net_gross_income_indicator: Net/Gross Income Indicator
+    monthly_annual_income_indicator: Monthly/Annual Income Indicator
+    ckyc: CKYC
+    g_ram_g: G RAM G

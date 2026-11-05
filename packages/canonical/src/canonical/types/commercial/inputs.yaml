@@ -1,0 +1,209 @@
+# Commercial input workbook (input-templates/Commercial_Submissions_Workbook_Staging.xlsx, 2026-10-30): each visible
+# sheet into its automn.stg_commercial_* table (format: submissions/inputs/spec.py). Headers must match row 1.
+# Every sheet is keyed by Sanction Reference Number (user, 2026-10-30): the views join the sheets and the loan
+# view wip.VwCommercialSubmissionCR on it. '(Name)' columns hold labels, turned into values by the views through
+# automn.ref_code_translation.label. Hidden sheets (Instructions, Audit Framework, ...) are never read.
+workbook: Commercial submissions workbook (staging)
+sheets:
+- sheet: BS
+  table: stg_commercial_bs
+  key: sanction_reference_number
+  columns:
+    sanction_reference_number: Sanction Reference Number
+    flag: Flag
+    segment_identifier: Segment Identifier
+    member_branch_code: Member Branch Code
+    previous_member_branch_code: Previous Member Branch Code
+    borrower_name: Borrower‟s Name
+    borrower_short_name: Borrower Short Name
+    company_registration_number: Company Registration Number
+    date_of_incorporation: Date of Incorporation
+    pan: PAN
+    cin: CIN
+    tin: TIN
+    service_tax_no: 'Service Tax #'
+    other_id: Other ID
+    borrowers_legal_constitution_label: Borrowers Legal Constitution (Name)
+    business_category_label: Business Category (Name)
+    business_industry_type_label: Business Industry Type (Name)
+    class_of_activity_1: Class of Activity 1
+    class_of_activity_2: Class of Activity 2
+    class_of_activity_3: Class of Activity 3
+    sic_code: SIC Code
+    sales_figure: Sales Figure
+    financial_year: Financial Year
+    number_of_employees: Number of Employees
+    credit_rating: Credit Rating
+    assessment_agency_authority: Assessment Agency / Authority
+    credit_rating_as_on: Credit Rating As On
+    credit_rating_expiry_date: Credit Rating Expiry Date
+- sheet: AS
+  table: stg_commercial_as
+  key: sanction_reference_number
+  columns:
+    sanction_reference_number: Sanction Reference Number
+    flag: Flag
+    segment_identifier: Segment Identifier
+    borrower_office_location_type_label: Borrower Office Location Type (Name)
+    borrower_office_duns_number: Borrower Office DUNS Number
+    address_line_1: Address Line 1
+    address_line_2: Address Line 2
+    address_line_3: Address Line 3
+    city_town: City/Town
+    district: District
+    state_label: State (Name)
+    pin_code: Pin Code
+    country_label: Country (Name)
+    mobile_number_s: Mobile Number(s)
+    telephone_area_code: Telephone Area Code
+    telephone_number_s: Telephone Number(s)
+    fax_area_code: Fax Area Code
+    fax_number_s: Fax Number(s)
+- sheet: RS
+  table: stg_commercial_rs
+  key: sanction_reference_number
+  columns:
+    sanction_reference_number: Sanction Reference Number
+    flag: Flag
+    segment_identifier: Segment Identifier
+    relationship_duns_number: Relationship DUNS Number
+    related_type_label: Related Type (Name)
+    relationship_label: Relationship (Name)
+    business_entity_name: Business Entity Name
+    business_category: Business Category
+    business_industry_type: Business / Industry Type
+    individual_name_prefix: Individual Name Prefix
+    full_name: Full Name
+    company_registration_number: Company Registration Number
+    gender_label: Gender (Name)
+    date_of_incorporation: Date of Incorporation
+    date_of_birth: Date of Birth
+    pan: PAN
+    voter_id: Voter ID
+    passport_number: Passport Number
+    driving_licence_id: Driving Licence ID
+    uid: UID
+    ration_card_no: Ration Card No
+    cin: CIN
+    din: DIN
+    tin: TIN
+    service_tax_no: 'Service Tax #'
+    other_id: Other ID
+    percentage_of_control: Percentage of Control
+    address_line_1: Address Line 1
+    address_line_2: Address Line 2
+    address_line_3: Address Line 3
+    city_town: City/Town
+    district: District
+    state_label: State (Name)
+    pin_code: Pin Code
+    country_label: Country (Name)
+    mobile_number_s: Mobile Number(s)
+    telephone_number_s: Telephone Number(s)
+    telephone_area_code: Telephone Area Code
+    fax_number_s: Fax Number(s)
+    fax_area_code: Fax Area Code
+- sheet: GS
+  table: stg_commercial_gs
+  key: sanction_reference_number
+  columns:
+    sanction_reference_number: Sanction Reference Number
+    flag: Flag
+    segment_identifier: Segment Identifier
+    guarantor_duns_number: Guarantor DUNS Number
+    guarantor_type_label: Guarantor Type (Name)
+    business_category_label: Business Category (Name)
+    business_industry_type_label: Business Industry Type (Name)
+    guarantor_entity_name: Guarantor Entity Name
+    individual_name_prefix: Individual Name Prefix
+    full_name: Full Name
+    gender_label: Gender (Name)
+    company_registration_number: Company Registration Number
+    date_of_incorporation: Date of Incorporation
+    date_of_birth: Date of Birth
+    pan: PAN
+    voter_id: Voter ID
+    passport_number: Passport Number
+    driving_licence_id: Driving Licence ID
+    uid: UID
+    ration_card_no: Ration Card No
+    cin: CIN
+    din: DIN
+    tin: TIN
+    service_tax_no: 'Service Tax #'
+    other_id: Other ID
+    address_line_1: Address Line 1
+    address_line_2: Address Line 2
+    address_line_3: Address Line 3
+    city_town: City/Town
+    district: District
+    state_label: State (Name)
+    pin_code: Pin Code
+    country_label: Country (Name)
+    mobile_number_s: Mobile Number(s)
+    telephone_area_code: Telephone Area Code
+    telephone_number_s: Telephone Number(s)
+    fax_area_code: Fax Area Code
+    fax_number_s: Fax Number(s)
+- sheet: SS
+  table: stg_commercial_ss
+  key: sanction_reference_number
+  columns:
+    sanction_reference_number: Sanction Reference Number
+    flag: Flag
+    segment_identifier: Segment Identifier
+    value_of_security: Value of Security
+    currency_type: Currency Type
+    type_of_security_label: Type of Security (Name)
+    security_classification_label: Security Classification (Name)
+    date_of_valuation: Date of Valuation
+- sheet: Sanction
+  table: stg_commercial_sanction
+  key: sanction_reference_number
+  columns:
+    loan_account_no: Column2
+    customer_name: Column1
+    sanction_reference_number: Sanction Reference Number
+    credit_type_label: Credit Type (Name)
+    repayment_frequency_label: Repayment Frequency (Name)
+    contact_person_name: Contact Person Name
+    suit_filed_status: Suit Filed Status
+    suit_reference_number: Suit Reference Number
+    suit_amount_in_rupees: 'Suit Amount in Rupees '
+    creditor_rm_email: Creditor RM Email
+    nesl_debt_subtype: NeSL Debt subtype
+    date_of_suit_filing: Date Of Suit Filing
+    date_of_last_acknowledgement: Date of Last Acknowledgement
+    nesl_indicator: Nesl Indicator
+- sheet: NeSL_Security
+  table: stg_commercial_nesl_security
+  key: sanction_reference_number
+  columns:
+    loan_account_no: Loan Account no
+    customer_name: Customer Name
+    sanction_reference_number: Sanction Reference Number
+    date_of_creation_of_security_interest: Date of creation of Security Interest
+    nesl_type_of_charge_created: NeSL Type of Charge created
+    nesl_asset_type: NeSL Asset type
+    nesl_security_type: NeSL Security type
+    nesl_security_category: NeSL Security Category
+    asset_id: Asset ID
+    description_of_security: 'Description of security '
+    value_of_security: Value of security
+    date_of_valuation: 'Date of valuation '
+    roc_charge_id: ROC Charge ID
+    cersai_security_interest_id: CERSAI Security Interest ID
+    part_b_remarks: Part-B Remarks
+- sheet: CD
+  table: stg_commercial_cd
+  key: sanction_reference_number
+  columns:
+    sanction_reference_number: Sanction Reference Number
+    flag: Flag
+    segment_identifier: Segment Identifier
+    date_of_dishonour: Date of Dishonour
+    amount: Amount
+    instrument_cheque_number: Instrument / Cheque Number
+    number_of_times_dishonoured: Number of times dishonoured
+    cheque_issue_date: Cheque Issue Date
+    reason_for_dishonour: Reason for Dishonour
