@@ -133,3 +133,11 @@ def test_postgres_views_run(postgres: Engine) -> None:
         for v in views:
             conn.execute(text(f"SELECT * FROM {SCHEMA}.{v} LIMIT 1")).all()
     apply_views(postgres)  # CREATE OR REPLACE: safe to run again
+
+
+def test_mssql_row_counts_still_work_after_the_views(mssql_migrated: Engine) -> None:
+    """run_batch turns NOCOUNT off again: the app relies on UPDATE row counts on reused connections."""
+    apply_views(mssql_migrated)
+    with mssql_migrated.begin() as conn:
+        changed = conn.execute(text(f"UPDATE {SCHEMA}.tenant SET display_name = display_name WHERE 1 = 0")).rowcount
+    assert changed == 0

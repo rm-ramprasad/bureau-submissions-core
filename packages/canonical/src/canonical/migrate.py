@@ -122,4 +122,6 @@ def run_batch(conn: Connection, sql: str) -> None:
         while cursor.nextset():
             pass
     finally:
+        # back to the default: the pooled connection is reused, and the app reads UPDATE row counts
+        cursor.execute("SET NOCOUNT OFF")
         cursor.close()
