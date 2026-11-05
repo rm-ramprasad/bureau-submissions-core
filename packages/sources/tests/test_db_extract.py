@@ -147,8 +147,8 @@ def test_an_upload_and_the_lms_rows_become_a_canonical_snapshot(db: Engine) -> N
 
     snap = extract(db, first, ExtractStrategy.INSERT_SELECT)
     assert rows(db, "account", snap, "account_key") == [(a1,), (a2,)]
-    (status, closed, opened, balance), _ = rows(
-        db, "account", snap, "credit_facility_status", "date_closed", "date_opened", "current_balance"
+    (_, status, closed, opened, balance), _ = rows(
+        db, "account", snap, "account_key", "credit_facility_status", "date_closed", "date_opened", "current_balance"
     )
     assert status == canonical_code(db, "credit_facility_status", "05")  # 5 -> '05' -> its canonical value
     assert closed is None and opened == date(2020, 1, 15)  # 31.02.2025 is not a date

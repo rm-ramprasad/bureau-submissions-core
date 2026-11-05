@@ -23,7 +23,7 @@ from sqlalchemy import Connection, Engine, text
 
 from bureau_core.canonical import canonical_model
 from canonical.db import SCHEMA
-from canonical.schema import MODEL
+from canonical.schema import ENTITY_TABLES, MODEL
 
 REQUIRED_ENTITIES = ("party", "account", "account_holder")
 DATED = ("account",)  # must return as_of_date; other views may (then filtered on it) or not (upload only)
@@ -113,7 +113,15 @@ def compile_views(engine: Engine, submission_type: str) -> CompiledViews:
                 raise ViewError(f"View {SCHEMA}.{view} must return load_id (the app filters on it)")
             if entity in DATED and "as_of_date" not in have:
                 raise ViewError(f"View {SCHEMA}.{view} must return as_of_date (the app filters on it)")
-            cols = [f"v.{c.name}" if c.name.lower() in have else f"NULL AS {c.name}" for c in definition.columns]
+            table = ENTITY_TABLES[
+                entity
+            ]  # a missing column is a typed NULL: Postgres will not insert text NULL in a date
+            cols = [
+                f"v.{c.name}"
+                if c.name.lower() in have
+                else f"CAST(NULL AS {table.c[c.name].type.compile(dialect=conn.dialect)}) AS {c.name}"
+                for c in definition.columns
+            ]
             where = "v.load_id = :load_id" + (" AND v.as_of_date = :as_of_date" if "as_of_date" in have else "")
             sql[entity] = f"SELECT {', '.join(cols)}\nFROM {SCHEMA}.{view} v\nWHERE {where}"
             fingerprint.append(f"{view}\n{found[view]}")

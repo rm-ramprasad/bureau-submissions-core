@@ -85,7 +85,7 @@ def test_a_snapshot_is_built_from_the_views(engine, strategy):
     other = upload(engine, [{"curr_new_account_no": "Z9", "consumer_name": "OTHER UPLOAD"}])
     compiled = compile_views(engine, "CONSUMER")
     assert set(compiled.sql) == {"party", "account", "account_holder"} and compiled.version.startswith("views-")
-    assert "NULL AS birth_date" in compiled.sql["party"]  # a column the view lacks is NULL
+    assert "CAST(NULL AS DATE) AS birth_date" in compiled.sql["party"]  # a column the view lacks is NULL
     result = extract(engine, load_id, strategy=strategy)
     assert party_rows(engine, result.snapshot_id) == [("A1-2", "ASHA K", "FEMALE")] and other != load_id
     assert result.row_counts["party"] == 1 and result.row_counts["party_phone"] == 0
