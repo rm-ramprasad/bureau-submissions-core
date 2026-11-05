@@ -25,7 +25,7 @@ import canonical.staging.loads
 import canonical.staging.tables  # noqa: F401  (registers all app tables)
 from canonical.db import SCHEMA, make_engine, metadata
 from canonical.migrate import AZURE_MIGRATIONS, apply_migrations, apply_views, pending_migrations
-from canonical.testing_db import prepare_mssql, prepare_postgres
+from canonical.testing_db import prepare_mssql, prepare_postgres, schema_drift
 
 pytestmark = pytest.mark.db
 
@@ -80,41 +80,8 @@ def test_mssql_labels_sql_runs_to_the_end(mssql_migrated: Engine) -> None:
     assert missing == 0
 
 
-def _family(type_: object) -> str:
-    name = type(type_).__name__.upper()
-    for family, words in {
-        "text": ("CHAR", "TEXT", "STRING", "CLOB", "UNICODE"),
-        "datetime": ("DATETIME", "TIMESTAMP"),
-        "date": ("DATE",),
-        "bool": ("BOOL", "BIT"),
-        "number": ("INT", "NUMERIC", "DECIMAL", "FLOAT", "REAL", "DOUBLE"),
-    }.items():
-        if any(w in name for w in words):
-            return family
-    return name
-
-
 def test_mssql_schema_matches_the_app_tables(mssql_migrated: Engine) -> None:
-    live = inspect(mssql_migrated)
-    names = set(live.get_table_names(schema=SCHEMA))
-    problems = []
-    for table in metadata.sorted_tables:
-        if table.name not in names:
-            if table.name not in TABLES_NOT_IN_MIGRATIONS:
-                problems.append(f"{table.name}: not created by the migrations")
-            continue
-        cols = {c["name"]: c for c in live.get_columns(table.name, schema=SCHEMA)}
-        for col in table.columns:
-            got = cols.get(col.name)
-            if got is None:
-                problems.append(f"{table.name}.{col.name}: missing")
-                continue
-            want, have = _family(col.type), _family(got["type"])
-            if want != have and {want, have} != {"bool", "number"}:
-                problems.append(f"{table.name}.{col.name}: {col.type} in the app, {got['type']} in the database")
-            length = getattr(col.type, "length", None)
-            if length and getattr(got["type"], "length", None) not in (None, length):
-                problems.append(f"{table.name}.{col.name}: length {length} in the app, {got['type'].length} in the db")
+    problems = schema_drift(mssql_migrated, metadata.sorted_tables, TABLES_NOT_IN_MIGRATIONS)
     assert not problems, "\n".join(problems)
 
 
