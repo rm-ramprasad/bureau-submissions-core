@@ -3,7 +3,7 @@ name = "bureau-core"
 version = "0.1.0"
 description = "Layer 3: data contract, submission types, validation, bureau file engines, reconciliation. Cloud- and database-neutral."
 requires-python = ">=3.14,<3.15"
-dependencies = ["PyYAML>=6,<7", "openpyxl>=3.1,<4"]
+dependencies = ["PyYAML>=6,<7", "openpyxl>=3.1,<4", "SQLAlchemy>=2.0,<3"]  # SQLAlchemy: validation in a private in-memory SQLite only
 
 [build-system]
 requires = ["hatchling>=1.25"]

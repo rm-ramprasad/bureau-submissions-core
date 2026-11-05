@@ -110,13 +110,13 @@ forbidden_modules = ["azure", "boto3", "botocore"]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "bureau_core imports no database or web framework"
+name = "bureau_core imports no database driver or web framework (SQLAlchemy: SQLite only)"
 type = "forbidden"
 source_modules = ["bureau_core"]
-forbidden_modules = ["flask", "pyodbc"]
+forbidden_modules = ["flask", "pyodbc", "psycopg", "pymysql"]
 allow_indirect_imports = true
 
-# Type-error baseline of the ported modules (bureau_core 49 + canonical/sources 9 errors on 2026-11-05, mostly Optional narrowing). Fix and remove a
+# Type-error baseline of the ported modules (bureau_core 49 + validation 18 + canonical/sources 9 errors on 2026-11-05, mostly Optional narrowing). Fix and remove a
 # module from this list in follow-up PRs; never add a module to it.
 [[tool.mypy.overrides]]
 module = [
@@ -128,6 +128,11 @@ module = [
     "bureau_core.tudf.convert",
     "bureau_core.tudf.reconcile",
     "bureau_core.types",
+    "bureau_core.validation.cascades",
+    "bureau_core.validation.engine",
+    "bureau_core.validation.parameters",
+    "bureau_core.validation.python_rules",
+    "bureau_core.validation.rules",
     "canonical.snapshot",
     "canonical.staging.checks",
     "sources.excel",

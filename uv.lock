@@ -188,12 +188,14 @@ source = { editable = "packages/bureau_core" }
 dependencies = [
     { name = "openpyxl" },
     { name = "pyyaml" },
+    { name = "sqlalchemy" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "openpyxl", specifier = ">=3.1,<4" },
     { name = "pyyaml", specifier = ">=6,<7" },
+    { name = "sqlalchemy", specifier = ">=2.0,<3" },
 ]
 
 [[package]]
