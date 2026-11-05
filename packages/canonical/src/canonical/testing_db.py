@@ -10,7 +10,7 @@ from sqlalchemy import Engine, inspect
 
 import canonical.staging.tables  # noqa: F401  (registers all app tables)
 from canonical.db import SCHEMA, metadata
-from canonical.migrate import AZURE_MIGRATIONS, apply_migrations, apply_views
+from canonical.migrate import AZURE_MIGRATIONS, apply_migrations, apply_views, run_batch
 from canonical.reference import seed as seed_reference
 from canonical.tenants import TenantRepository
 from canonical.testing import TENANT
@@ -152,7 +152,7 @@ def prepare_mssql(engine: Engine) -> None:
     _schemas(engine)
     if "schema_migration" not in inspect(engine).get_table_names(schema=SCHEMA):
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-            conn.exec_driver_sql((AZURE_MIGRATIONS / "001_baseline.sql").read_text("utf-8"))
+            run_batch(conn, (AZURE_MIGRATIONS / "001_baseline.sql").read_text("utf-8"))
     apply_migrations(engine)
     _seed(engine)
     create_lms_stubs(engine)

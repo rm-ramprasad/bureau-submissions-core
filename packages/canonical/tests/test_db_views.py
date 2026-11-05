@@ -68,6 +68,18 @@ def test_mssql_views_run_and_can_be_applied_again(mssql_migrated: Engine) -> Non
     apply_views(mssql_migrated)  # CREATE OR ALTER: safe to run again
 
 
+def test_mssql_labels_sql_runs_to_the_end(mssql_migrated: Engine) -> None:
+    """labels.sql is hundreds of UPDATEs in one batch: every one must apply, the last ones included."""
+    with mssql_migrated.connect() as conn:
+        missing = conn.execute(
+            text(
+                f"SELECT COUNT(*) FROM {SCHEMA}.ref_code_translation WHERE label IS NULL AND submission_type = 'CONSUMER' AND code_list IN "
+                "('gender', 'ownership_indicator')"
+            )
+        ).scalar_one()
+    assert missing == 0
+
+
 def _family(type_: object) -> str:
     name = type(type_).__name__.upper()
     for family, words in {

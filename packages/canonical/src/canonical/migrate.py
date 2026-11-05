@@ -18,7 +18,7 @@ import re
 from importlib.resources import files
 from pathlib import Path
 
-from sqlalchemy import Column, DateTime, Engine, MetaData, String, Table, insert, select, text
+from sqlalchemy import Column, Connection, DateTime, Engine, MetaData, String, Table, insert, select, text
 
 from canonical.db import SCHEMA, utcnow
 
@@ -103,6 +103,22 @@ def apply_views(engine: Engine) -> list[str]:
         sql = path.read_text(encoding="utf-8")
         with engine.begin() as conn:
             for batch in split_batches(sql) if dialect == "azure" else [sql]:
-                conn.exec_driver_sql(batch)
+                run_batch(conn, batch)
         done.append(path.name)
     return done
+
+
+def run_batch(conn: Connection, sql: str) -> None:
+    """Run one batch of several statements. SQL Server: with NOCOUNT on and every result read, because the ODBC
+    driver can cancel the rest of a batch whose 'rows affected' results are left unread (labels.sql has hundreds of
+    UPDATEs; found by the Database CI job, 2026-11-05)."""
+    if conn.dialect.name != "mssql":
+        conn.exec_driver_sql(sql)
+        return
+    cursor = conn.connection.driver_connection.cursor()  # type: ignore[union-attr]
+    try:
+        cursor.execute("SET NOCOUNT ON;\n" + sql)
+        while cursor.nextset():
+            pass
+    finally:
+        cursor.close()
