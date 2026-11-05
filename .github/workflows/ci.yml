@@ -40,13 +40,69 @@ jobs:
           enable-cache: true
       - run: uv python install 3.14
       - run: uv sync --locked
-      # Workbook tests skip here (workbooks are local only); db tests run in their own job once views exist (step 1).
+      # Workbook tests skip here (workbooks are local only); db tests run in the Database job.
       - run: uv run pytest -m "not db and not perf" --cov --cov-report=term --cov-report=xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: coverage
           path: coverage.xml
+
+  database:
+    name: "Database: migrations and views (SQL Server, Postgres)"
+    runs-on: ubuntu-24.04            # pinned: Microsoft's ODBC driver repo is per Ubuntu release
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: Ci-only-Passw0rd!   # throwaway container, CI only
+        ports: ["1433:1433"]
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci-only            # throwaway container, CI only
+          POSTGRES_DB: bsc
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 20
+    env:
+      BSC_MSSQL_URL: "mssql+pyodbc://sa:Ci-only-Passw0rd!@localhost:1433/bsc?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+      BSC_POSTGRES_URL: "postgresql+psycopg://postgres:ci-only@localhost:5432/bsc"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.5"
+          enable-cache: true
+      - run: uv python install 3.14
+      - name: ODBC driver for SQL Server
+        run: |
+          set -x
+          if ! odbcinst -q -d 2>/dev/null | grep -q "ODBC Driver 18"; then
+            curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+            echo "deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/$(lsb_release -rs)/prod $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/mssql-release.list
+            sudo apt-get update -q && sudo ACCEPT_EULA=Y apt-get install -y -q msodbcsql18 unixodbc
+          fi
+      - run: uv sync --locked --group db
+      - name: Create the test database on SQL Server
+        run: |
+          for i in $(seq 1 30); do
+            uv run python -c "import pyodbc; c = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server};SERVER=localhost,1433;UID=sa;PWD=Ci-only-Passw0rd!;TrustServerCertificate=yes', autocommit=True); c.execute(\"IF DB_ID('bsc') IS NULL CREATE DATABASE bsc\")" && exit 0
+            sleep 3
+          done
+          exit 1
+      - run: uv run pytest -m db -v -p no:cacheprovider --junitxml=db-results.xml
+      - name: Failures as annotations
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          for case in ET.parse("db-results.xml").iter("testcase"):
+              for bad in list(case.findall("failure")) + list(case.findall("error")):
+                  text = (bad.get("message") or "") + " " + (bad.text or "")[-1500:]
+                  text = text.replace("%", "%25").replace("\r", "").replace("\n", "%0A")
+                  print(f"::error title={case.get('name')}::{text}")
+          PY
 
   secrets:
     name: Secret scan
