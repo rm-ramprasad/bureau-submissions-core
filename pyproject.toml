@@ -1,0 +1,97 @@
+# Workspace root: not a package. Each package under packages/ has its own pyproject, version and tests.
+[project]
+name = "bureau-submissions-core-workspace"
+version = "0.0.0"
+requires-python = ">=3.14,<3.15"
+dependencies = ["bureau-core", "canonical", "sources", "clientconfig", "app", "shell-azure"]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+bureau-core = { workspace = true }
+canonical = { workspace = true }
+sources = { workspace = true }
+clientconfig = { workspace = true }
+app = { workspace = true }
+shell-azure = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6",
+    "hypothesis>=6.100",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "import-linter>=2.1",
+    "pre-commit>=4",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["packages"]
+addopts = "-q --strict-markers --import-mode=importlib"
+markers = [
+    "workbook: needs the local input workbooks (gitignored); skipped when BSC_WORKBOOK_DIR is not set",
+    "db: needs a SQL Server or Postgres container (CI database job)",
+    "perf: performance regression (nightly)",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["packages"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+fail_under = 91          # baseline of the reference code (2026-11-05: 91% line); never lowered
+show_missing = true
+skip_covered = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF"]
+ignore = ["S101"]        # assert is fine in tests
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+mypy_path = "packages/bureau_core/src:packages/canonical/src:packages/sources/src:packages/clientconfig/src:packages/app/src:packages/shell_azure/src"
+explicit_package_bases = true
+
+# Layer rules (requirements.md §1): enforced in CI by `lint-imports`.
+[tool.importlinter]
+root_packages = ["bureau_core", "canonical", "sources", "clientconfig", "app", "shell_azure"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Layers: shell -> app -> sources -> canonical -> bureau_core"
+type = "layers"
+layers = ["shell_azure", "app", "sources", "canonical", "bureau_core"]
+
+[[tool.importlinter.contracts]]
+name = "clientconfig is independent of the layers"
+type = "forbidden"
+source_modules = ["clientconfig"]
+forbidden_modules = ["bureau_core", "canonical", "sources", "app", "shell_azure"]
+
+[[tool.importlinter.contracts]]
+name = "Only the shell imports a cloud SDK"
+type = "forbidden"
+source_modules = ["bureau_core", "canonical", "sources", "clientconfig", "app"]
+forbidden_modules = ["azure", "boto3", "botocore"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "bureau_core imports no database or web framework"
+type = "forbidden"
+source_modules = ["bureau_core"]
+forbidden_modules = ["flask", "pyodbc"]
+allow_indirect_imports = true
