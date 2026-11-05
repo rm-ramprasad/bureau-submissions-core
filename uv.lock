@@ -116,14 +116,14 @@ wheels = [
 
 [[package]]
 name = "azure-functions"
-version = "1.26.0"
+version = "1.25.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "werkzeug" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fb/ed/315d7843371830e248f716f11b30f707ae7eff64272eaece992649d4dae7/azure_functions-1.26.0.tar.gz", hash = "sha256:f4aad4a401bdc7833cce4c17352ce410fc4e419dcc6ece5f02247fdee3fbb838", size = 166896, upload-time = "2026-11-03T17:58:21.484Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6f/eb/745418bd7ae135068a88dcd2e0b3cefd526068a7bbe55cc29d5fb5919080/azure_functions-1.25.0.tar.gz", hash = "sha256:3c737657110b6cfd14e6871515ab66c377b9ceecaca8dcbf5b391d2433424756", size = 143938, upload-time = "2026-08-05T19:12:50.176Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/26/8f/431fdd8aa8debf41fa1a8b8564f0b06bcd5b92d39ed53b67fb222cb6ac28/azure_functions-1.26.0-py3-none-any.whl", hash = "sha256:4d97c30716a14db3b584dfe0dd72df5ea38adb922ad5ca046e4b0af0a309ddcb", size = 123901, upload-time = "2026-11-03T17:58:23.507Z" },
+    { url = "https://files.pythonhosted.org/packages/a8/21/9374de0e429e7a45090c097111fbbcdea019e726b252cbb35428a816ed1c/azure_functions-1.25.0-py3-none-any.whl", hash = "sha256:0d01e52c0871a01a65911bc163a0dfd7f09725ba43cea17a09909cc5d298c1d2", size = 113831, upload-time = "2026-08-05T19:12:51.567Z" },
 ]
 
 [[package]]
@@ -1173,7 +1173,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "app", editable = "packages/app" },
-    { name = "azure-functions", specifier = ">=1.21,<2" },
+    { name = "azure-functions", specifier = ">=1.25,<1.26" },
     { name = "azure-identity", specifier = ">=1.19,<2" },
     { name = "azure-storage-blob", specifier = ">=12.24,<13" },
     { name = "azure-storage-queue", specifier = ">=12.12,<13" },

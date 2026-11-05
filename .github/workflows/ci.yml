@@ -69,4 +69,4 @@ jobs:
           version: "0.9.5"
       - run: uv python install 3.14
       - run: uv export --locked --no-dev --no-emit-workspace --format requirements-txt -o requirements.txt
-      - run: uvx pip-audit -r requirements.txt --strict
+      - run: uvx pip-audit -r requirements.txt --strict --no-deps --disable-pip
