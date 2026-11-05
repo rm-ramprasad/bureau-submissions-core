@@ -6,7 +6,7 @@
 - Postgres: the app tables from the SQLAlchemy metadata, then the generated Postgres views.
 
 The client's LMS views (schema `wip`, e.g. wip.VwConsumerSubmissionAccountSegment on rarfincare) are stand-in tables
-with the columns the views read (lms_stub.py).
+with the columns the views read (canonical.testing_db).
 
     BSC_MSSQL_URL=mssql+pyodbc://sa:...@localhost:1433/bsc?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
     BSC_POSTGRES_URL=postgresql+psycopg://postgres:...@localhost:5432/bsc
@@ -19,13 +19,13 @@ import os
 from collections.abc import Iterator
 
 import pytest
-from can_lms_stub import create_lms_stubs
 from sqlalchemy import Engine, inspect, text
 
 import canonical.staging.loads
 import canonical.staging.tables  # noqa: F401  (registers all app tables)
 from canonical.db import SCHEMA, make_engine, metadata
 from canonical.migrate import AZURE_MIGRATIONS, apply_migrations, apply_views, pending_migrations
+from canonical.testing_db import prepare_mssql, prepare_postgres
 
 pytestmark = pytest.mark.db
 
@@ -44,28 +44,18 @@ def _views(engine: Engine) -> list[str]:
 
 
 @pytest.fixture(scope="module")
-def mssql() -> Iterator[Engine]:
+def mssql_migrated() -> Iterator[Engine]:
     engine = _engine("BSC_MSSQL_URL")
-    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-        for schema in (SCHEMA, "wip"):
-            conn.exec_driver_sql(f"IF SCHEMA_ID('{schema}') IS NULL EXEC('CREATE SCHEMA {schema}')")
-        # the baseline as the administrator runs it: one script, its own transaction
-        conn.exec_driver_sql((AZURE_MIGRATIONS / "001_baseline.sql").read_text("utf-8"))
+    prepare_mssql(engine)
     yield engine
     engine.dispose()
 
 
-@pytest.fixture(scope="module")
-def mssql_migrated(mssql: Engine) -> Engine:
-    assert [p.stem for p in pending_migrations(mssql)] == [p.stem for p in sorted(AZURE_MIGRATIONS.glob("*.sql"))][1:]
-    apply_migrations(mssql)
-    create_lms_stubs(mssql)
-    apply_views(mssql)
-    return mssql
-
-
 def test_mssql_migrations_all_applied(mssql_migrated: Engine) -> None:
     assert pending_migrations(mssql_migrated) == []
+    with mssql_migrated.connect() as conn:
+        versions = conn.execute(text(f"SELECT version FROM {SCHEMA}.schema_migration ORDER BY version")).scalars()
+        assert list(versions) == [p.stem for p in sorted(AZURE_MIGRATIONS.glob("*.sql"))]
     assert apply_migrations(mssql_migrated) == []
 
 
@@ -76,6 +66,18 @@ def test_mssql_views_run_and_can_be_applied_again(mssql_migrated: Engine) -> Non
         for v in views:
             conn.execute(text(f"SELECT TOP 1 * FROM {SCHEMA}.{v}")).all()
     apply_views(mssql_migrated)  # CREATE OR ALTER: safe to run again
+
+
+def test_mssql_labels_sql_runs_to_the_end(mssql_migrated: Engine) -> None:
+    """labels.sql is hundreds of UPDATEs in one batch: every one must apply, the last ones included."""
+    with mssql_migrated.connect() as conn:
+        missing = conn.execute(
+            text(
+                f"SELECT COUNT(*) FROM {SCHEMA}.ref_code_translation WHERE label IS NULL AND submission_type = 'CONSUMER' AND code_list IN "
+                "('gender', 'ownership_indicator')"
+            )
+        ).scalar_one()
+    assert missing == 0
 
 
 def _family(type_: object) -> str:
@@ -119,12 +121,7 @@ def test_mssql_schema_matches_the_app_tables(mssql_migrated: Engine) -> None:
 @pytest.fixture(scope="module")
 def postgres() -> Iterator[Engine]:
     engine = _engine("BSC_POSTGRES_URL")
-    with engine.begin() as conn:
-        for schema in (SCHEMA, "wip"):
-            conn.exec_driver_sql(f"CREATE SCHEMA IF NOT EXISTS {schema}")
-    metadata.create_all(engine)
-    create_lms_stubs(engine)
-    apply_views(engine)
+    prepare_postgres(engine)
     yield engine
     engine.dispose()
 
@@ -136,3 +133,11 @@ def test_postgres_views_run(postgres: Engine) -> None:
         for v in views:
             conn.execute(text(f"SELECT * FROM {SCHEMA}.{v} LIMIT 1")).all()
     apply_views(postgres)  # CREATE OR REPLACE: safe to run again
+
+
+def test_mssql_row_counts_still_work_after_the_views(mssql_migrated: Engine) -> None:
+    """run_batch turns NOCOUNT off again: the app relies on UPDATE row counts on reused connections."""
+    apply_views(mssql_migrated)
+    with mssql_migrated.begin() as conn:
+        changed = conn.execute(text(f"UPDATE {SCHEMA}.tenant SET display_name = display_name WHERE 1 = 0")).rowcount
+    assert changed == 0
