@@ -1,0 +1,19 @@
+[project]
+name = "app"
+version = "0.1.0"
+description = "Workflow and HTTP API: requests, jobs, ports (protocols) for files, jobs, identity, database. No cloud SDK."
+requires-python = ">=3.14,<3.15"
+dependencies = ["Flask>=3,<4", "SQLAlchemy>=2.0,<3", "PyJWT[crypto]>=2.10,<3", "bureau_core", "canonical", "sources", "clientconfig"]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/app"]
+
+[tool.uv.sources]
+bureau_core = { workspace = true }
+canonical = { workspace = true }
+sources = { workspace = true }
+clientconfig = { workspace = true }

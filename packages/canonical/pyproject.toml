@@ -1,0 +1,16 @@
+[project]
+name = "canonical"
+version = "0.1.0"
+description = "Layer 2: staging, input checks, mapping to canonical fields, generated views per SQL dialect, snapshot builder."
+requires-python = ">=3.14,<3.15"
+dependencies = ["SQLAlchemy>=2.0,<3", "bureau_core"]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/canonical"]
+
+[tool.uv.sources]
+bureau_core = { workspace = true }
