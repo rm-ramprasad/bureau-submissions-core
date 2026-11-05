@@ -334,7 +334,7 @@ SELECT
   d.id_number
 FROM automn.vw_commercial_upload_account AS l
 JOIN automn.vw_commercial_bs_first AS b
-  ON b.load_id = l.source_load_id AND b.ref_key = l.ref_key INNER JOIN LATERAL (
+  ON b.load_id = l.source_load_id AND b.ref_key = l.ref_key CROSS JOIN LATERAL (
   VALUES
     ('PAN', b.pan),
     ('CIN', b.cin),
@@ -387,7 +387,7 @@ SELECT
 FROM automn.vw_commercial_upload_account AS l
 JOIN automn.stg_commercial_as AS a
   ON a.load_id = l.source_load_id
-  AND automn.fn_ref_key(a.sanction_reference_number) = l.ref_key INNER JOIN LATERAL (
+  AND automn.fn_ref_key(a.sanction_reference_number) = l.ref_key CROSS JOIN LATERAL (
   VALUES
     (a.mobile_number_s, 'MOBILE', a.source_row),
     (

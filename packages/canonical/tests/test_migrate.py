@@ -98,6 +98,7 @@ def test_generated_views_are_up_to_date() -> None:
         "SELECT TRY_CAST(x AS DECIMAL(20, 2))",
         "SELECT automn.fn_label_value('CONSUMER', 'gender', x)",
         "CREATE OR ALTER FUNCTION automn.f() RETURNS INT AS BEGIN RETURN 1; END",
+        "SELECT * FROM a OUTER APPLY (VALUES (a.x)) AS d(x)",
     ],
 )
 def test_forbidden_forms_are_refused(sql: str) -> None:
@@ -120,3 +121,10 @@ def test_build_views_check_names_a_stale_file(monkeypatch, capsys) -> None:
     monkeypatch.setattr("sys.argv", ["build_views", "--check"])
     assert build_views.main() == 1
     assert "STALE postgres/views/consumer.sql" in capsys.readouterr().out
+
+
+def test_cross_apply_becomes_cross_join_lateral() -> None:
+    sql = "CREATE VIEW automn.v AS SELECT d.x FROM automn.a AS a CROSS APPLY (VALUES (a.x), (a.y)) AS d(x)"
+    for dialect in ("postgres", "mysql"):
+        out = build_views.translate("x.sql", sql, dialect)
+        assert "CROSS JOIN LATERAL" in out and "INNER JOIN" not in out

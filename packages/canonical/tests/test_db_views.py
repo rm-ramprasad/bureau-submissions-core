@@ -81,7 +81,7 @@ def test_mssql_views_run_and_can_be_applied_again(mssql_migrated: Engine) -> Non
 def _family(type_: object) -> str:
     name = type(type_).__name__.upper()
     for family, words in {
-        "text": ("CHAR", "TEXT", "STRING", "CLOB"),
+        "text": ("CHAR", "TEXT", "STRING", "CLOB", "UNICODE"),
         "datetime": ("DATETIME", "TIMESTAMP"),
         "date": ("DATE",),
         "bool": ("BOOL", "BIT"),

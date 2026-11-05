@@ -253,7 +253,7 @@ SELECT
   d.id_number,
   d.issue_date,
   d.expiry_date
-FROM automn.vw_consumer_borrower AS s INNER JOIN LATERAL (
+FROM automn.vw_consumer_borrower AS s CROSS JOIN LATERAL (
   VALUES
     ('PAN', s.income_tax_id_number, CAST(NULL AS DATE), CAST(NULL AS DATE)),
     (
@@ -286,7 +286,7 @@ SELECT
   p.extension,
   p.phone_type,
   p.priority
-FROM automn.vw_consumer_borrower AS s INNER JOIN LATERAL (
+FROM automn.vw_consumer_borrower AS s CROSS JOIN LATERAL (
   VALUES
     (s.telephone_no_mobile, CAST(NULL AS VARCHAR(20)), 'MOBILE', 1),
     (s.telephone_no_residence, NULL, 'HOME', 2),
@@ -302,7 +302,7 @@ SELECT
   CONCAT(s.curr_new_account_no, '-', s.source_row) AS party_key,
   e.email,
   e.priority
-FROM automn.vw_consumer_borrower AS s INNER JOIN LATERAL (
+FROM automn.vw_consumer_borrower AS s CROSS JOIN LATERAL (
   VALUES
     (s.email_id_1, 1),
     (s.email_id_2, 2)
@@ -321,7 +321,7 @@ SELECT
   COALESCE(l_cat.code, NULLIF(LTRIM(RTRIM(a.category_label)), '')) AS address_category,
   COALESCE(l_res.code, NULLIF(LTRIM(RTRIM(a.residence_label)), '')) AS residence_code,
   a.priority
-FROM automn.vw_consumer_borrower AS s INNER JOIN LATERAL (
+FROM automn.vw_consumer_borrower AS s CROSS JOIN LATERAL (
   VALUES
     (
       s.address_line_1,

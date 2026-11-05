@@ -35,7 +35,15 @@ FORBIDDEN = [
     ),
     (re.compile(r"\bfn_(label|code)_value\b", re.I), "label / code functions: join automn.vw_ref_label / vw_ref_code"),
     (re.compile(r"\bCREATE\s+(OR\s+ALTER\s+)?FUNCTION\b", re.I), "functions belong in 00_functions.sql (overrides)"),
+    (
+        re.compile(r"\bOUTER\s+APPLY\b", re.I),
+        "OUTER APPLY (becomes LEFT JOIN LATERAL without ON, which Postgres refuses): use CROSS APPLY or a LEFT JOIN",
+    ),
 ]
+
+# SQLGlot writes T-SQL CROSS APPLY as INNER JOIN LATERAL with no ON, which Postgres refuses (found by the Database CI
+# job, 2026-11-05). CROSS JOIN LATERAL is the same join and runs on Postgres and MySQL 8.
+INNER_LATERAL = re.compile(r"\bINNER JOIN LATERAL\b")
 
 
 def _strip_comments(sql: str) -> str:
@@ -79,6 +87,7 @@ def translate(name: str, sql: str, dialect: str) -> str:
             pretty=True,
             unsupported_level=ErrorLevel.RAISE,
         )
+        statements = [INNER_LATERAL.sub("CROSS JOIN LATERAL", st) for st in statements]
         out.append((comment + "\n" if comment else "") + ";\n".join(statements) + ";\n")
     return "\n".join(out)
 
