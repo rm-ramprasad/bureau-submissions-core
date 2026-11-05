@@ -1,0 +1,32 @@
+# Secrets: never committed
+.env
+.env.*
+local.settings.json
+*.publishsettings
+*.pfx
+*.pem
+
+# Test workbooks and borrower-like data: kept local, never committed
+*.xlsx
+*.xlsm
+*.xls
+*.csv
+test-data/
+output-files/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.coverage
+coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Build
+dist/
+build/
+cdk.out/
