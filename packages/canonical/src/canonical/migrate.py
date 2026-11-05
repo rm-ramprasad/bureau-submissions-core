@@ -117,7 +117,8 @@ def run_batch(conn: Connection, sql: str) -> None:
         return
     cursor = conn.connection.driver_connection.cursor()  # type: ignore[union-attr]
     try:
-        cursor.execute("SET NOCOUNT ON;\n" + sql)
+        cursor.execute("SET NOCOUNT ON")  # its own statement: CREATE VIEW / FUNCTION must start their batch
+        cursor.execute(sql)
         while cursor.nextset():
             pass
     finally:
