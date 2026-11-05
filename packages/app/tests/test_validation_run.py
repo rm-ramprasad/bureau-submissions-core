@@ -110,3 +110,11 @@ def test_capture_batch_round_trips(engine):
         captured = capture_batch(conn, sid)
     assert captured.entities == batch.entities and captured.submission_type == batch.submission_type
     assert captured.source["snapshot_id"] == sid and captured.exceptions == {}
+
+
+def test_create_all_can_run_again(engine):
+    """The adjustment view is created once, however often create_all runs (e.g. two test modules, one database)."""
+    from canonical.db import metadata
+
+    metadata.create_all(engine)
+    metadata.create_all(engine)

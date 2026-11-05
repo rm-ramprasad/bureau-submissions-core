@@ -16,6 +16,7 @@ from sqlalchemy import (
     String,
     Table,
     event,
+    inspect,
 )
 
 import canonical.schema
@@ -93,6 +94,11 @@ SELECT x.snapshot_id, x.adjustment_id, x.kind, x.account_number, x.customer_id, 
           AND e.action IN ('EXCLUDE', 'OVERRIDE')) AS loans_affected
 FROM automn.snapshot_adjustment x"""
 
+
 # metadata.create_all (test databases) creates the view too; Azure SQL gets it from migrations/azure/001_baseline.sql
-event.listen(metadata, "after_create", DDL(ADJUSTMENT_VIEW_SQL))
+def _view_missing(ddl, target, bind, **kw) -> bool:  # create_all may run again on the same database
+    return "v_snapshot_adjustment" not in inspect(bind).get_view_names(schema="automn")
+
+
+event.listen(metadata, "after_create", DDL(ADJUSTMENT_VIEW_SQL).execute_if(callable_=_view_missing))  # type: ignore[arg-type]
 event.listen(metadata, "before_drop", DDL("DROP VIEW IF EXISTS automn.v_snapshot_adjustment"))
