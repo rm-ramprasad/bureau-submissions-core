@@ -4,9 +4,10 @@ views join them, so a database test needs them: tables with the columns the view
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
 
-from sqlalchemy import Engine, inspect
+from sqlalchemy import Engine, Table, inspect
 
 import canonical.staging.tables  # noqa: F401  (registers all app tables)
 from canonical.db import SCHEMA, metadata
@@ -166,3 +167,47 @@ def prepare_postgres(engine: Engine) -> None:
     _seed(engine)
     create_lms_stubs(engine)
     apply_views(engine)
+
+
+def _family(type_: object) -> str:
+    name = type(type_).__name__.upper()
+    for family, words in {
+        "text": ("CHAR", "TEXT", "STRING", "CLOB", "UNICODE"),
+        "datetime": ("DATETIME", "TIMESTAMP"),
+        "date": ("DATE",),
+        "bool": ("BOOL", "BIT"),
+        "number": ("INT", "NUMERIC", "DECIMAL", "FLOAT", "REAL", "DOUBLE"),
+    }.items():
+        if any(w in name for w in words):
+            return family
+    return name
+
+
+def schema_drift(
+    engine: Engine, tables: Iterable[Table], not_yet_migrated: frozenset[str] | set[str] = frozenset()
+) -> list[str]:
+    """Differences between SQLAlchemy tables and the migrated database: a missing table or column, another type
+    family, another length. Empty when they agree."""
+    live = inspect(engine)
+    names = set(live.get_table_names(schema=SCHEMA))
+    problems = []
+    for table in tables:
+        if table.name not in names:
+            if table.name not in not_yet_migrated:
+                problems.append(f"{table.name}: not created by the migrations")
+            continue
+        cols = {c["name"]: c for c in live.get_columns(table.name, schema=SCHEMA)}
+        for col in table.columns:
+            got = cols.get(col.name)
+            if got is None:
+                problems.append(f"{table.name}.{col.name}: missing")
+                continue
+            want, have = _family(col.type), _family(got["type"])
+            if want != have and {want, have} != {"bool", "number"}:
+                problems.append(f"{table.name}.{col.name}: {col.type} in the app, {got['type']} in the database")
+            length = getattr(col.type, "length", None)
+            if length and getattr(got["type"], "length", None) not in (None, length):
+                problems.append(
+                    f"{table.name}.{col.name}: length {length} in the app, {getattr(got['type'], 'length', None)} in the db"
+                )
+    return problems

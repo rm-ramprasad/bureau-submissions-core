@@ -84,7 +84,10 @@ exclude = ["/tests/"]
 # Ported from the reference app without full annotations (tracked debt: tighten module by module, then drop).
 # Real type errors are still reported; only "missing annotation" rules are relaxed here.
 [[tool.mypy.overrides]]
-module = ["bureau_core", "bureau_core.*", "canonical", "canonical.*", "sources", "sources.*"]
+module = [
+    "bureau_core", "bureau_core.*", "canonical", "canonical.*", "sources", "sources.*",
+    "app.audit", "app.bureaus.*", "app.requests.*", "app.users",  # ported in 1.3a
+]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 disallow_untyped_calls = false
@@ -137,6 +140,10 @@ module = [
     "bureau_core.validation.parameters",
     "bureau_core.validation.python_rules",
     "bureau_core.validation.rules",
+    "app.audit",
+    "app.requests.repository",
+    "app.requests.stages",
+    "app.users",
     "canonical.snapshot",
     "canonical.staging.checks",
     "sources.excel",
