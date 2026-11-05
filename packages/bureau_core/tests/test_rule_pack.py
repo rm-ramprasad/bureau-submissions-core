@@ -82,3 +82,12 @@ def test_pack_loads_with_its_own_prefix_and_cascade():
         "CUCRF.REC.NO_RELATIONSHIP",
     } <= ids
     assert not ids & {r.rule_id for r in builtin_pack("CONSUMER").rules}
+
+
+def test_report_hints_come_from_the_pack() -> None:
+    from bureau_core.validation.rules import builtin_rules, report_hints
+
+    hints = report_hints("CONSUMER")
+    rule = builtin_rules("CONSUMER")[0]
+    assert hints.category(rule.rule_id) == rule.category and hints.categories
+    assert hints.category("CUSTOM.X") == hints.custom_category

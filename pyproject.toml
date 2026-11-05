@@ -87,6 +87,7 @@ exclude = ["/tests/"]
 module = [
     "bureau_core", "bureau_core.*", "canonical", "canonical.*", "sources", "sources.*",
     "app.audit", "app.bureaus.*", "app.requests.*", "app.users",  # ported in 1.3a
+    "app.adjustments.*", "app.validation.custom", "app.validation.results", "app.validation.tables",  # 1.3b
 ]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
@@ -144,6 +145,8 @@ module = [
     "app.requests.repository",
     "app.requests.stages",
     "app.users",
+    "app.validation.custom",
+    "app.validation.results",
     "canonical.snapshot",
     "canonical.staging.checks",
     "sources.excel",
