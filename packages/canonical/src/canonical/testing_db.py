@@ -1,9 +1,19 @@
-"""Stand-ins for the client's LMS views in schema `wip` (on rarfincare: views over its loan system). The source views
-join them, so a database test needs them: tables with the columns the views read and plausible types."""
+"""Real-database test support (SQL Server, Postgres) for the `db` tests: schema, migrations, reference data, views,
+and stand-ins for the client's LMS views in schema `wip` (on rarfincare: views over its loan system). The source
+views join them, so a database test needs them: tables with the columns the views read and plausible types."""
 
 from __future__ import annotations
 
-from sqlalchemy import Engine
+from datetime import datetime
+
+from sqlalchemy import Engine, inspect
+
+import canonical.staging.tables  # noqa: F401  (registers all app tables)
+from canonical.db import SCHEMA, metadata
+from canonical.migrate import AZURE_MIGRATIONS, apply_migrations, apply_views
+from canonical.reference import seed as seed_reference
+from canonical.tenants import TenantRepository
+from canonical.testing import TENANT
 
 D, N, INT, T, S = "DATE", "DECIMAL(20, 2)", "INT", "VARCHAR(40)", "VARCHAR(100)"
 
@@ -107,7 +117,52 @@ def _name(engine: Engine, name: str) -> str:
 
 
 def create_lms_stubs(engine: Engine) -> None:
+    """The stand-in LMS tables in schema wip (created once; safe to call again)."""
+    existing = {t.lower() for t in inspect(engine).get_table_names(schema="wip")}
     with engine.begin() as conn:
         for table, columns in STUBS.items():
+            if table.lower() in existing:
+                continue
             cols = ", ".join(f"{_name(engine, c)} {t}" for c, t in columns.items())
             conn.exec_driver_sql(f"CREATE TABLE wip.{table} ({cols})")
+
+
+def lms_column(engine: Engine, name: str) -> str:
+    """A stand-in LMS column as SQL on this database (quoted when it has spaces)."""
+    return _name(engine, name)
+
+
+def _schemas(engine: Engine) -> None:
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+        for schema in (SCHEMA, "wip"):
+            if engine.dialect.name == "mssql":
+                conn.exec_driver_sql(f"IF SCHEMA_ID('{schema}') IS NULL EXEC('CREATE SCHEMA {schema}')")
+            else:
+                conn.exec_driver_sql(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+
+
+def _seed(engine: Engine) -> None:
+    TenantRepository(engine, clock=lambda: datetime(2026, 10, 1)).upsert(TENANT)
+    seed_reference(engine)
+
+
+def prepare_mssql(engine: Engine) -> None:
+    """SQL Server as on rarfincare: the baseline (as the administrator runs it), migrations 002-006, the reference
+    data, the stand-in LMS tables, then the views (labels.sql fills the labels, so it runs after the seed)."""
+    _schemas(engine)
+    if "schema_migration" not in inspect(engine).get_table_names(schema=SCHEMA):
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            conn.exec_driver_sql((AZURE_MIGRATIONS / "001_baseline.sql").read_text("utf-8"))
+    apply_migrations(engine)
+    _seed(engine)
+    create_lms_stubs(engine)
+    apply_views(engine)
+
+
+def prepare_postgres(engine: Engine) -> None:
+    """Postgres: the app tables from the SQLAlchemy metadata, the reference data, the stand-ins, the views."""
+    _schemas(engine)
+    metadata.create_all(engine)
+    _seed(engine)
+    create_lms_stubs(engine)
+    apply_views(engine)
