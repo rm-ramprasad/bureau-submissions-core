@@ -1,0 +1,285 @@
+# Commercial UCRF 3.10 file (pipe-delimited): docs/specs/Commercial_UCRF_V3_10.md section 7.
+#
+# Rendered by the generic delimited engine (bureau_core/formats/delimited/). Each segment lists its fields 2..n in
+# spec order (field 1 is the segment tag) and declares `fields:` = the spec's field count, checked on load.
+# Field keys: source | const | blank, format (+ args), translate (canonical code list -> commercial code, from the
+# snapshot's frozen translations), when {source: [canonical values]}, if_present, default, cap, max_len,
+# check (present: also not empty and not dropped by validation), alternatives (the first that gives a value).
+# Values are canonical (model.yaml). A line ends with '|' and CRLF (decision 8, docs/plans/...).
+#
+# Any change here changes the bureau files: tests/test_commercial_golden.py compares them byte for byte.
+
+layout: CUCRF-3.10
+
+encoding:
+  delimiter: "|"
+  line_end: "\r\n"
+  trailing_delimiter: true       # the spec's example line ends with '|' (decided 23-10-2026; confirm with a CIC sample)
+  charset: ascii
+  strip_chars: "~^"              # control characters reject the whole file (section 6)
+
+uses:                            # rows the id. / contacts. sources read
+  - {rows: party_identifier, by: party_key}
+  - {rows: party_phone, by: party_key}
+  - {rows: party_email, by: party_key}
+
+# ------------------------------------------------------------------ HD header (7.1)
+header:
+  tag: HD
+  fields: 7
+  field_list:
+    - {source: bureau.member_id, check: none, max_len: 10}                 # 2 member ID
+    - blank                                                                # 3 previous member ID (after a merger)
+    - {source: run.created_date, format: ddmmyyyy}                         # 4 date of creation & certification
+    - {source: run.as_of_date, format: ddmmyyyy}                           # 5 reporting / cycle date
+    - {source: run.cycle, max_len: 2}                                      # 6 reporting cycle (DL W1 W2 W3 ME ...)
+    - blank                                                                # 7 filler
+
+# ------------------------------------------------------------------ BS borrower (7.2), once per borrower and branch
+group:
+  tag: BS
+  fields: 27
+  split_by: account.branch_code  # the same borrower is reported once per member branch
+  field_list:
+    - {source: account.branch_code, max_len: 15}                           # 2 member branch code
+    - {source: account.previous_branch_code, max_len: 15}                  # 3 previous member branch code
+    - {source: full_name, max_len: 125}                                    # 4 borrower's name
+    - {source: short_name, max_len: 20}                                    # 5 borrower short name
+    - {source: id.COMPANY_REGISTRATION, max_len: 30}                       # 6 company registration number
+    - {source: incorporation_date, format: ddmmyyyy}                       # 7 date of incorporation
+    - {source: id.PAN, format: alnum, max_len: 15}                         # 8 PAN
+    - {source: id.CIN, format: alnum, max_len: 30}                         # 9 CIN
+    - {source: id.TIN, format: alnum, max_len: 30}                         # 10 TIN
+    - {source: id.SERVICE_TAX, max_len: 30}                                # 11 service tax number
+    - {source: id.UDYAM, max_len: 30}                                      # 12 Udyam registration number
+    - {source: legal_constitution, translate: legal_constitution}          # 13 legal constitution
+    - {source: business_category, translate: business_category}            # 14 business category
+    - {source: industry_type, translate: industry_type}                    # 15 business / industry type
+    - {source: activity_class_1, max_len: 5}                               # 16 class of activity 1
+    - {source: activity_class_2, max_len: 5}                               # 17
+    - {source: activity_class_3, max_len: 5}                               # 18
+    - {source: hsn_code, max_len: 20}                                      # 19 HSN
+    - {source: sales_amount, format: amount}                               # 20 sales figure
+    - {source: sales_year, format: ddmmyyyy}                               # 21 financial year
+    - {source: employee_count, format: int}                                # 22 number of employees
+    - {source: credit_rating, max_len: 10}                                 # 23 credit rating
+    - {source: rating_agency, translate: rating_agency}                    # 24 assessment agency / authority
+    - {source: rating_date, format: ddmmyyyy}                              # 25 credit rating as on
+    - {source: rating_expiry_date, format: ddmmyyyy}                       # 26 credit rating expiry date
+    - {source: id.CKYC, format: alnum, max_len: 30}                        # 27 CKYC
+  children:
+    # ---------------------------------------------------------------- AS address (7.3)
+    - tag: AS
+      fields: 17
+      rows: party_address
+      by: party_key
+      order_by: [priority, row_id]
+      field_list:
+        - {source: address_category, translate: address_category}          # 2 location type
+        - blank                                                            # 3 filler
+        - {source: address_line_1, max_len: 200}                           # 4 address line 1
+        - {source: address_line_2, max_len: 200}                           # 5
+        - {source: address_line_3, max_len: 200}                           # 6
+        - {source: city, max_len: 40}                                      # 7 city / town
+        - {source: district, max_len: 40}                                  # 8 district
+        - {source: state_code, translate: state_code}                      # 9 state / union territory
+        - source: pin_code                                                 # 10 PIN code (6 digits in India)
+          format: pin_code
+          args: {state_field: state_code, foreign_state: FOREIGN}
+          max_len: 6
+        - {source: country, translate: country}                            # 11 country
+        - {source: contacts.mobile, max_len: 55}                           # 12 mobile number(s)
+        - blank                                                            # 13 telephone area code (held in the number)
+        - {source: contacts.telephone, max_len: 55}                        # 14 telephone number(s)
+        - blank                                                            # 15 filler
+        - source: contacts.email                                           # 16 e-mail: read from the registered office
+          format: lower_text
+          when: {address_category: [REGISTERED_OFFICE]}
+          max_len: 55
+        - blank                                                            # 17 filler
+    # ---------------------------------------------------------------- RS relationship (7.4)
+    - tag: RS
+      fields: 39
+      rows: relationship
+      by: party_key
+      order_by: [row_id]
+      field_list:
+        - blank                                                            # 2 filler
+        - {source: related_type, translate: related_type}                  # 3 related type
+        - {source: relationship_type, translate: relationship_type}        # 4 relationship
+        - {source: full_name, max_len: 125, when: {related_type: [INDIAN_ENTITY, FOREIGN_ENTITY]}}            # 5 entity name
+        - {source: business_category, translate: business_category, when: {related_type: [INDIAN_ENTITY, FOREIGN_ENTITY]}}   # 6
+        - {source: industry_type, translate: industry_type, when: {related_type: [INDIAN_ENTITY, FOREIGN_ENTITY]}}         # 7
+        - {source: name_prefix, max_len: 15, when: {related_type: [INDIAN_INDIVIDUAL, FOREIGN_INDIVIDUAL]}}   # 8 prefix
+        - {source: full_name, max_len: 150, when: {related_type: [INDIAN_INDIVIDUAL, FOREIGN_INDIVIDUAL]}}    # 9 full name
+        - {source: gender, translate: gender, when: {related_type: [INDIAN_INDIVIDUAL, FOREIGN_INDIVIDUAL]}}  # 10 gender
+        - {source: company_registration, max_len: 30, when: {related_type: [INDIAN_ENTITY, FOREIGN_ENTITY]}}  # 11
+        - {source: incorporation_date, format: ddmmyyyy, when: {related_type: [INDIAN_ENTITY, FOREIGN_ENTITY]}} # 12
+        - {source: birth_date, format: ddmmyyyy, when: {related_type: [INDIAN_INDIVIDUAL, FOREIGN_INDIVIDUAL]}} # 13 DOB
+        - {source: pan, format: alnum, max_len: 10}                        # 14 PAN
+        - {source: voter_id, max_len: 30}                                  # 15 voter ID
+        - {source: passport, format: alnum, max_len: 30}                   # 16 passport number
+        - {source: driving_licence, max_len: 30}                           # 17 driving licence
+        - {source: aadhaar, format: alnum, max_len: 30}                    # 18 UID
+        - {source: ration_card, max_len: 30}                               # 19 ration card
+        - {source: cin, format: alnum, max_len: 30}                        # 20 CIN
+        - {source: din, format: alnum, max_len: 12}                        # 21 DIN
+        - {source: tin, format: alnum, max_len: 30}                        # 22 TIN
+        - {source: service_tax, max_len: 30}                               # 23 service tax
+        - {source: ckyc, format: alnum, max_len: 30}                       # 24 CKYC
+        - {source: control_percentage, format: hundredths, max_len: 6}     # 25 percentage of control (99.99 -> 9999)
+        - {source: address_line_1, max_len: 200}                           # 26 address line 1
+        - {source: address_line_2, max_len: 200}                           # 27
+        - {source: address_line_3, max_len: 200}                           # 28
+        - {source: city, max_len: 40}                                      # 29 city / town
+        - {source: district, max_len: 40}                                  # 30 district
+        - {source: state_code, translate: state_code}                      # 31 state
+        - {source: pin_code, format: pin_code, args: {state_field: state_code, foreign_state: FOREIGN}, max_len: 6}  # 32
+        - {source: country, translate: country}                            # 33 country
+        - {source: mobile, max_len: 55}                                    # 34 mobile number(s)
+        - {source: telephone, max_len: 55}                                 # 35 telephone number(s)
+        - {source: telephone_area_code, max_len: 6}                        # 36 telephone area code
+        - {source: fax, max_len: 55}                                       # 37 fax number(s)
+        - {source: fax_area_code, max_len: 6}                              # 38 fax area code
+        - {source: udyam, max_len: 30}                                     # 39 Udyam registration number
+
+# ------------------------------------------------------------------ CR credit facility (7.5), once per accepted record
+record:
+  tag: CR
+  fields: 45
+  field_list:
+    - {source: account_number, max_len: 25}                                # 2 account number
+    - {source: previous_account_number, max_len: 25}                       # 3 previous account number
+    - {source: date_opened, format: ddmmyyyy}                              # 4 sanction date
+    - {source: sanctioned_amount, format: amount}                          # 5 sanctioned / notional amount
+    - {source: currency, translate: currency}                              # 6 currency code
+    - {source: account_type, translate: account_type}                      # 7 credit type
+    - {source: repayment_tenure, cap: 999, format: int}                    # 8 tenure (months, max 999)
+    - {source: payment_frequency, translate: payment_frequency}            # 9 repayment frequency
+    - {source: drawing_power, format: amount}                              # 10 drawing power
+    - {source: current_balance, check: none, format: signed_amount_leading}  # 11 balance (leading '-' when in credit)
+    - {source: restructured_notional_amount, format: amount}               # 12 notional amount restructured
+    - {source: maturity_date, format: ddmmyyyy}                            # 13 expiry / maturity date
+    - {source: renewal_date, format: ddmmyyyy}                             # 14 loan renewal date
+    - alternatives:                                                        # 15 DPD as 1nnn, or the asset class
+        - {source: days_past_due, check: not_null, format: dpd_1nnn}
+        - {source: asset_classification, translate: asset_classification}
+    - {source: asset_classification_date, format: ddmmyyyy}                # 16 asset classification date
+    - {source: amount_overdue, check: not_null, format: amount}             # 17 amount overdue (0 when none)
+    - {source: overdue_bucket_1, format: amount}                           # 18 overdue 1-30 days
+    - {source: overdue_bucket_2, format: amount}                           # 19 31-60
+    - {source: overdue_bucket_3, format: amount}                           # 20 61-90
+    - {source: overdue_bucket_4, format: amount}                           # 21 91-180
+    - {source: overdue_bucket_5, format: amount}                           # 22 above 180
+    - {source: high_credit_amount, format: amount}                         # 23 high credit
+    - {source: emi_amount, format: amount}                                 # 24 instalment amount
+    - {source: actual_payment_amount, format: amount}                      # 25 last repaid amount
+    - alternatives:                                                        # 26 account status: special status, else
+        - {source: credit_facility_status, translate: credit_facility_status}     #    02 closed by payment / 01 open
+        - {const: "02", if_present: date_closed}
+        - {const: "01"}
+    - alternatives:                                                        # 27 account status date
+        - {source: status_date, format: ddmmyyyy}
+        - {source: date_closed, format: ddmmyyyy}
+    - {source: written_off_total, format: amount}                          # 28 written off amount
+    - {source: settlement_amount, format: amount}                          # 29 settled amount
+    - {source: restructuring_reason, translate: restructuring_reason}      # 30 major reason for restructuring
+    - {source: npa_contracts_amount, format: amount}                       # 31 contracts classified as NPA
+    - {source: security_coverage, translate: coverage}                     # 32 asset based security coverage
+    - {source: guarantee_coverage, translate: coverage}                    # 33 guarantee coverage
+    - {source: remark, max_len: 100}                                       # 34 bank remark code
+    - alternatives:                                                        # 35 wilful default status (0 / 1)
+        - {const: "1", if_present: wilful_default_date}
+        - {source: suit_filed_status, format: lookup, args: {map: {WILFUL_DEFAULT: "1", SUIT_FILED_WILFUL_DEFAULT: "1"}}}
+        - {const: "0"}
+    - {source: wilful_default_date, format: ddmmyyyy}                      # 36 date classified as wilful default
+    - {source: suit_filed_status, translate: suit_filed_status}            # 37 suit filed status
+    - {source: suit_reference, max_len: 25}                                # 38 suit reference number
+    - {source: suit_amount, format: amount}                                # 39 suit amount
+    - {source: suit_date, format: ddmmyyyy}                                # 40 date of suit
+    - {source: dispute_id, max_len: 20}                                    # 41 dispute ID (corrections only)
+    - {const: "01"}                                                        # 42 transaction type: 01 normal submission
+    - {source: other_lenders, max_len: 42}                                 # 43 other banks / FIs
+    - {source: ufce_amount, format: amount}                                # 44 UFCE amount
+    - {source: ufce_date, format: ddmmyyyy}                                # 45 UFCE date
+  children:
+    # ---------------------------------------------------------------- GS guarantor (7.6)
+    - tag: GS
+      fields: 38
+      rows: guarantor
+      by: account_key
+      order_by: [row_id]
+      field_list:
+        - blank                                                            # 2 filler
+        - {source: related_type, translate: related_type}                  # 3 guarantor type
+        - {source: business_category, translate: business_category, when: {related_type: [INDIAN_ENTITY, FOREIGN_ENTITY]}}   # 4
+        - {source: industry_type, translate: industry_type, when: {related_type: [INDIAN_ENTITY, FOREIGN_ENTITY]}}         # 5
+        - {source: full_name, max_len: 125, when: {related_type: [INDIAN_ENTITY, FOREIGN_ENTITY]}}            # 6 entity name
+        - {source: name_prefix, max_len: 15, when: {related_type: [INDIAN_INDIVIDUAL, FOREIGN_INDIVIDUAL]}}   # 7 prefix
+        - {source: full_name, max_len: 150, when: {related_type: [INDIAN_INDIVIDUAL, FOREIGN_INDIVIDUAL]}}    # 8 full name
+        - {source: gender, translate: gender, when: {related_type: [INDIAN_INDIVIDUAL, FOREIGN_INDIVIDUAL]}}  # 9 gender
+        - {source: company_registration, max_len: 30, when: {related_type: [INDIAN_ENTITY, FOREIGN_ENTITY]}}  # 10
+        - {source: incorporation_date, format: ddmmyyyy, when: {related_type: [INDIAN_ENTITY, FOREIGN_ENTITY]}} # 11
+        - {source: birth_date, format: ddmmyyyy, when: {related_type: [INDIAN_INDIVIDUAL, FOREIGN_INDIVIDUAL]}} # 12 DOB
+        - {source: pan, format: alnum, max_len: 10}                        # 13 PAN
+        - {source: voter_id, max_len: 30}                                  # 14 voter ID
+        - {source: passport, format: alnum, max_len: 30}                   # 15 passport number
+        - {source: driving_licence, max_len: 30}                           # 16 driving licence
+        - {source: aadhaar, format: alnum, max_len: 30}                    # 17 UID
+        - {source: ration_card, max_len: 30}                               # 18 ration card
+        - {source: cin, format: alnum, max_len: 30}                        # 19 CIN
+        - {source: din, format: alnum, max_len: 12}                        # 20 DIN
+        - {source: tin, format: alnum, max_len: 30}                        # 21 TIN
+        - {source: service_tax, max_len: 30}                               # 22 service tax
+        - {source: ckyc, format: alnum, max_len: 30}                       # 23 CKYC
+        - {source: address_line_1, max_len: 200}                           # 24 address line 1
+        - {source: address_line_2, max_len: 200}                           # 25
+        - {source: address_line_3, max_len: 200}                           # 26
+        - {source: city, max_len: 40}                                      # 27 city / town
+        - {source: district, max_len: 40}                                  # 28 district
+        - {source: state_code, translate: state_code}                      # 29 state
+        - {source: pin_code, format: pin_code, args: {state_field: state_code, foreign_state: FOREIGN}, max_len: 6}  # 30
+        - {source: country, translate: country}                            # 31 country
+        - {source: mobile, max_len: 55}                                    # 32 mobile number(s)
+        - {source: telephone_area_code, max_len: 6}                        # 33 telephone area code
+        - {source: telephone, max_len: 55}                                 # 34 telephone number(s)
+        - {source: fax_area_code, max_len: 6}                              # 35 fax area code
+        - {source: fax, max_len: 55}                                       # 36 fax number(s)
+        - {source: guarantee_invocation_date, format: ddmmyyyy}            # 37 guarantee invocation date
+        - {source: udyam, max_len: 30}                                     # 38 Udyam registration number
+    # ---------------------------------------------------------------- SS security (7.7)
+    - tag: SS
+      fields: 7
+      rows: security
+      by: account_key
+      order_by: [row_id]
+      field_list:
+        - {source: security_value, format: amount}                         # 2 value of security
+        - {source: currency, translate: currency}                          # 3 currency type
+        - {source: security_type, translate: security_type}                # 4 type of security
+        - {source: security_classification, translate: security_classification}   # 5 security classification
+        - {source: valuation_date, format: ddmmyyyy}                       # 6 date of valuation
+        - blank                                                            # 7 filler
+    # ---------------------------------------------------------------- CD dishonour of cheques (7.8)
+    - tag: CD
+      fields: 8
+      rows: cheque_dishonour
+      by: account_key
+      order_by: [dishonour_date, row_id]
+      field_list:
+        - {source: dishonour_date, format: ddmmyyyy}                       # 2 date of dishonour
+        - {source: amount, format: amount}                                 # 3 amount
+        - {source: instrument_number, max_len: 30}                         # 4 instrument / cheque number
+        - {source: dishonour_count, format: int}                           # 5 number of times dishonoured
+        - {source: cheque_issue_date, format: ddmmyyyy}                    # 6 cheque issue date
+        - {source: reason, translate: dishonour_reason}                    # 7 reason for dishonour
+        - blank                                                            # 8 filler
+
+# ------------------------------------------------------------------ TS file closure (7.9)
+trailer:
+  tag: TS
+  fields: 4
+  field_list:
+    - {source: count.BS, check: none, format: int}                         # 2 number of borrower segments
+    - {source: count.CR, check: none, format: int}                         # 3 number of credit facility segments
+    - blank                                                                # 4 filler

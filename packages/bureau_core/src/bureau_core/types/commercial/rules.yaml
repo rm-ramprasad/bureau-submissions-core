@@ -1,0 +1,943 @@
+# Built-in validation rules: Commercial UCRF 3.10 (docs/specs/Commercial_UCRF_V3_10.md).
+#
+# Rule kinds (same engine as consumer, see types/consumer/rules.yaml):
+#   sql      returns row_id, account_key, party_key, value. Must filter on :snapshot_id. Also bound:
+#            :submission_type (for ref_code_group), :as_of_date, :one_year_before, the parameters below (:name)
+#   python   a function in submissions/validation/python_rules.py
+#   cascade  applied after all rules when deciding each record (validation/cascades.py facility_borrower_minimums)
+# Generated as well: a REQUIRED rule per column in requirements.yaml and an ENUM rule per code column whose list
+# codes.yaml translates. Outcomes can be changed per tenant with validation_policy, never by editing this file.
+#
+# One record = one credit facility x its borrower (c_account_holder). A REJECT_RECORD finding on the borrower
+# (party, no account) rejects every facility of that borrower. REJECT_SEGMENT on an identifier, address,
+# relationship, guarantor, security or cheque row leaves that row out of the file; the record survives unless the
+# minimums fail (cascade). "Reject Field/Segment" in the spec is REJECT_SEGMENT here when it can leave the borrower
+# without the segment, REJECT_FIELD otherwise.
+# Rules check canonical values (model.yaml), never file codes; sets of values are commercial groups
+# (types/commercial/codes.yaml -> ref_code_group), e.g. revolving_credit_type, relationship_for_<constitution>.
+
+pack: CUCRF-3.10
+submission_type: COMMERCIAL
+rule_prefix: CUCRF.                    # built-in rule IDs: CUCRF.<segment>.<NAME>; custom rules may not use it
+
+segments: {party: BS, party_identifier: BS, party_address: AS, party_phone: AS, party_email: AS,
+           relationship: RS, account: CR, account_holder: CR, guarantor: GS, security: SS, cheque_dishonour: CD}
+
+categories:
+  - {key: MINIMUM,  label: Minimum reporting requirements, segments: [REC]}
+  - {key: BORROWER, label: Borrower & identifiers,          segments: [BS]}
+  - {key: ADDRESS,  label: Address & contacts,              segments: [AS]}
+  - {key: RELATED,  label: Relationships & guarantors,      segments: [RS, GS]}
+  - {key: FACILITY, label: Credit facility,                 segments: [CR, SS, CD, ADJ]}
+custom_category: {key: CUSTOM, label: NBFC-specific checks}
+default_category: FACILITY
+
+cascade:
+  name: facility_borrower_minimums
+  settings:
+    no_identifier_rule: CUCRF.REC.NO_IDENTIFIER
+    no_valid_address_rule: CUCRF.REC.NO_VALID_ADDRESS
+    no_relationship_rule: CUCRF.REC.NO_RELATIONSHIP
+    relationship_optional_group: relationship_optional_credit_type    # 9026 factoring without recourse (buyer)
+
+generated:
+  required_outcome:
+    party: REJECT_RECORD
+    party_address: REJECT_SEGMENT
+    account: REJECT_RECORD
+    account_holder: REJECT_RECORD
+    relationship: REJECT_SEGMENT
+    guarantor: REJECT_SEGMENT
+    security: REJECT_SEGMENT
+    cheque_dishonour: REJECT_SEGMENT
+  enum_outcome_default: REJECT_FIELD
+  enum_outcome:
+    party.legal_constitution: REJECT_RECORD
+    party.business_category: REJECT_RECORD
+    party.industry_type: REJECT_RECORD
+    party_address.address_category: REJECT_SEGMENT
+    party_address.state_code: REJECT_SEGMENT
+    party_address.country: REJECT_SEGMENT
+    account.account_type: REJECT_RECORD
+    account.currency: REJECT_RECORD
+    account.credit_facility_status: REJECT_RECORD
+    relationship.related_type: REJECT_SEGMENT
+    relationship.relationship_type: REJECT_SEGMENT
+    relationship.state_code: REJECT_SEGMENT
+    relationship.country: REJECT_SEGMENT
+    guarantor.related_type: REJECT_SEGMENT
+    guarantor.state_code: REJECT_SEGMENT
+    guarantor.country: REJECT_SEGMENT
+    security.currency: REJECT_SEGMENT
+    security.security_type: REJECT_SEGMENT
+    security.security_classification: REJECT_SEGMENT
+    cheque_dishonour.reason: REJECT_SEGMENT
+
+# Tunable values (Rules & policies page; per-NBFC overrides). Values fixed by the spec are not parameters.
+parameters:
+  - name: min_address_length
+    type: int
+    default: 5
+    min: 1
+    max: 40
+    label: Minimum address length
+    description: Shortest acceptable address (lines 1-3 together, in characters).
+    used_by: [CUCRF.AS.ADDRESS_TOO_SHORT, CUCRF.RS.ADDRESS_TOO_SHORT, CUCRF.GS.ADDRESS_TOO_SHORT]
+  - name: name_salutation_pattern
+    type: regex
+    default: '^(MR|MRS|MS|DR|SMT|KUM)\.?$|^(MISS|SHRI)$'
+    label: Salutations ignored at the start of a name
+    description: >-
+      Regular expression for a first word that is a salutation (matched ignoring case), for individual borrowers,
+      related individuals and individual guarantors.
+    used_by: [CUCRF.BS.NAME_INVALID, CUCRF.RS.NAME_INVALID, CUCRF.GS.NAME_INVALID]
+  - name: id_pattern_pan
+    type: regex
+    default: '^[A-Z]{3}[ABCFGHJLPT][A-Z][0-9]{4}[A-Z]$'
+    label: PAN pattern
+    description: 10 characters, any PAN holder type (company, firm, trust, individual ...).
+    used_by: [CUCRF.BS.ID_FORMAT, CUCRF.RS.PAN_FORMAT, CUCRF.GS.PAN_FORMAT]
+  - name: id_pattern_cin
+    type: regex
+    default: '^[A-Z0-9]{21}$'
+    label: CIN pattern
+    description: Corporate Identification Number, 21 letters and digits.
+    used_by: [CUCRF.BS.ID_FORMAT, CUCRF.RS.CIN_FORMAT, CUCRF.GS.CIN_FORMAT]
+  - name: id_pattern_tin
+    type: regex
+    default: '^[A-Z0-9]{11}$'
+    label: TIN pattern
+    description: Tax Identification Number, 11 letters and digits.
+    used_by: [CUCRF.BS.ID_FORMAT]
+  - name: id_pattern_ckyc
+    type: regex
+    default: '^[A-Z0-9][0-9]{13,14}$'
+    label: CKYC pattern
+    description: Up to 15 characters, the first may be a letter, at least 14 digits.
+    used_by: [CUCRF.BS.ID_FORMAT, CUCRF.RS.CKYC_FORMAT, CUCRF.GS.CKYC_FORMAT]
+  - name: id_pattern_udyam
+    type: regex
+    default: '^UDYAM-[A-Z]{2}-[0-9]{2}-[0-9]{7}$'
+    label: Udyam pattern
+    description: UDYAM-XX-00-0000000 (spaces removed, hyphens kept).
+    used_by: [CUCRF.BS.ID_FORMAT, CUCRF.RS.UDYAM_FORMAT, CUCRF.GS.UDYAM_FORMAT]
+  - name: id_pattern_din
+    type: regex
+    default: '^[0-9]{8}$'
+    label: DIN pattern
+    description: Director Identification Number, 8 digits.
+    used_by: [CUCRF.RS.DIN_FORMAT, CUCRF.GS.DIN_FORMAT]
+  - name: id_pattern_passport
+    type: regex
+    default: '^(?=.{7,10}$)[A-Z][A-Z0-9][0-9]+$'
+    label: Passport pattern
+    description: 7-10 characters, a letter first, letter or digit second, digits after.
+    used_by: [CUCRF.RS.PASSPORT_FORMAT, CUCRF.GS.PASSPORT_FORMAT]
+  - name: id_pattern_voter
+    type: regex
+    default: '^(?=.{9,}$)[A-Z]{2,3}[A-Z0-9]+$'
+    label: Voter ID pattern
+    description: At least 9 characters starting with 2-3 letters.
+    used_by: [CUCRF.RS.VOTER_ID_FORMAT, CUCRF.GS.VOTER_ID_FORMAT]
+
+rules:
+  # ------------------------------------------------------------------ BS borrower (7.2)
+  - id: CUCRF.BS.NAME_INVALID
+    entity: party
+    field: full_name
+    outcome: REJECT_RECORD
+    message: Borrower name is not valid (2 letters or digits for a business; Annexure C part C for an individual)
+    python: borrower_name
+  - id: CUCRF.BS.SHORT_NAME_FOR_INDIVIDUAL
+    entity: party
+    field: short_name
+    outcome: REJECT_FIELD
+    message: Borrower short name is not reported for individuals (legal constitution 90)
+    sql: |
+      SELECT p.row_id, NULL AS account_key, p.party_key, p.short_name AS value
+      FROM automn.c_party p
+      WHERE p.snapshot_id = :snapshot_id AND p.short_name IS NOT NULL AND p.legal_constitution = 'INDIVIDUAL'
+  - id: CUCRF.BS.INCORPORATION_DATE_INVALID
+    entity: party
+    field: incorporation_date
+    outcome: REJECT_FIELD
+    message: Date of incorporation cannot be after the as-of date
+    sql: |
+      SELECT p.row_id, NULL AS account_key, p.party_key, p.incorporation_date AS value
+      FROM automn.c_party p WHERE p.snapshot_id = :snapshot_id AND p.incorporation_date > :as_of_date
+  - id: CUCRF.BS.SALES_OR_EMPLOYEES_NEGATIVE
+    entity: party
+    field: sales_amount
+    outcome: REJECT_FIELD
+    message: Sales figure and number of employees cannot be negative
+    sql: |
+      SELECT p.row_id, NULL AS account_key, p.party_key, COALESCE(p.sales_amount, p.employee_count) AS value
+      FROM automn.c_party p WHERE p.snapshot_id = :snapshot_id AND (p.sales_amount < 0 OR p.employee_count < 0)
+  - id: CUCRF.BS.RATING_DETAILS_MISSING
+    entity: party
+    field: rating_agency
+    outcome: WARN
+    message: A credit rating needs the rating agency, the rating date and its expiry date (fields 24-26)
+    sql: |
+      SELECT p.row_id, NULL AS account_key, p.party_key, p.credit_rating AS value
+      FROM automn.c_party p
+      WHERE p.snapshot_id = :snapshot_id AND p.credit_rating IS NOT NULL
+        AND (p.rating_agency IS NULL OR p.rating_date IS NULL OR p.rating_expiry_date IS NULL)
+  - id: CUCRF.BS.RATING_DATES_INVALID
+    entity: party
+    field: rating_date
+    outcome: REJECT_FIELD
+    message: Rating date cannot be after the as-of date, and the expiry must be after the rating date
+    sql: |
+      SELECT p.row_id, NULL AS account_key, p.party_key, p.rating_date AS value
+      FROM automn.c_party p
+      WHERE p.snapshot_id = :snapshot_id AND (p.rating_date > :as_of_date OR p.rating_expiry_date <= p.rating_date)
+  - id: CUCRF.BS.ID_FORMAT
+    entity: party_identifier
+    field: id_number
+    outcome: REJECT_SEGMENT
+    message: Identifier is not valid for its type (Annexure D part C). It is not reported
+    python: id_number_format
+  - id: CUCRF.BS.ID_DUPLICATE_TYPE
+    entity: party_identifier
+    field: id_type
+    outcome: REJECT_SEGMENT
+    message: Different numbers for the same identifier type. All of them are rejected
+    sql: |
+      SELECT i.row_id, NULL AS account_key, i.party_key, i.id_type AS value
+      FROM automn.c_party_identifier i
+      WHERE i.snapshot_id = :snapshot_id AND EXISTS (
+        SELECT 1 FROM automn.c_party_identifier j
+        WHERE j.snapshot_id = i.snapshot_id AND j.party_key = i.party_key AND j.id_type = i.id_type
+          AND j.id_number <> i.id_number)
+  - id: CUCRF.BS.ID_TYPE_NOT_REPORTABLE
+    entity: party_identifier
+    field: id_type
+    outcome: REJECT_SEGMENT
+    message: This identifier type has no field in the Borrower segment (PAN, CIN, TIN, service tax, Udyam, company registration, CKYC)
+    sql: |
+      SELECT i.row_id, NULL AS account_key, i.party_key, i.id_type AS value
+      FROM automn.c_party_identifier i
+      WHERE i.snapshot_id = :snapshot_id
+        AND i.id_type NOT IN ('PAN', 'CIN', 'TIN', 'SERVICE_TAX', 'UDYAM', 'COMPANY_REGISTRATION', 'CKYC')
+  - id: CUCRF.BS.CIN_NOT_COMPANY
+    entity: party_identifier
+    field: id_number
+    outcome: WARN
+    message: CIN applies to private or public limited companies (legal constitution 11, 12)
+    sql: |
+      SELECT i.row_id, NULL AS account_key, i.party_key, p.legal_constitution AS value
+      FROM automn.c_party_identifier i
+      JOIN automn.c_party p ON p.snapshot_id = i.snapshot_id AND p.party_key = i.party_key
+      WHERE i.snapshot_id = :snapshot_id AND i.id_type = 'CIN'
+        AND COALESCE(p.legal_constitution, '') NOT IN ('PRIVATE_LIMITED', 'PUBLIC_LIMITED')
+  - id: CUCRF.BS.INDIVIDUAL_PAN_OR_CKYC
+    entity: party
+    field: legal_constitution
+    outcome: REJECT_RECORD
+    message: An individual borrower (legal constitution 90) needs a PAN or a CKYC number
+    sql: |
+      SELECT p.row_id, NULL AS account_key, p.party_key, NULL AS value
+      FROM automn.c_party p
+      WHERE p.snapshot_id = :snapshot_id AND p.legal_constitution = 'INDIVIDUAL' AND NOT EXISTS (
+        SELECT 1 FROM automn.c_party_identifier i
+        WHERE i.snapshot_id = p.snapshot_id AND i.party_key = p.party_key AND i.id_type IN ('PAN', 'CKYC'))
+
+  # ------------------------------------------------------------------ AS address and contacts (7.3)
+  - id: CUCRF.AS.ADDRESS_TOO_SHORT
+    entity: party_address
+    field: address_line_1
+    outcome: REJECT_SEGMENT
+    message: Address lines 1-3 together are shorter than {min_address_length} characters
+    sql: |
+      SELECT x.row_id, NULL AS account_key, x.party_key, x.address_line_1 AS value
+      FROM automn.c_party_address x
+      WHERE x.snapshot_id = :snapshot_id
+        AND LEN(TRIM(COALESCE(x.address_line_1, ''))) + LEN(TRIM(COALESCE(x.address_line_2, '')))
+          + LEN(TRIM(COALESCE(x.address_line_3, ''))) < :min_address_length
+  - id: CUCRF.AS.ADDRESS_MEANINGLESS
+    entity: party_address
+    field: address_line_1
+    outcome: REJECT_SEGMENT
+    message: Address is only NULL / NA, digits or special characters
+    python: party_address_address_meaningless
+  - id: CUCRF.AS.STATE_REQUIRED
+    entity: party_address
+    field: state_code
+    outcome: REJECT_SEGMENT
+    message: State is required for an address in India
+    sql: |
+      SELECT x.row_id, NULL AS account_key, x.party_key, NULL AS value
+      FROM automn.c_party_address x WHERE x.snapshot_id = :snapshot_id AND x.country = 'INDIA' AND x.state_code IS NULL
+  - id: CUCRF.AS.PIN_REQUIRED
+    entity: party_address
+    field: pin_code
+    outcome: REJECT_SEGMENT
+    message: PIN code is required for an address in India
+    sql: |
+      SELECT x.row_id, NULL AS account_key, x.party_key, NULL AS value
+      FROM automn.c_party_address x
+      WHERE x.snapshot_id = :snapshot_id AND x.country = 'INDIA' AND (x.pin_code IS NULL OR TRIM(x.pin_code) = '')
+        AND COALESCE(x.state_code, '') <> 'FOREIGN'
+  - id: CUCRF.AS.FOREIGN_STATE_EXPECTED
+    entity: party_address
+    field: state_code
+    outcome: WARN
+    message: An address outside India is reported with state 77 (foreign)
+    sql: |
+      SELECT x.row_id, NULL AS account_key, x.party_key, x.state_code AS value
+      FROM automn.c_party_address x
+      WHERE x.snapshot_id = :snapshot_id AND x.country <> 'INDIA' AND x.state_code IS NOT NULL
+        AND x.state_code <> 'FOREIGN'
+  - id: CUCRF.AS.PIN_FORMAT
+    entity: party_address
+    field: pin_code
+    outcome: REJECT_SEGMENT
+    message: PIN must have 6 digits and must not end in 000
+    python: pin_format
+  - id: CUCRF.AS.PIN_STATE_MISMATCH
+    entity: party_address
+    field: pin_code
+    outcome: REJECT_SEGMENT
+    message: PIN prefix is outside the state's range (Annexure D part E)
+    python: pin_state_mismatch
+  - id: CUCRF.AS.NO_REGISTERED_OFFICE
+    entity: party_address
+    field: address_category
+    outcome: WARN
+    message: A business borrower should have a registered office address (location type 01)
+    sql: |
+      SELECT NULL AS row_id, NULL AS account_key, p.party_key, p.legal_constitution AS value
+      FROM automn.c_party p
+      WHERE p.snapshot_id = :snapshot_id AND COALESCE(p.legal_constitution, '') <> 'INDIVIDUAL' AND NOT EXISTS (
+        SELECT 1 FROM automn.c_party_address x
+        WHERE x.snapshot_id = p.snapshot_id AND x.party_key = p.party_key AND x.address_category = 'REGISTERED_OFFICE')
+  - id: CUCRF.AS.PHONE_INVALID
+    entity: party_phone
+    field: phone_number
+    outcome: REJECT_SEGMENT
+    message: No valid telephone number after removing sequences, repeated digits and truncated numbers (Annexure C part B)
+    python: phone_number_invalid
+  - id: CUCRF.AS.EMAIL_INVALID
+    entity: party_email
+    field: email
+    outcome: REJECT_SEGMENT
+    message: E-mail fails the Annexure C part A checks
+    python: email_invalid
+
+  # ------------------------------------------------------------------ RS relationship (7.4, Annexure D)
+  - id: CUCRF.RS.ENTITY_DETAILS_MISSING
+    entity: relationship
+    field: full_name
+    outcome: REJECT_SEGMENT
+    message: A related business entity needs its name, business category and industry type (fields 5-7)
+    sql: |
+      SELECT r.row_id, NULL AS account_key, r.party_key, r.related_type AS value
+      FROM automn.c_relationship r
+      WHERE r.snapshot_id = :snapshot_id
+        AND r.related_type IN (SELECT g.code FROM automn.ref_code_group g WHERE g.submission_type = :submission_type AND g.group_name = 'entity_related_type')
+        AND (r.full_name IS NULL OR r.business_category IS NULL OR r.industry_type IS NULL)
+  - id: CUCRF.RS.INDIVIDUAL_DETAILS_MISSING
+    entity: relationship
+    field: full_name
+    outcome: REJECT_SEGMENT
+    message: A related individual needs a full name and gender (fields 9, 10)
+    sql: |
+      SELECT r.row_id, NULL AS account_key, r.party_key, r.related_type AS value
+      FROM automn.c_relationship r
+      WHERE r.snapshot_id = :snapshot_id
+        AND r.related_type IN (SELECT g.code FROM automn.ref_code_group g WHERE g.submission_type = :submission_type AND g.group_name = 'individual_related_type')
+        AND (r.full_name IS NULL OR r.gender IS NULL)
+  - id: CUCRF.RS.INDIVIDUAL_DOB_MISSING
+    entity: relationship
+    field: birth_date
+    outcome: REJECT_RECORD
+    message: A related individual needs a date of birth (field 13)
+    sql: |
+      SELECT r.row_id, NULL AS account_key, r.party_key, r.full_name AS value
+      FROM automn.c_relationship r
+      WHERE r.snapshot_id = :snapshot_id AND r.birth_date IS NULL
+        AND r.related_type IN (SELECT g.code FROM automn.ref_code_group g WHERE g.submission_type = :submission_type AND g.group_name = 'individual_related_type')
+  - id: CUCRF.RS.DATES_INVALID
+    entity: relationship
+    field: birth_date
+    outcome: REJECT_FIELD
+    message: Date of birth or incorporation cannot be after the as-of date
+    sql: |
+      SELECT r.row_id, NULL AS account_key, r.party_key, COALESCE(r.birth_date, r.incorporation_date) AS value
+      FROM automn.c_relationship r
+      WHERE r.snapshot_id = :snapshot_id AND (r.birth_date > :as_of_date OR r.incorporation_date > :as_of_date)
+  - id: CUCRF.RS.NO_IDENTIFIER
+    entity: relationship
+    field: pan
+    outcome: REJECT_RECORD
+    message: The related party has no identifier (PAN, voter ID, passport, DL, UID, ration card, CIN, DIN, TIN, service tax, CKYC, Udyam or registration number). Not checked for business entities registered outside India
+    sql: |
+      SELECT r.row_id, NULL AS account_key, r.party_key, r.full_name AS value
+      FROM automn.c_relationship r
+      WHERE r.snapshot_id = :snapshot_id AND COALESCE(r.related_type, '') <> 'FOREIGN_ENTITY'
+        AND COALESCE(r.pan, r.voter_id, r.passport, r.driving_licence, r.aadhaar, r.ration_card, r.company_registration,
+                     r.cin, r.din, r.tin, r.service_tax, r.ckyc, r.udyam) IS NULL
+  - id: CUCRF.RS.NOT_FOR_CONSTITUTION
+    entity: relationship
+    field: relationship_type
+    outcome: REJECT_SEGMENT
+    message: This relationship type is not permitted for the borrower's legal constitution (Annexure D part A)
+    sql: |
+      SELECT r.row_id, NULL AS account_key, r.party_key, r.relationship_type AS value
+      FROM automn.c_relationship r
+      JOIN automn.c_party p ON p.snapshot_id = r.snapshot_id AND p.party_key = r.party_key
+      WHERE r.snapshot_id = :snapshot_id AND r.relationship_type IS NOT NULL
+        AND EXISTS (SELECT 1 FROM automn.ref_code_group g WHERE g.submission_type = :submission_type
+                    AND g.group_name = CONCAT_WS('', 'relationship_for_', p.legal_constitution))
+        AND NOT EXISTS (SELECT 1 FROM automn.ref_code_group g WHERE g.submission_type = :submission_type
+                        AND g.group_name = CONCAT_WS('', 'relationship_for_', p.legal_constitution)
+                        AND g.code = r.relationship_type)
+  - id: CUCRF.RS.NOT_FOR_RELATED_TYPE
+    entity: relationship
+    field: relationship_type
+    outcome: REJECT_SEGMENT
+    message: This relationship type is impermissible for this kind of related party (Annexure D part B)
+    sql: |
+      SELECT r.row_id, NULL AS account_key, r.party_key, r.relationship_type AS value
+      FROM automn.c_relationship r
+      WHERE r.snapshot_id = :snapshot_id AND EXISTS (
+        SELECT 1 FROM automn.ref_code_group g WHERE g.submission_type = :submission_type
+          AND g.group_name = CONCAT_WS('', 'relationship_not_for_', r.related_type) AND g.code = r.relationship_type)
+  - id: CUCRF.RS.DIN_NOT_DIRECTOR
+    entity: relationship
+    field: din
+    outcome: REJECT_FIELD
+    message: DIN is reported only for individual directors (relationship 51-54, 56)
+    sql: |
+      SELECT r.row_id, NULL AS account_key, r.party_key, r.din AS value
+      FROM automn.c_relationship r
+      WHERE r.snapshot_id = :snapshot_id AND r.din IS NOT NULL
+        AND (r.related_type NOT IN (SELECT g.code FROM automn.ref_code_group g WHERE g.submission_type = :submission_type AND g.group_name = 'individual_related_type')
+             OR r.relationship_type NOT IN (SELECT g.code FROM automn.ref_code_group g WHERE g.submission_type = :submission_type AND g.group_name = 'director_relationship_type'))
+  - id: CUCRF.RS.CONTROL_PERCENT_INVALID
+    entity: relationship
+    field: control_percentage
+    outcome: REJECT_FIELD
+    message: Percentage of control must be between 0 and 100
+    sql: |
+      SELECT r.row_id, NULL AS account_key, r.party_key, r.control_percentage AS value
+      FROM automn.c_relationship r
+      WHERE r.snapshot_id = :snapshot_id AND (r.control_percentage < 0 OR r.control_percentage > 100)
+  - id: CUCRF.RS.DUPLICATE
+    entity: relationship
+    field: related_key
+    outcome: REJECT_SEGMENT
+    message: The same related party is reported more than once for this borrower (the first is kept)
+    sql: |
+      SELECT r.row_id, NULL AS account_key, r.party_key, r.related_key AS value
+      FROM automn.c_relationship r
+      WHERE r.snapshot_id = :snapshot_id AND r.related_key IS NOT NULL AND EXISTS (
+        SELECT 1 FROM automn.c_relationship d
+        WHERE d.snapshot_id = r.snapshot_id AND d.party_key = r.party_key AND d.related_key = r.related_key
+          AND d.row_id < r.row_id)
+  - id: CUCRF.RS.ADDRESS_TOO_SHORT
+    entity: relationship
+    field: address_line_1
+    outcome: REJECT_SEGMENT
+    message: Address lines 1-3 together are shorter than {min_address_length} characters
+    sql: |
+      SELECT r.row_id, NULL AS account_key, r.party_key, r.address_line_1 AS value
+      FROM automn.c_relationship r
+      WHERE r.snapshot_id = :snapshot_id
+        AND LEN(TRIM(COALESCE(r.address_line_1, ''))) + LEN(TRIM(COALESCE(r.address_line_2, '')))
+          + LEN(TRIM(COALESCE(r.address_line_3, ''))) < :min_address_length
+  - id: CUCRF.RS.ADDRESS_MEANINGLESS
+    entity: relationship
+    field: address_line_1
+    outcome: REJECT_SEGMENT
+    message: Address is only NULL / NA, digits or special characters
+    python: relationship_address_meaningless
+  - id: CUCRF.RS.STATE_PIN_REQUIRED
+    entity: relationship
+    field: state_code
+    outcome: REJECT_SEGMENT
+    message: State and PIN code are required for a related party in India (related type 1 or 2)
+    sql: |
+      SELECT r.row_id, NULL AS account_key, r.party_key, r.state_code AS value
+      FROM automn.c_relationship r
+      WHERE r.snapshot_id = :snapshot_id AND r.country = 'INDIA'
+        AND r.related_type IN ('INDIAN_ENTITY', 'INDIAN_INDIVIDUAL')
+        AND (r.state_code IS NULL OR ((r.pin_code IS NULL OR TRIM(r.pin_code) = '') AND r.state_code <> 'FOREIGN'))
+  - id: CUCRF.RS.PIN_FORMAT
+    entity: relationship
+    field: pin_code
+    outcome: REJECT_FIELD
+    message: PIN must have 6 digits and must not end in 000
+    python: relationship_pin_format
+  - id: CUCRF.RS.PIN_STATE_MISMATCH
+    entity: relationship
+    field: pin_code
+    outcome: REJECT_FIELD
+    message: PIN prefix is outside the state's range (Annexure D part E)
+    python: relationship_pin_state_mismatch
+  - id: CUCRF.RS.NAME_INVALID
+    entity: relationship
+    field: full_name
+    outcome: REJECT_SEGMENT
+    message: Related individual's name fails Annexure C part C
+    python: relationship_name
+  - {id: CUCRF.RS.PAN_FORMAT, entity: relationship, field: pan, outcome: REJECT_FIELD,
+     message: PAN is not valid (Annexure D part C), python: relationship_pan_format}
+  - {id: CUCRF.RS.VOTER_ID_FORMAT, entity: relationship, field: voter_id, outcome: REJECT_FIELD,
+     message: Voter ID is not valid (Annexure D part C), python: relationship_voter_id_format}
+  - {id: CUCRF.RS.PASSPORT_FORMAT, entity: relationship, field: passport, outcome: REJECT_FIELD,
+     message: Passport number is not valid (Annexure D part C), python: relationship_passport_format}
+  - {id: CUCRF.RS.CIN_FORMAT, entity: relationship, field: cin, outcome: REJECT_FIELD,
+     message: CIN is not valid (Annexure D part C), python: relationship_cin_format}
+  - {id: CUCRF.RS.DIN_FORMAT, entity: relationship, field: din, outcome: REJECT_FIELD,
+     message: DIN is not valid, python: relationship_din_format}
+  - {id: CUCRF.RS.CKYC_FORMAT, entity: relationship, field: ckyc, outcome: REJECT_FIELD,
+     message: CKYC number is not valid (Annexure D part C), python: relationship_ckyc_format}
+  - {id: CUCRF.RS.UDYAM_FORMAT, entity: relationship, field: udyam, outcome: REJECT_FIELD,
+     message: Udyam registration number is not valid (Annexure D part C), python: relationship_udyam_format}
+
+  # ------------------------------------------------------------------ CR credit facility (7.5, Annexure B)
+  - id: CUCRF.CR.DATE_OPENED_INVALID
+    entity: account
+    field: date_opened
+    outcome: REJECT_RECORD
+    message: Sanction date must be after 01-01-1900 and not after the as-of date
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.date_opened AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND (a.date_opened <= '1900-01-01' OR a.date_opened > :as_of_date)
+  - id: CUCRF.CR.SANCTIONED_NOT_POSITIVE
+    entity: account
+    field: sanctioned_amount
+    outcome: REJECT_RECORD
+    message: Sanctioned / notional amount must be greater than 0
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.sanctioned_amount AS value
+      FROM automn.c_account a WHERE a.snapshot_id = :snapshot_id AND a.sanctioned_amount <= 0
+  - id: CUCRF.CR.OVERDUE_NEGATIVE
+    entity: account
+    field: amount_overdue
+    outcome: REJECT_RECORD
+    message: Amount overdue cannot be negative (report 0 when nothing is overdue)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.amount_overdue AS value
+      FROM automn.c_account a WHERE a.snapshot_id = :snapshot_id AND a.amount_overdue < 0
+  - id: CUCRF.CR.AMOUNT_NEGATIVE
+    entity: account
+    field: high_credit_amount
+    outcome: REJECT_FIELD
+    message: Amounts other than the current balance must be positive (overdue buckets, high credit, instalment, last repaid, written off, settled, suit, UFCE)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, NULL AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND (a.overdue_bucket_1 < 0 OR a.overdue_bucket_2 < 0 OR a.overdue_bucket_3 < 0
+        OR a.overdue_bucket_4 < 0 OR a.overdue_bucket_5 < 0 OR a.high_credit_amount < 0 OR a.emi_amount < 0
+        OR a.actual_payment_amount < 0 OR a.written_off_total < 0 OR a.settlement_amount < 0 OR a.suit_amount < 0
+        OR a.ufce_amount < 0 OR a.drawing_power < 0)
+  - id: CUCRF.CR.BUCKETS_ABOVE_OVERDUE
+    entity: account
+    field: overdue_bucket_1
+    outcome: WARN
+    message: Overdue buckets add up to more than the amount overdue
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.amount_overdue AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND COALESCE(a.overdue_bucket_1, 0) + COALESCE(a.overdue_bucket_2, 0)
+        + COALESCE(a.overdue_bucket_3, 0) + COALESCE(a.overdue_bucket_4, 0) + COALESCE(a.overdue_bucket_5, 0)
+        > COALESCE(a.amount_overdue, 0)
+  - id: CUCRF.CR.DPD_AND_ASSET_CLASS_MISSING
+    entity: account
+    field: days_past_due
+    outcome: REJECT_RECORD
+    message: Either days past due or asset classification must be reported (field 15)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, NULL AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.days_past_due IS NULL AND a.asset_classification IS NULL
+  - id: CUCRF.CR.DPD_NEGATIVE
+    entity: account
+    field: days_past_due
+    outcome: REJECT_RECORD
+    message: Days past due cannot be negative
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.days_past_due AS value
+      FROM automn.c_account a WHERE a.snapshot_id = :snapshot_id AND a.days_past_due < 0
+  - id: CUCRF.CR.DRAWING_POWER_NOT_REVOLVING
+    entity: account
+    field: drawing_power
+    outcome: REJECT_FIELD
+    message: Drawing power is reported only for revolving facilities (credit types 0100, 0200, 3100, 9024)
+    expected: true
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.drawing_power AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.drawing_power IS NOT NULL
+        AND a.account_type NOT IN (SELECT g.code FROM automn.ref_code_group g WHERE g.submission_type = :submission_type AND g.group_name = 'revolving_credit_type')
+  - id: CUCRF.CR.DRAWING_POWER_MISSING
+    entity: account
+    field: drawing_power
+    outcome: WARN
+    message: A revolving facility (credit types 0100, 0200, 3100, 9024) should report its drawing power
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.account_type AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.drawing_power IS NULL
+        AND a.account_type IN (SELECT g.code FROM automn.ref_code_group g WHERE g.submission_type = :submission_type AND g.group_name = 'revolving_credit_type')
+  - id: CUCRF.CR.RENEWAL_NOT_REVOLVING
+    entity: account
+    field: renewal_date
+    outcome: REJECT_FIELD
+    message: Loan renewal date is reported only for revolving facilities (credit types 0100, 0200, 3100, 9024)
+    expected: true
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.renewal_date AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.renewal_date IS NOT NULL
+        AND a.account_type NOT IN (SELECT g.code FROM automn.ref_code_group g WHERE g.submission_type = :submission_type AND g.group_name = 'revolving_credit_type')
+  - id: CUCRF.CR.HIGH_CREDIT_NOT_REVOLVING
+    entity: account
+    field: high_credit_amount
+    outcome: REJECT_FIELD
+    message: High credit is reported only for revolving facilities (credit types 0100, 0200, 3100, 9024)
+    expected: true
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.high_credit_amount AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.high_credit_amount IS NOT NULL
+        AND a.account_type NOT IN (SELECT g.code FROM automn.ref_code_group g WHERE g.submission_type = :submission_type AND g.group_name = 'revolving_credit_type')
+  - id: CUCRF.CR.DATES_BEFORE_SANCTION
+    entity: account
+    field: renewal_date
+    outcome: REJECT_FIELD
+    message: Renewal and maturity dates must be later than the sanction date
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, COALESCE(a.renewal_date, a.maturity_date) AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND (a.renewal_date <= a.date_opened OR a.maturity_date <= a.date_opened)
+  - id: CUCRF.CR.TENURE_INVALID
+    entity: account
+    field: repayment_tenure
+    outcome: REJECT_FIELD
+    message: Tenure must be greater than 0 months
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.repayment_tenure AS value
+      FROM automn.c_account a WHERE a.snapshot_id = :snapshot_id AND a.repayment_tenure <= 0
+  - id: CUCRF.CR.TENURE_ABOVE_999
+    entity: account
+    field: repayment_tenure
+    outcome: WARN
+    message: Tenure above 999 months is reported as 999
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.repayment_tenure AS value
+      FROM automn.c_account a WHERE a.snapshot_id = :snapshot_id AND a.repayment_tenure > 999
+  - id: CUCRF.CR.DERIVATIVE_FIELDS_NOT_DERIVATIVE
+    entity: account
+    field: restructured_notional_amount
+    outcome: REJECT_FIELD
+    message: Restructured notional amount and NPA contracts amount apply to derivatives only (credit types 5500-6000)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.account_type AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND (a.restructured_notional_amount IS NOT NULL OR a.npa_contracts_amount IS NOT NULL)
+        AND a.account_type NOT IN (SELECT g.code FROM automn.ref_code_group g WHERE g.submission_type = :submission_type AND g.group_name = 'derivative_credit_type')
+  - id: CUCRF.CR.CLOSED_WITH_BALANCE
+    entity: account
+    field: date_closed
+    outcome: REJECT_RECORD
+    message: The facility is closed but the current balance is above 0
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.current_balance AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.date_closed IS NOT NULL AND a.current_balance > 0
+        AND a.credit_facility_status IS NULL
+  - id: CUCRF.CR.DATES_AFTER_AS_OF
+    entity: account
+    field: status_date
+    outcome: REJECT_FIELD
+    message: Status, asset classification, wilful default, suit and UFCE dates cannot be after the as-of date
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, NULL AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND (a.status_date > :as_of_date OR a.asset_classification_date > :as_of_date
+        OR a.wilful_default_date > :as_of_date OR a.suit_date > :as_of_date OR a.ufce_date > :as_of_date
+        OR a.date_closed > :as_of_date)
+  - id: CUCRF.CR.WRITTEN_OFF_AMOUNT_MISSING
+    entity: account
+    field: written_off_total
+    outcome: WARN
+    message: Account status 05 or 06 needs the written-off amount (required from 01-04-2027)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.credit_facility_status AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.credit_facility_status IN ('WRITTEN_OFF', 'POST_WO_SETTLED')
+        AND a.written_off_total IS NULL
+  - id: CUCRF.CR.SETTLED_AMOUNT_MISSING
+    entity: account
+    field: settlement_amount
+    outcome: WARN
+    message: Account status 03 or 06 needs the settled amount (required from 01-04-2027)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.credit_facility_status AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.credit_facility_status IN ('SETTLED', 'POST_WO_SETTLED')
+        AND a.settlement_amount IS NULL
+  - id: CUCRF.CR.WILFUL_DATE_MISSING
+    entity: account
+    field: wilful_default_date
+    outcome: WARN
+    message: A wilful default status needs the date the account was classified as wilful default (field 36)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.suit_filed_status AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.wilful_default_date IS NULL
+        AND a.suit_filed_status IN ('WILFUL_DEFAULT', 'SUIT_FILED_WILFUL_DEFAULT')
+  - id: CUCRF.CR.SUIT_DETAILS_MISSING
+    entity: account
+    field: suit_reference
+    outcome: WARN
+    message: A suit filed needs its reference number, suit amount and date of suit (fields 38-40)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.suit_filed_status AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.suit_filed_status IS NOT NULL
+        AND a.suit_filed_status NOT IN ('NO_SUIT_FILED', 'WILFUL_DEFAULT')
+        AND (a.suit_reference IS NULL OR a.suit_amount IS NULL OR a.suit_date IS NULL)
+  - id: CUCRF.CR.SUIT_DETAILS_WITHOUT_SUIT
+    entity: account
+    field: suit_reference
+    outcome: REJECT_FIELD
+    message: Suit reference, amount and date are reported only when a suit is filed
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.suit_reference AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND COALESCE(a.suit_filed_status, 'NO_SUIT_FILED') IN ('NO_SUIT_FILED', 'WILFUL_DEFAULT')
+        AND (a.suit_reference IS NOT NULL OR a.suit_amount IS NOT NULL OR a.suit_date IS NOT NULL)
+  - id: CUCRF.CR.ARC_SOLD_INVALID
+    entity: account
+    field: credit_facility_status
+    outcome: REJECT_RECORD
+    message: Sold to ARC (status 10) needs balance 0, overdue 0, 0 days past due and an account status date (Annexure B)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.current_balance AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.credit_facility_status = 'SOLD_TO_ARC'
+        AND (COALESCE(a.current_balance, 0) <> 0 OR COALESCE(a.amount_overdue, 0) <> 0
+             OR COALESCE(a.days_past_due, 0) <> 0 OR a.status_date IS NULL)
+  - id: CUCRF.CR.ARC_PURCHASED_INVALID
+    entity: account
+    field: credit_facility_status
+    outcome: REJECT_RECORD
+    message: Purchased from bank (status 11) needs a current balance and an overdue amount above 0 (Annexure B)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.current_balance AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.credit_facility_status = 'PURCHASED_FROM_BANK'
+        AND (COALESCE(a.current_balance, 0) <= 0 OR COALESCE(a.amount_overdue, 0) <= 0)
+
+  # ------------------------------------------------------------------ GS guarantor (7.6)
+  - id: CUCRF.GS.NAME_MISSING
+    entity: guarantor
+    field: full_name
+    outcome: REJECT_SEGMENT
+    message: The guarantor's entity name or full name is required (fields 6, 8)
+    sql: |
+      SELECT g.row_id, g.account_key, NULL AS party_key, g.related_type AS value
+      FROM automn.c_guarantor g WHERE g.snapshot_id = :snapshot_id AND (g.full_name IS NULL OR TRIM(g.full_name) = '')
+  - id: CUCRF.GS.FACILITY_MISSING
+    entity: guarantor
+    field: account_key
+    outcome: WARN
+    message: Guarantor of a facility that was not extracted (not reported)
+    sql: |
+      SELECT g.row_id, g.account_key, NULL AS party_key, g.account_key AS value
+      FROM automn.c_guarantor g
+      WHERE g.snapshot_id = :snapshot_id AND NOT EXISTS (
+        SELECT 1 FROM automn.c_account a WHERE a.snapshot_id = g.snapshot_id AND a.account_key = g.account_key)
+  - id: CUCRF.GS.INVOCATION_DATE_INVALID
+    entity: guarantor
+    field: guarantee_invocation_date
+    outcome: REJECT_FIELD
+    message: Guarantee invocation date must be between the sanction date and the as-of date
+    sql: |
+      SELECT g.row_id, g.account_key, NULL AS party_key, g.guarantee_invocation_date AS value
+      FROM automn.c_guarantor g
+      JOIN automn.c_account a ON a.snapshot_id = g.snapshot_id AND a.account_key = g.account_key
+      WHERE g.snapshot_id = :snapshot_id
+        AND (g.guarantee_invocation_date > :as_of_date OR g.guarantee_invocation_date < a.date_opened)
+  - id: CUCRF.GS.ADDRESS_TOO_SHORT
+    entity: guarantor
+    field: address_line_1
+    outcome: REJECT_SEGMENT
+    message: Address lines 1-3 together are shorter than {min_address_length} characters
+    sql: |
+      SELECT g.row_id, g.account_key, NULL AS party_key, g.address_line_1 AS value
+      FROM automn.c_guarantor g
+      WHERE g.snapshot_id = :snapshot_id
+        AND LEN(TRIM(COALESCE(g.address_line_1, ''))) + LEN(TRIM(COALESCE(g.address_line_2, '')))
+          + LEN(TRIM(COALESCE(g.address_line_3, ''))) < :min_address_length
+  - id: CUCRF.GS.ADDRESS_MEANINGLESS
+    entity: guarantor
+    field: address_line_1
+    outcome: REJECT_SEGMENT
+    message: Address is only NULL / NA, digits or special characters
+    python: guarantor_address_meaningless
+  - id: CUCRF.GS.STATE_PIN_REQUIRED
+    entity: guarantor
+    field: state_code
+    outcome: REJECT_SEGMENT
+    message: State and PIN code are required for a guarantor in India (guarantor type 1 or 2)
+    sql: |
+      SELECT g.row_id, g.account_key, NULL AS party_key, g.state_code AS value
+      FROM automn.c_guarantor g
+      WHERE g.snapshot_id = :snapshot_id AND g.country = 'INDIA'
+        AND g.related_type IN ('INDIAN_ENTITY', 'INDIAN_INDIVIDUAL')
+        AND (g.state_code IS NULL OR ((g.pin_code IS NULL OR TRIM(g.pin_code) = '') AND g.state_code <> 'FOREIGN'))
+  - id: CUCRF.GS.PIN_FORMAT
+    entity: guarantor
+    field: pin_code
+    outcome: REJECT_FIELD
+    message: PIN must have 6 digits and must not end in 000
+    python: guarantor_pin_format
+  - id: CUCRF.GS.PIN_STATE_MISMATCH
+    entity: guarantor
+    field: pin_code
+    outcome: REJECT_FIELD
+    message: PIN prefix is outside the state's range (Annexure D part E)
+    python: guarantor_pin_state_mismatch
+  - id: CUCRF.GS.NAME_INVALID
+    entity: guarantor
+    field: full_name
+    outcome: REJECT_SEGMENT
+    message: Individual guarantor's name fails Annexure C part C
+    python: guarantor_name
+  - {id: CUCRF.GS.PAN_FORMAT, entity: guarantor, field: pan, outcome: REJECT_FIELD,
+     message: PAN is not valid (Annexure D part C), python: guarantor_pan_format}
+  - {id: CUCRF.GS.VOTER_ID_FORMAT, entity: guarantor, field: voter_id, outcome: REJECT_FIELD,
+     message: Voter ID is not valid (Annexure D part C), python: guarantor_voter_id_format}
+  - {id: CUCRF.GS.PASSPORT_FORMAT, entity: guarantor, field: passport, outcome: REJECT_FIELD,
+     message: Passport number is not valid (Annexure D part C), python: guarantor_passport_format}
+  - {id: CUCRF.GS.CIN_FORMAT, entity: guarantor, field: cin, outcome: REJECT_FIELD,
+     message: CIN is not valid (Annexure D part C), python: guarantor_cin_format}
+  - {id: CUCRF.GS.DIN_FORMAT, entity: guarantor, field: din, outcome: REJECT_FIELD,
+     message: DIN is not valid, python: guarantor_din_format}
+  - {id: CUCRF.GS.CKYC_FORMAT, entity: guarantor, field: ckyc, outcome: REJECT_FIELD,
+     message: CKYC number is not valid (Annexure D part C), python: guarantor_ckyc_format}
+  - {id: CUCRF.GS.UDYAM_FORMAT, entity: guarantor, field: udyam, outcome: REJECT_FIELD,
+     message: Udyam registration number is not valid (Annexure D part C), python: guarantor_udyam_format}
+
+  # ------------------------------------------------------------------ SS security (7.7), CD cheque dishonour (7.8)
+  - id: CUCRF.SS.VALUE_NOT_POSITIVE
+    entity: security
+    field: security_value
+    outcome: REJECT_SEGMENT
+    message: Value of security must be greater than 0
+    sql: |
+      SELECT s.row_id, s.account_key, NULL AS party_key, s.security_value AS value
+      FROM automn.c_security s WHERE s.snapshot_id = :snapshot_id AND s.security_value <= 0
+  - id: CUCRF.SS.VALUATION_DATE_INVALID
+    entity: security
+    field: valuation_date
+    outcome: REJECT_FIELD
+    message: Date of valuation cannot be after the as-of date
+    sql: |
+      SELECT s.row_id, s.account_key, NULL AS party_key, s.valuation_date AS value
+      FROM automn.c_security s WHERE s.snapshot_id = :snapshot_id AND s.valuation_date > :as_of_date
+  - id: CUCRF.CD.AMOUNT_OR_COUNT_NOT_POSITIVE
+    entity: cheque_dishonour
+    field: amount
+    outcome: REJECT_SEGMENT
+    message: Cheque amount and number of times dishonoured must be greater than 0
+    sql: |
+      SELECT c.row_id, c.account_key, NULL AS party_key, c.amount AS value
+      FROM automn.c_cheque_dishonour c
+      WHERE c.snapshot_id = :snapshot_id AND (c.amount <= 0 OR c.dishonour_count <= 0)
+  - id: CUCRF.CD.DATE_INVALID
+    entity: cheque_dishonour
+    field: dishonour_date
+    outcome: REJECT_SEGMENT
+    message: Date of dishonour cannot be after the as-of date or before the cheque issue date
+    sql: |
+      SELECT c.row_id, c.account_key, NULL AS party_key, c.dishonour_date AS value
+      FROM automn.c_cheque_dishonour c
+      WHERE c.snapshot_id = :snapshot_id AND (c.dishonour_date > :as_of_date OR c.dishonour_date < c.cheque_issue_date)
+  - id: CUCRF.CD.ISSUE_DATE_FOR_SEVERAL
+    entity: cheque_dishonour
+    field: cheque_issue_date
+    outcome: REJECT_FIELD
+    message: Cheque issue date is reported only for a single dishonoured cheque
+    expected: true
+    sql: |
+      SELECT c.row_id, c.account_key, NULL AS party_key, c.cheque_issue_date AS value
+      FROM automn.c_cheque_dishonour c
+      WHERE c.snapshot_id = :snapshot_id AND c.cheque_issue_date IS NOT NULL AND c.dishonour_count > 1
+  - id: CUCRF.CD.ISSUE_DATE_MISSING
+    entity: cheque_dishonour
+    field: cheque_issue_date
+    outcome: WARN
+    message: A single dishonoured cheque should report its issue date (field 6)
+    sql: |
+      SELECT c.row_id, c.account_key, NULL AS party_key, c.instrument_number AS value
+      FROM automn.c_cheque_dishonour c
+      WHERE c.snapshot_id = :snapshot_id AND c.dishonour_count = 1 AND c.cheque_issue_date IS NULL
+
+  # ------------------------------------------------------------------ record integrity
+  - id: CUCRF.REC.ACCOUNT_MISSING
+    entity: account_holder
+    field: account_key
+    outcome: REJECT_RECORD
+    message: Borrower link points at a facility that was not extracted
+    sql: |
+      SELECT h.row_id, h.account_key, h.party_key, h.account_key AS value
+      FROM automn.c_account_holder h
+      WHERE h.snapshot_id = :snapshot_id AND NOT EXISTS (
+        SELECT 1 FROM automn.c_account a WHERE a.snapshot_id = h.snapshot_id AND a.account_key = h.account_key)
+  - id: CUCRF.REC.PARTY_MISSING
+    entity: account_holder
+    field: party_key
+    outcome: REJECT_RECORD
+    message: Facility points at a borrower that was not extracted
+    sql: |
+      SELECT h.row_id, h.account_key, h.party_key, h.party_key AS value
+      FROM automn.c_account_holder h
+      WHERE h.snapshot_id = :snapshot_id AND NOT EXISTS (
+        SELECT 1 FROM automn.c_party p WHERE p.snapshot_id = h.snapshot_id AND p.party_key = h.party_key)
+  - id: CUCRF.REC.DUPLICATE_ACCOUNT_KEY
+    entity: account
+    field: account_key
+    outcome: REJECT_RECORD
+    message: The same facility key was extracted more than once (check the mapping)
+    sql: |
+      SELECT a.row_id, a.account_key, NULL AS party_key, a.account_key AS value
+      FROM automn.c_account a
+      WHERE a.snapshot_id = :snapshot_id AND a.account_key IN (
+        SELECT d.account_key FROM automn.c_account d WHERE d.snapshot_id = :snapshot_id
+        GROUP BY d.account_key HAVING COUNT(*) > 1)
+
+  # ------------------------------------------------------------------ user adjustments (Exceptions page)
+  - id: CUCRF.ADJ.NOT_FOUND
+    entity: account
+    outcome: WARN
+    message: Exclusion or override matches no facility or borrower in this snapshot
+    sql: |
+      SELECT NULL AS row_id, NULL AS account_key, NULL AS party_key,
+             CONCAT_WS(' ', v.kind, COALESCE(v.account_number, v.customer_id), v.field) AS value
+      FROM automn.v_snapshot_adjustment v
+      WHERE v.snapshot_id = :snapshot_id AND v.loans_affected = 0
+
+  # ------------------------------------------------------------------ cascade (record decisions)
+  - id: CUCRF.REC.NO_IDENTIFIER
+    entity: account_holder
+    outcome: REJECT_RECORD
+    message: The borrower has no valid identifier (PAN, CIN, TIN, service tax, Udyam, company registration or CKYC)
+    cascade: true
+  - id: CUCRF.REC.NO_VALID_ADDRESS
+    entity: account_holder
+    outcome: REJECT_RECORD
+    message: No valid address segment remains for the borrower
+    cascade: true
+  - id: CUCRF.REC.NO_RELATIONSHIP
+    entity: account_holder
+    outcome: REJECT_RECORD
+    message: No valid relationship segment remains for the borrower (not required for credit type 9026)
+    cascade: true

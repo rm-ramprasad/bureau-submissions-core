@@ -1,0 +1,197 @@
+# UCRF consumer file (TUDF), spec version 3.74: docs/specs/UCRF_Consumer_v3.74_Spec.md
+#
+# The whole file format as data, rendered by the generic engine (bureau_core/formats/tudf/). Field keys:
+#   tag / tags      two-digit field tag(s); fields are written in the order listed (keep tags ascending)
+#   source(s)       column of the segment's row, or party. / account. / holder. / bureau. / run. paths
+#   check           NULL is never written. present (default): also not empty and not dropped by validation;
+#                   not_null / none: written whenever there is a value
+#   format          named formatter (bureau_core/formats/tudf/formatters.py); args: its settings
+#   cap / max_len   numbers above cap are written as cap; text cut to max_len after formatting
+#   default         used when the value is missing (a constant or a source path)
+#   translate       canonical code list: the canonical value is written as its consumer code
+#                   (the snapshot's frozen copy of ref_code_translation; no active code -> field left out)
+#   when            only for these values of another source; only_positive: only when > 0
+# Snapshot values are canonical (FEMALE, CREDIT_CARD, ...): when, default and formatter args use those.
+#   required        no value -> the segment instance is left out (numbering skips it)
+#   alternatives    the first that gives a value
+# Segment keys: from (party | account | holder | rows), rows + by (repeating), order_by ("-" = descending), max,
+# drops (leave out instances validation rejected), seq (label; {n} = 1, 2, ... in the order written).
+#
+# Any change here changes the bureau files: tests/test_ucrf_golden.py compares them byte for byte.
+
+layout: UCRF-CONSUMER-3.74
+
+encoding:
+  segment_tag_style: plain       # PNN01 (decided 21-10-2026; "tlv" = PN03N01). Re-confirm with a CIC sample file.
+  record_separator: ""           # no separator / line break between records (decided 21-10-2026)
+  record_end: "ES02**"           # end of subject (§12)
+  trailer: "TRLR"                # §13
+  charset: ascii
+
+header:                          # HD segment, fixed width (§5)
+  length: 146
+  fields:
+    - { name: segment_tag,      source: bureau.header_segment_tag, width: 4 }
+    - { name: version,          const: "12", width: 2, pad: zero }
+    - { name: member_id,        source: bureau.member_id, width: 30 }
+    - { name: member_short_name, source: bureau.member_short_name, width: 16 }
+    - { name: cycle,            source: run.cycle, width: 2 }
+    - { name: date_reported,    source: run.as_of_date, format: ddmmyyyy, width: 8 }
+    - { name: filler, width: 30 }
+    - { name: filler, width: 1 }
+    - { name: filler, width: 5 }
+    - { name: filler, width: 48 }
+
+segments:
+  # ---------------------------------------------------------------- PN: name (§6)
+  - tag: PN
+    seq: "N01"
+    from: party
+    fields:
+      - tags: ["01", "02", "03", "04", "05"]          # full name in 26-char parts, words not split (§6.1 #4)
+        source: full_name
+        format: split_words
+        args: { width: 26 }
+        warn: "name of {party.party_key}"
+      - { tag: "07", source: birth_date, format: ddmmyyyy }
+      - { tag: "08", source: gender, translate: gender }
+
+  # ---------------------------------------------------------------- ID: identifiers (§7), up to 8
+  - tag: ID
+    seq: "I{n:02d}"
+    from: rows
+    rows: party_identifier
+    by: party_key
+    max: 8
+    fields:
+      - { tag: "01", source: id_type, translate: id_type, check: none }
+      - tag: "02"
+        source: id_number
+        check: none
+        format: id_number
+        args: { type_field: id_type, strip_space_types: [G_RAM_G], normalise_types: [PAN, PASSPORT, VOTER_ID, AADHAAR, CKYC] }
+        max_len: 30
+      - { tag: "03", source: issue_date, format: ddmmyyyy }
+      - { tag: "04", source: expiry_date, format: ddmmyyyy }
+
+  # ---------------------------------------------------------------- PT: telephones (§8), up to 10
+  - tag: PT
+    seq: "T{n:02d}"
+    from: rows
+    rows: party_phone
+    by: party_key
+    order_by: [priority, row_id]
+    max: 10
+    fields:
+      - tag: "01"                                    # usable numbers only; none usable -> no PT segment
+        source: phone_number
+        check: none
+        format: phone_list
+        args: { type_field: phone_type }
+        max_len: 20
+        required: true
+      - { tag: "02", source: extension, format: alnum, max_len: 10 }
+      - { tag: "03", source: phone_type, translate: phone_type }
+
+  # ---------------------------------------------------------------- EC: e-mail (§9), up to 10
+  - tag: EC
+    seq: "C{n:02d}"
+    from: rows
+    rows: party_email
+    by: party_key
+    order_by: [priority, row_id]
+    max: 10
+    fields:
+      - { tag: "01", source: email, check: none, format: lower_text, max_len: 70 }
+
+  # ---------------------------------------------------------------- PA: addresses (§10), up to 5
+  - tag: PA
+    seq: "A{n:02d}"
+    from: rows
+    rows: party_address
+    by: party_key
+    order_by: [priority, row_id]
+    max: 5
+    fields:
+      - tags: ["01", "02", "03", "04", "05"]          # 40-char lines; re-packed without splitting words if too long
+        sources: [address_line_1, address_line_2, address_line_3, address_line_4, address_line_5]
+        format: fit_lines
+        args: { width: 40 }
+        warn: "address row {row.row_id} of {row.party_key}"
+      - { tag: "06", source: state_code, translate: state_code }
+      - tag: "07"
+        source: pin_code
+        format: pin_code
+        args: { state_field: state_code, foreign_state: FOREIGN }
+        max_len: 7
+      - { tag: "08", source: address_category, translate: address_category, default: NOT_CATEGORIZED }
+      - { tag: "09", source: residence_code, translate: residence_code }
+
+  # ---------------------------------------------------------------- TL: account (§11)
+  - tag: TL
+    seq: "T001"
+    from: account
+    fields:
+      - { tag: "01", source: bureau.member_id, check: none, max_len: 10 }
+      - { tag: "02", source: bureau.member_short_name, format: text, max_len: 16 }
+      - { tag: "03", source: account_number, format: text, max_len: 25 }
+      - { tag: "04", source: account_type, translate: account_type, format: text, max_len: 99 }
+      - { tag: "05", source: holder.ownership_indicator, translate: ownership_indicator }
+      - { tag: "08", source: date_opened, format: ddmmyyyy }
+      - { tag: "09", source: date_last_payment, format: ddmmyyyy }
+      - { tag: "10", source: date_closed, format: ddmmyyyy }
+      - { tag: "11", source: date_reported, format: ddmmyyyy, default: run.as_of_date }   # defaults to the as-of date
+      - { tag: "12", source: high_credit_amount, format: amount }
+      - { tag: "13", source: current_balance, format: signed_amount }                   # credit balance: trailing "-"
+      - { tag: "14", source: amount_overdue, format: amount }
+      - { tag: "15", source: days_past_due, cap: 900, format: int }                     # DPD capped at 900
+      - { tag: "16", source: old_member_code, format: text, max_len: 10 }
+      - { tag: "17", source: old_member_short_name, format: text, max_len: 16 }
+      - { tag: "18", source: old_account_number, format: text, max_len: 25 }
+      - { tag: "19", source: old_account_type, translate: account_type, format: text, max_len: 99 }
+      - { tag: "20", source: old_ownership_indicator, translate: ownership_indicator, format: text, max_len: 99 }
+      - { tag: "21", source: suit_filed_status, translate: suit_filed_status, format: text, max_len: 99 }
+      - { tag: "22", source: credit_facility_status, translate: credit_facility_status, format: text, max_len: 99 }
+      - { tag: "26", source: asset_classification, translate: asset_classification, format: text, max_len: 99 }
+      - { tag: "34", source: collateral_value, format: amount }
+      - { tag: "35", source: collateral_type, translate: collateral_type, format: text, max_len: 99 }
+      - { tag: "36", source: credit_limit, format: amount }
+      - { tag: "37", source: cash_limit, format: amount }
+      - { tag: "38", source: rate_of_interest, format: rate }                           # 3 decimals, truncated
+      - { tag: "39", source: repayment_tenure, format: text, max_len: 99 }
+      - { tag: "40", source: emi_amount, format: amount }
+      - { tag: "41", source: written_off_total, format: amount }
+      - { tag: "42", source: written_off_principal, format: amount }
+      - { tag: "43", source: settlement_amount, format: amount }
+      - { tag: "44", source: payment_frequency, translate: payment_frequency, format: text, max_len: 99 }
+      - { tag: "45", source: actual_payment_amount, format: amount }
+      - { tag: "46", source: party.occupation, translate: occupation, format: text, max_len: 99 }
+      - { tag: "47", source: party.income, format: amount }
+      - { tag: "48", source: party.income_basis, translate: income_basis, format: text, max_len: 99 }
+      - { tag: "49", source: party.income_period, translate: income_period, format: text, max_len: 99 }
+
+  # ---------------------------------------------------------------- TH: account history (§11.2), latest 47 months
+  - tag: TH
+    seq: "H{n:02d}"
+    from: rows
+    rows: account_history
+    by: account_key
+    order_by: ["-history_month"]
+    max: 47                      # §14 #3: 47 (segment text) vs 35 (overview)
+    drops: false                 # history is written as loaded: validation findings are not applied here
+    fields:
+      - { tag: "01", source: history_month, check: none, format: month_start }
+      - tag: "02"                                    # DPD (capped), or the asset class as STD/SUB/DBT/LSS/SMA
+        alternatives:
+          - { source: days_past_due, check: not_null, cap: 900, format: int3 }
+          - source: asset_classification
+            check: not_null
+            format: lookup
+            args: { map: { STANDARD: STD, SUBSTANDARD: SUB, DOUBTFUL: DBT, LOSS: LSS, SPECIAL_MENTION_ACCOUNT: SMA } }
+      - { tag: "03", source: amount_overdue, check: not_null, format: amount }
+      - { tag: "04", source: high_credit_amount, check: not_null, format: amount }
+      - { tag: "05", source: credit_limit, check: not_null, format: amount, when: { account.account_type: [CREDIT_CARD] } }
+      - { tag: "06", source: cash_limit, check: not_null, format: amount, when: { account.account_type: [CREDIT_CARD] } }
+      - { tag: "07", source: current_balance, check: none, format: signed_amount }
+      - { tag: "08", source: date_last_payment, check: not_null, format: ddmmyyyy }
+      - { tag: "09", source: actual_payment_amount, check: not_null, only_positive: true, format: amount }

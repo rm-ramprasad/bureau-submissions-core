@@ -1,0 +1,15 @@
+# UCRF Consumer 3.74: canonical columns the consumer file needs. Each becomes a generated REQUIRED rule
+# (outcome per entity in rules.yaml `generated.required_outcome`) and is checked when a mapping is compiled.
+
+submission_type: CONSUMER
+
+required:
+  party: [party_key, full_name]
+  party_identifier: [party_key, id_type, id_number]
+  party_phone: [party_key, phone_number]
+  party_email: [party_key, email]
+  party_address: [party_key, address_line_1]
+  account: [account_key, account_number, account_type, date_opened, high_credit_amount, current_balance]
+  account_holder: [account_key, party_key, ownership_indicator]
+  account_history: [account_key, history_month, current_balance]
+  extension_attribute: [entity, entity_key, attr_name]
