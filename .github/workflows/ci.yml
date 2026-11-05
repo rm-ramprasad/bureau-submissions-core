@@ -91,7 +91,18 @@ jobs:
             sleep 3
           done
           exit 1
-      - run: uv run pytest -m db -v -p no:cacheprovider
+      - run: uv run pytest -m db -v -p no:cacheprovider --junitxml=db-results.xml
+      - name: Failures as annotations
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          for case in ET.parse("db-results.xml").iter("testcase"):
+              for bad in list(case.findall("failure")) + list(case.findall("error")):
+                  text = (bad.get("message") or "") + " " + (bad.text or "")[-1500:]
+                  text = text.replace("%", "%25").replace("\r", "").replace("\n", "%0A")
+                  print(f"::error title={case.get('name')}::{text}")
+          PY
 
   secrets:
     name: Secret scan
