@@ -14,7 +14,7 @@ def normalise_header(text) -> str:
     """Header text for matching: case, any whitespace (incl. line breaks, non-breaking spaces) and quote styles
     ignored. 'Borrower‟s  Name' == "borrower's name"."""
     s = unicodedata.normalize("NFKC", "" if text is None else str(text))
-    s = re.sub(r"[‘’‚‛“”„‟′″`´]", "'", s)  # noqa: RUF001  (typographic quotes, on purpose)
+    s = re.sub(r"[‘’‚‛“”„‟′″`´]", "'", s)
     return " ".join(s.split()).casefold()
 
 

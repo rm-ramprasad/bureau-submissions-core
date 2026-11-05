@@ -35,6 +35,7 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["packages"]
 addopts = "-q --strict-markers --import-mode=importlib"
+filterwarnings = ["ignore:The default date(time)? adapter is deprecated:DeprecationWarning"]
 markers = [
     "workbook: needs the local input workbooks (gitignored); skipped when BSC_WORKBOOK_DIR is not set",
     "db: needs a SQL Server or Postgres container (CI database job)",
@@ -57,7 +58,11 @@ target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF"]
-ignore = ["S101"]        # assert is fine in tests
+ignore = [
+    "S101",     # assert is fine in tests
+    "E501",     # the formatter sets line length; long strings and comments are left as written
+    "RUF001", "RUF002", "RUF003",   # domain text uses typographic quotes and dashes on purpose
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["bureau_core", "canonical", "sources", "clientconfig", "app", "shell_azure"]
@@ -75,7 +80,7 @@ exclude = ["/tests/"]
 # Ported from the reference app without full annotations (tracked debt: tighten module by module, then drop).
 # Real type errors are still reported; only "missing annotation" rules are relaxed here.
 [[tool.mypy.overrides]]
-module = ["bureau_core", "bureau_core.*"]
+module = ["bureau_core", "bureau_core.*", "canonical", "canonical.*", "sources", "sources.*"]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 disallow_untyped_calls = false
@@ -111,7 +116,7 @@ source_modules = ["bureau_core"]
 forbidden_modules = ["flask", "pyodbc"]
 allow_indirect_imports = true
 
-# Type-error baseline of the ported modules (49 errors on 2026-11-05, mostly Optional narrowing). Fix and remove a
+# Type-error baseline of the ported modules (bureau_core 49 + canonical/sources 9 errors on 2026-11-05, mostly Optional narrowing). Fix and remove a
 # module from this list in follow-up PRs; never add a module to it.
 [[tool.mypy.overrides]]
 module = [
@@ -123,5 +128,8 @@ module = [
     "bureau_core.tudf.convert",
     "bureau_core.tudf.reconcile",
     "bureau_core.types",
+    "canonical.snapshot",
+    "canonical.staging.checks",
+    "sources.excel",
 ]
 ignore_errors = true

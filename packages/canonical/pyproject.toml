@@ -3,7 +3,7 @@ name = "canonical"
 version = "0.1.0"
 description = "Layer 2: staging, input checks, mapping to canonical fields, generated views per SQL dialect, snapshot builder."
 requires-python = ">=3.14,<3.15"
-dependencies = ["SQLAlchemy>=2.0,<3", "bureau_core"]
+dependencies = ["SQLAlchemy>=2.0,<3", "PyYAML>=6,<7", "bureau_core"]
 
 [build-system]
 requires = ["hatchling>=1.25"]

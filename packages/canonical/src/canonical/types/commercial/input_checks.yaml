@@ -1,0 +1,160 @@
+# Commercial upload checks (submissions/inputs/checks.py), run on the staging tables right after each upload.
+# severity block: the request cannot be submitted until a corrected workbook passes; warn: reported only.
+#
+# Every sheet is keyed by Sanction Reference Number (user, 2026-10-30), compared on letters and digits only
+# (F012/2025-26 = F012-2025-26): the view wip.VwCommercialSubmissionCR
+# (SanctionRefNo) joins Sanction, and Sanction joins BS / AS / RS / GS / SS / CD, all on the reference. One borrower
+# per loan account. '(Name)' columns hold labels: they must be labels of their code list in
+# automn.ref_code_translation. CD rows with nothing filled are not reported. The hidden Audit Framework is ignored.
+
+sheets:
+  # ---------------------------------------------------------------- Sanction: the loans' link to the view
+  - sheet: Sanction
+    checks:
+      - id: SANCTION_REF_NOT_IN_VIEW
+        check: in_source
+        columns: [sanction_reference_number]
+        sql: >-
+          SELECT v.SanctionRefNo FROM wip.VwCommercialSubmissionCR v WHERE v.transactiondate = :as_of_date
+        match: alnum                 # F012/2025-26 (workbook) = F012-2025-26 (view)
+        severity: warn               # a note (user, 2026-10-30): its loans are simply not in the file
+        message: Sanction Reference Number is not in the commercial view for the request's as-of date; its rows are not reported
+      - id: SANCTION_REQUIRED
+        check: required
+        columns: [credit_type_label, repayment_frequency_label]
+        severity: warn               # a note (user, 2026-10-30): the loan line is reported without it
+        message: Credit Type / Repayment Frequency is empty; the view does not have it, so the loan line will lack it
+      - id: SANCTION_ROWS_DIFFER
+        check: consistent
+        by: sanction_reference_number
+        match: alnum
+        columns: [credit_type_label, repayment_frequency_label, suit_filed_status]
+        severity: warn
+        message: Rows of the same Sanction Reference Number differ; the first row is used for every loan of it
+      - {id: SANCTION_NO_BORROWER, check: in_sheet, columns: [sanction_reference_number], other_sheet: BS,
+         other_column: sanction_reference_number, match: alnum,
+         severity: warn,             # a note (user, 2026-11-02): its loans have no borrower, so are not in the file
+         message: Sanction Reference Number has no borrower row in the BS sheet; its loans are not reported}
+      - {id: CREDIT_TYPE_LABEL, check: label, columns: [credit_type_label], code_list: account_type, severity: block,
+         message: Credit type is not a known label}
+      - {id: REPAYMENT_FREQUENCY_LABEL, check: label, columns: [repayment_frequency_label], code_list: payment_frequency,
+         severity: block, message: Repayment frequency is not a known label}
+      - {id: SUIT_FILED_CODE, check: code, columns: [suit_filed_status], code_list: suit_filed_status, severity: block,
+         message: Suit filed status code is not valid}
+
+  # ---------------------------------------------------------------- borrower
+  - sheet: BS
+    checks:
+      - {id: BS_LINKED, check: in_sheet, columns: [sanction_reference_number], other_sheet: Sanction,
+         other_column: sanction_reference_number, match: alnum, severity: block,
+         message: Sanction Reference Number is not in the Sanction sheet, so this borrower reaches no loan}
+      - {id: BS_DUPLICATE, check: duplicate, columns: [sanction_reference_number], severity: block,
+         message: The same Sanction Reference Number has two borrower rows; keep one}
+      - {id: BS_REQUIRED, check: required, columns: [borrower_name, borrowers_legal_constitution_label],
+         severity: block, message: Required borrower field is empty}
+      - {id: BS_PAN_FORMAT, check: pattern, columns: [pan], pattern: "^[A-Z]{5}[0-9]{4}[A-Z]$", severity: warn,
+         message: PAN is not in the AAAAA9999A format}
+      - {id: BS_DATES, check: date, columns: [date_of_incorporation, credit_rating_as_on, credit_rating_expiry_date],
+         severity: block, message: Date is not valid}
+      - {id: BS_CONSTITUTION_LABEL, check: label, columns: [borrowers_legal_constitution_label],
+         code_list: legal_constitution, severity: block, message: Legal constitution is not a known label}
+      - {id: BS_CATEGORY_LABEL, check: label, columns: [business_category_label], code_list: business_category,
+         severity: block, message: Business category is not a known label}
+      - {id: BS_INDUSTRY_LABEL, check: label, columns: [business_industry_type_label], code_list: industry_type,
+         severity: block, message: Business / industry type is not a known label}
+
+  # ---------------------------------------------------------------- addresses
+  - sheet: AS
+    checks:
+      - {id: AS_LINKED, check: in_sheet, columns: [sanction_reference_number], other_sheet: Sanction,
+         other_column: sanction_reference_number, match: alnum, severity: block,
+         message: Sanction Reference Number is not in the Sanction sheet}
+      - {id: AS_REQUIRED, check: required, columns: [address_line_1, state_label, pin_code],
+         severity: block, message: Required address field is empty}
+      - {id: AS_PIN_FORMAT, check: pattern, columns: [pin_code], pattern: "^[1-9][0-9]{5}$", severity: block,
+         message: PIN code is not 6 digits}
+      - {id: AS_STATE_LABEL, check: label, columns: [state_label], code_list: state_code, severity: block,
+         message: State is not a known label}
+      - {id: AS_COUNTRY_LABEL, check: label, columns: [country_label], code_list: country, severity: block,
+         message: Country is not a known label}
+      - {id: AS_LOCATION_LABEL, check: label, columns: [borrower_office_location_type_label],
+         code_list: address_category, severity: block, message: Office location type is not a known label}
+      - {id: AS_FAX_HOLDS_EMAIL, check: pattern, columns: [fax_number_s], pattern: "^[^@]*$", severity: warn,
+         message: "Fax Number(s) holds an e-mail address: it is not reported as fax or e-mail; move it to the right column"}
+
+  # ---------------------------------------------------------------- relationships (promoters, directors, ...)
+  - sheet: RS
+    checks:
+      - {id: RS_LINKED, check: in_sheet, columns: [sanction_reference_number], other_sheet: Sanction,
+         other_column: sanction_reference_number, match: alnum, severity: block,
+         message: Sanction Reference Number is not in the Sanction sheet}
+      - {id: RS_NAME, check: any_of, columns: [full_name, business_entity_name], severity: block,
+         message: The related party needs a full name or a business entity name}
+      - {id: RS_RELATED_TYPE_LABEL, check: label, columns: [related_type_label], code_list: related_type,
+         severity: block, message: Related type is not a known label}
+      - {id: RS_RELATIONSHIP_LABEL, check: label, columns: [relationship_label], code_list: relationship_type,
+         severity: block, message: Relationship is not a known label}
+      - {id: RS_GENDER_LABEL, check: label, columns: [gender_label], code_list: gender, severity: block,
+         message: Gender is not a known label}
+      - {id: RS_STATE_LABEL, check: label, columns: [state_label], code_list: state_code, severity: block,
+         message: State is not a known label}
+      - {id: RS_COUNTRY_LABEL, check: label, columns: [country_label], code_list: country, severity: block,
+         message: Country is not a known label}
+      - {id: RS_PAN_FORMAT, check: pattern, columns: [pan], pattern: "^[A-Z]{5}[0-9]{4}[A-Z]$", severity: warn,
+         message: PAN is not in the AAAAA9999A format}
+      - {id: RS_DATES, check: date, columns: [date_of_birth, date_of_incorporation], severity: block,
+         message: Date is not valid}
+      - {id: RS_FAX_HOLDS_EMAIL, check: pattern, columns: [fax_number_s], pattern: "^[^@]*$", severity: warn,
+         message: "Fax Number(s) holds an e-mail address: it is not reported as fax or e-mail; move it to the right column"}
+
+  # ---------------------------------------------------------------- guarantors
+  - sheet: GS
+    checks:
+      - {id: GS_LINKED, check: in_sheet, columns: [sanction_reference_number], other_sheet: Sanction,
+         other_column: sanction_reference_number, match: alnum, severity: block,
+         message: Sanction Reference Number is not in the Sanction sheet}
+      - {id: GS_NAME, check: any_of, columns: [full_name, guarantor_entity_name], severity: block,
+         message: The guarantor needs a full name or an entity name}
+      - {id: GS_TYPE_LABEL, check: label, columns: [guarantor_type_label], code_list: related_type, severity: block,
+         message: Guarantor type is not a known label}
+      - {id: GS_CATEGORY_LABEL, check: label, columns: [business_category_label], code_list: business_category,
+         severity: block, message: Business category is not a known label}
+      - {id: GS_INDUSTRY_LABEL, check: label, columns: [business_industry_type_label], code_list: industry_type,
+         severity: block, message: Business / industry type is not a known label}
+      - {id: GS_GENDER_LABEL, check: label, columns: [gender_label], code_list: gender, severity: block,
+         message: Gender is not a known label}
+      - {id: GS_STATE_LABEL, check: label, columns: [state_label], code_list: state_code, severity: block,
+         message: State is not a known label}
+      - {id: GS_COUNTRY_LABEL, check: label, columns: [country_label], code_list: country, severity: block,
+         message: Country is not a known label}
+      - {id: GS_PAN_FORMAT, check: pattern, columns: [pan], pattern: "^[A-Z]{5}[0-9]{4}[A-Z]$", severity: warn,
+         message: PAN is not in the AAAAA9999A format}
+      - {id: GS_DATES, check: date, columns: [date_of_birth, date_of_incorporation], severity: block,
+         message: Date is not valid}
+      - {id: GS_FAX_HOLDS_EMAIL, check: pattern, columns: [fax_number_s], pattern: "^[^@]*$", severity: warn,
+         message: "Fax Number(s) holds an e-mail address: it is not reported as fax or e-mail; move it to the right column"}
+
+  # ---------------------------------------------------------------- security
+  - sheet: SS
+    checks:
+      - {id: SS_LINKED, check: in_sheet, columns: [sanction_reference_number], other_sheet: Sanction,
+         other_column: sanction_reference_number, match: alnum, severity: block,
+         message: Sanction Reference Number is not in the Sanction sheet}
+      - {id: SS_TYPE_LABEL, check: label, columns: [type_of_security_label], code_list: security_type,
+         severity: block, message: Type of security is not a known label}
+      - {id: SS_CLASS_LABEL, check: label, columns: [security_classification_label],
+         code_list: security_classification, severity: block, message: Security classification is not a known label}
+      - {id: SS_VALUE, check: pattern, columns: [value_of_security], pattern: "^[0-9]+(\\.[0-9]+)?$", severity: block,
+         message: Value of security is not a number}
+      - {id: SS_DATES, check: date, columns: [date_of_valuation], severity: block, message: Date is not valid}
+
+  # ---------------------------------------------------------------- cheque dishonour (filled rows only)
+  - sheet: CD
+    checks:
+      - {id: CD_LINKED, check: in_sheet, columns: [sanction_reference_number], other_sheet: Sanction,
+         other_column: sanction_reference_number, match: alnum, severity: block,
+         message: Sanction Reference Number is not in the Sanction sheet}
+      - {id: CD_DATES, check: date, columns: [date_of_dishonour, cheque_issue_date], severity: block,
+         message: Date is not valid}
+      - {id: CD_AMOUNT, check: pattern, columns: [amount], pattern: "^[0-9]+(\\.[0-9]+)?$", severity: block,
+         message: Amount is not a number}

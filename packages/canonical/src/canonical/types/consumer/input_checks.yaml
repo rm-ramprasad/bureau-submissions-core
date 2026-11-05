@@ -1,0 +1,161 @@
+# Consumer: data-quality checks on the uploaded workbook's 'Consumer' sheet, run on its staging rows
+# (automn.stg_consumer) right after each upload. Format: submissions/inputs/checks.py.
+# '(Name)' columns hold labels: they must be labels of their code list in automn.ref_code_translation.
+# severity block: the request cannot be submitted until a corrected workbook passes; warn: reported only.
+# The Excel drives the submission: only its rows are checked and reported. Account fields come from the view
+# (wip.VwConsumerSubmissionAccountSegment) for the request's date, so the workbook's own account columns are only
+# checked where the view does not supply them (account type, ownership, collateral, payment frequency).
+
+sheet: Consumer
+
+checks:
+  # ---------------------------------------------------------------- double entries
+  # An exact repeat of a row (after trimming) is loaded once at upload, with a DUPLICATE_ROW note (user, 2026-10-30).
+  - id: DUPLICATE_BORROWER
+    check: duplicate
+    columns: [curr_new_account_no, consumer_name, date_of_birth]
+    severity: block
+    message: The same borrower is listed twice on this account
+  # An account may have several rows with the same ownership indicator (e.g. two "1"s): each row is its own borrower
+  # (account number + Excel row), so it is not a duplicate. Shown as an observation only (user, 2026-10-29).
+  - id: TWO_PRIMARY_OWNERS
+    check: unique_where
+    columns: [curr_new_account_no]
+    where: {ownership_indicator_label: "Individual"}
+    severity: warn
+    message: "Observation: more than one borrower with ownership 1 on this account (allowed; each is reported)"
+
+  - id: ACCOUNT_FIELDS_DIFFER
+    check: consistent
+    by: curr_new_account_no
+    columns: [account_type, suit_filed_wilful_default_label, value_of_collateral, type_of_collateral_label,
+              payment_frequency_label, old_mbr_code, old_mbr_short_name, old_acc_no, old_acc_type, old_ownership_indicator]
+    severity: warn
+    message: Account-level field differs between rows of the same account
+
+  # ---------------------------------------------------------------- the account must exist for the date
+  - id: ACCOUNT_NOT_IN_VIEW
+    check: in_source
+    columns: [curr_new_account_no]
+    sql: >-
+      SELECT v.AccountNumber FROM wip.VwConsumerSubmissionAccountSegment v WHERE v.TransactionDate = :as_of_date
+    severity: block
+    message: Account is not in the source view for the request's as-of date, so its account fields cannot be filled
+
+  # ---------------------------------------------------------------- required
+  - id: REQUIRED
+    check: required
+    columns: [curr_new_account_no, consumer_name, date_of_birth, gender_label, address_line_1, state_code_1_label,
+              pin_code_1, account_type, ownership_indicator_label]
+    severity: block
+    message: Required field is empty
+  - id: ID_OR_PHONE
+    check: any_of
+    columns: [income_tax_id_number, passport_number, voter_id_number, driving_license_number, ration_card_number,
+              universal_id_number, ckyc, g_ram_g, telephone_no_mobile, telephone_no_residence, telephone_no_office,
+              telephone_no_other]
+    severity: block
+    message: The borrower needs at least one identity document or phone number
+
+  # ---------------------------------------------------------------- formats
+  - id: PAN_FORMAT
+    check: pattern
+    columns: [income_tax_id_number]
+    pattern: "^[A-Z]{5}[0-9]{4}[A-Z]$"
+    severity: warn
+    message: PAN is not in the AAAAA9999A format
+  - id: CKYC_FORMAT
+    check: pattern
+    columns: [ckyc]
+    pattern: "^[0-9]{14}$"
+    severity: warn
+    message: CKYC number is not 14 digits
+  - id: MOBILE_FORMAT
+    check: pattern
+    columns: [telephone_no_mobile]
+    pattern: "^[6-9][0-9]{9}$"
+    severity: warn
+    message: Mobile number is not 10 digits starting with 6-9
+  - id: EMAIL_FORMAT
+    check: pattern
+    columns: [email_id_1, email_id_2]
+    pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]{2,}$"
+    severity: warn
+    message: E-mail address is not valid
+  - id: PIN_FORMAT
+    check: pattern
+    columns: [pin_code_1, pin_code_2]
+    pattern: "^[1-9][0-9]{5}$"
+    severity: block
+    message: PIN code is not 6 digits
+  - id: DATE_FORMAT
+    check: date
+    columns: [date_of_birth, passport_issue_date, passport_expiry_date, driving_license_issue_date,
+              driving_license_expiry_date]
+    severity: block
+    message: Date is not valid
+
+  # ---------------------------------------------------------------- labels (automn.ref_code_translation.label)
+  - {id: GENDER_LABEL, check: label, columns: [gender_label], code_list: gender, severity: block,
+     message: Gender is not a known label}
+  - {id: STATE_LABEL, check: label, columns: [state_code_1_label, state_code_2_label], code_list: state_code,
+     severity: block, message: State is not a known label}
+  - {id: ADDRESS_CATEGORY_LABEL, check: label, columns: [address_category_1_label, address_category_2_label],
+     code_list: address_category, severity: block, message: Address category is not a known label}
+  - {id: RESIDENCE_LABEL, check: label, columns: [residence_code_1_label, residence_code_2_label],
+     code_list: residence_code, severity: block, message: Residence code is not a known label}
+  - {id: ACCOUNT_TYPE_LABEL, check: label, columns: [account_type_label], code_list: account_type, severity: block,
+     message: Account type is not a known label}
+  - {id: OWNERSHIP_LABEL, check: label, columns: [ownership_indicator_label], code_list: ownership_indicator,
+     severity: block, message: Ownership indicator is not a known label}
+  - {id: SUIT_FILED_LABEL, check: label, columns: [suit_filed_wilful_default_label], code_list: suit_filed_status,
+     severity: block, message: Suit filed / wilful default is not a known label}
+  - {id: COLLATERAL_LABEL, check: label, columns: [type_of_collateral_label], code_list: collateral_type,
+     severity: block, message: Type of collateral is not a known label}
+  - {id: PAYMENT_FREQUENCY_LABEL, check: label, columns: [payment_frequency_label], code_list: payment_frequency,
+     severity: block, message: Payment frequency is not a known label}
+  - {id: OCCUPATION_LABEL, check: label, columns: [occupation_code_label], code_list: occupation, severity: block,
+     message: Occupation is not a known label}
+
+  # ---------------------------------------------------------------- codes (columns without a label)
+  - {id: ACCOUNT_TYPE_CODE, check: code, columns: [account_type], code_list: account_type, severity: block,
+     message: Account type code is not valid}
+  - {id: ACCOUNT_TYPE_AGREES, check: label_matches_code, columns: [account_type_label], code: account_type,
+     code_list: account_type, severity: warn, message: Account Type and Account Type (Name) name different types}
+  - {id: INCOME_BASIS_CODE, check: code, columns: [net_gross_income_indicator], code_list: income_basis,
+     severity: warn, message: Net/gross income indicator is not valid}
+  - {id: INCOME_PERIOD_CODE, check: code, columns: [monthly_annual_income_indicator], code_list: income_period,
+     severity: warn, message: Monthly/annual income indicator is not valid}
+
+  # ---------------------------------------------------------------- consistency
+  - id: PIN_STATE
+    check: pin_state
+    pin: pin_code_1
+    state: state_code_1_label
+    state_is_label: true
+    severity: warn
+    message: PIN code does not belong to the state
+  - id: PIN_STATE_2
+    check: pin_state
+    pin: pin_code_2
+    state: state_code_2_label
+    state_is_label: true
+    severity: warn
+    message: PIN code (address 2) does not belong to the state
+  - id: UNDER_18
+    check: min_age
+    columns: [date_of_birth]
+    years: 18
+    severity: warn
+    message: Borrower is under 18 on the as-of date
+  - id: DATE_IN_FUTURE
+    check: not_after_as_of
+    columns: [date_of_birth, passport_issue_date, driving_license_issue_date]
+    severity: block
+    message: Date is after the request's as-of date
+  - id: PASSPORT_EXPIRY_ORDER
+    check: not_before
+    columns: [passport_expiry_date]
+    other: passport_issue_date
+    severity: warn
+    message: Passport expiry is before its issue date
