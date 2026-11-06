@@ -37,6 +37,7 @@ def migrate(engine: Engine, tenant: str | None, mark_applied: str | None = None)
     """`mark_applied`: record that migration as applied without running it (it was run by hand), then migrate."""
     from app.bureaus import BureauRepository
     from app.bureaus.seed import seed_missing
+    from app.configstore import store
     from canonical import migrate as m
     from canonical.reference import seed
 
@@ -59,6 +60,7 @@ def migrate(engine: Engine, tenant: str | None, mark_applied: str | None = None)
     result["reference"] = seed(engine)
     if tenant:  # placeholder profiles it lacks; never edits existing (real) ones
         result["bureau_profiles_added"] = seed_missing(BureauRepository(engine), tenant)
+        result["config_baseline"] = store.record_baseline(engine, tenant)  # version 1 once; None afterwards
     return result
 
 

@@ -8,6 +8,7 @@ import pytest
 from app.adjustments.tables import snapshot_adjustment, snapshot_adjustment_effect, submission_adjustment
 from app.audit import audit_event
 from app.bureaus.tables import bureau_profile
+from app.configstore import config_version
 from app.reconciliation import (
     reconciliation_check,
     reconciliation_column,
@@ -43,6 +44,7 @@ def test_app_tables_match_the_migrated_schema():
             validation_rule, validation_policy, validation_parameter, validation_finding, validation_summary,
             record_outcome, submission_adjustment, snapshot_adjustment, snapshot_adjustment_effect,
             reconciliation_summary, reconciliation_check, reconciliation_column, reconciliation_mismatch,
+            config_version,
         ],
     )  # fmt: skip
     engine.dispose()
