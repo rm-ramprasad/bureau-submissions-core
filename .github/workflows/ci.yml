@@ -28,8 +28,8 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy packages
       - run: uv run lint-imports
-      - name: Deployment package builds (workspace wheels)
-        run: uv build --all-packages --wheel --out-dir /tmp/wheels
+      - name: Release artifacts build (deploy/build.sh, as the Release workflow)
+        run: deploy/build.sh ci
 
   test:
     name: Unit and regression tests (coverage gate)

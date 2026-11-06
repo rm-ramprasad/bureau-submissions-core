@@ -225,3 +225,12 @@ def test_the_local_admin_command(azure_env, capsys):
     assert admin.main(["recovery"]) == 0 and '"released": []' in capsys.readouterr().out
     assert admin.main(["retention", "--dry-run"]) == 0
     assert admin.main(["users", "list"]) == 0
+
+
+def test_migrate_reports_the_deployed_version(engine, tmp_path, monkeypatch):
+    assert admin.deployed_version() == "dev"  # not a release build
+    fake = tmp_path / "admin.py"
+    (tmp_path / "VERSION").write_text("v1.2.3\n", encoding="utf-8")
+    monkeypatch.setattr(admin, "__file__", str(fake))
+    assert admin.deployed_version() == "v1.2.3"
+    assert admin.migrate(engine, None)["version"] == "v1.2.3"  # the deploy's smoke test compares it with the tag

@@ -1,0 +1,62 @@
+# Release: pushing a version tag (v1.2.3) on main builds the release once, after the same checks as CI, and publishes
+# it as a GitHub Release with its artifacts (deploy/build.sh): function.zip, web.zip, migrations.zip. The notes name
+# any new migration (run it in SSMS before deploying). Deploying is a separate, approved step (deploy.yml).
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish the release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0               # the previous tag, for the release notes
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.5"
+          enable-cache: true
+      - run: uv python install 3.14
+      - run: uv sync --locked
+      - name: Tagged commit is on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - name: Checks (as CI)
+        run: |
+          uv run ruff check . && uv run ruff format --check . && uv run mypy packages && uv run lint-imports
+          uv run pytest -q -m "not db and not perf"
+      - name: Build
+        run: deploy/build.sh "$GITHUB_REF_NAME"
+      - name: Release notes (new migrations first)
+        run: |
+          previous=$(git describe --tags --abbrev=0 "$GITHUB_REF_NAME^" 2>/dev/null || true)
+          new=$(git diff --name-only --diff-filter=A ${previous:+"$previous"..}"$GITHUB_SHA" \
+                -- packages/canonical/src/canonical/migrations/azure/*.sql | xargs -r -n1 basename | sed 's/\.sql$//')
+          {
+            if [ -z "$previous" ]; then
+              echo "First release from GitHub: the database already has every migration in it (run in SSMS before)."
+            elif [ -n "$new" ]; then
+              echo "## New migrations: run in SSMS before deploying"
+              echo
+              echo "Run each file in rarfinmisdb (admin login), then deploy this release with **mark_applied** set to:"
+              echo
+              echo '```'
+              echo "$new" | paste -sd, -
+              echo '```'
+            else
+              echo "No new migrations."
+            fi
+            echo
+          } > dist/notes.md
+          cat dist/notes.md
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/function.zip dist/web.zip dist/migrations.zip \
+            --title "$GITHUB_REF_NAME" --notes-file dist/notes.md --generate-notes --verify-tag
