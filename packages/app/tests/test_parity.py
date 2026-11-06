@@ -72,6 +72,7 @@ def test_missing_old_files_are_reported_not_hidden(worker, requests_repo, engine
     batch, _ = old_request(worker, requests_repo, engine)
     report = run_parity(engine, batch, tmp_path / "new", local_reader(tmp_path / "empty"))
     assert not report.same and "NOT COMPARED: old file not readable" in report.text()
+    assert "RESULT: INCOMPLETE" in report.text() and not report.different
 
 
 def test_file_comparison_rules():

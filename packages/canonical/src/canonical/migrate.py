@@ -71,15 +71,41 @@ def pending_migrations(engine: Engine, migrations_dir: Path = AZURE_MIGRATIONS) 
 
 def apply_migrations(engine: Engine, migrations_dir: Path = AZURE_MIGRATIONS) -> list[str]:
     """Apply the pending migration files; returns their versions."""
-    applied = []
+    applied: list[str] = []
     for path in pending_migrations(engine, migrations_dir):
         log.info("Applying migration %s", path.name)
-        with engine.begin() as conn:  # the file and its version row commit together
-            for stmt in split_statements(path.read_text(encoding="utf-8")):
-                conn.execute(text(stmt))
-            conn.execute(insert(schema_migration).values(version=path.stem, applied_at=utcnow()))
+        try:
+            with engine.begin() as conn:  # the file and its version row commit together
+                for stmt in split_statements(path.read_text(encoding="utf-8")):
+                    conn.execute(text(stmt))
+                conn.execute(insert(schema_migration).values(version=path.stem, applied_at=utcnow()))
+        except Exception as exc:
+            raise MigrationFailed(path.stem, applied, exc) from exc
         applied.append(path.stem)
     return applied
+
+
+class MigrationFailed(Exception):
+    """A migration file failed (its transaction was rolled back); `version` names it."""
+
+    def __init__(self, version: str, applied: list[str], cause: Exception) -> None:
+        super().__init__(f"{version}: {cause}")
+        self.version, self.applied, self.cause = version, applied, cause
+
+
+def mark_applied(engine: Engine, version: str, migrations_dir: Path = AZURE_MIGRATIONS) -> bool:
+    """Record a migration as applied without running it: for one that was run by hand (e.g. in SSMS), whose change
+    is already in the database. Only a version that exists as a file and is still pending can be marked. True if
+    recorded."""
+    pending = {p.stem for p in pending_migrations(engine, migrations_dir)}
+    known = {p.stem for p in migrations_dir.glob("*.sql")}
+    if version not in known:
+        raise ValueError(f"No migration {version!r} (known: {', '.join(sorted(known))})")
+    if version not in pending:
+        return False
+    with engine.begin() as conn:
+        conn.execute(insert(schema_migration).values(version=version, applied_at=utcnow()))
+    return True
 
 
 def view_files(dialect: str) -> list[Path]:

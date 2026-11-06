@@ -128,3 +128,20 @@ def test_cross_apply_becomes_cross_join_lateral() -> None:
     for dialect in ("postgres", "mysql"):
         out = build_views.translate("x.sql", sql, dialect)
         assert "CROSS JOIN LATERAL" in out and "INNER JOIN" not in out
+
+
+def test_a_failed_file_is_named_and_a_hand_run_one_can_be_marked(tmp_path) -> None:
+    from canonical.migrate import MigrationFailed, mark_applied
+
+    (tmp_path / "002_a.sql").write_text("CREATE TABLE automn.a (x INT);")
+    (tmp_path / "003_b.sql").write_text("CREATE TABLE automn.a (x INT);")  # as if run by hand already
+    (tmp_path / "004_c.sql").write_text("CREATE TABLE automn.c (z INT);")
+    engine = make_engine(f"sqlite:///{tmp_path / 'm.db'}")
+    with pytest.raises(MigrationFailed) as failed:
+        apply_migrations(engine, tmp_path)
+    assert failed.value.version == "003_b" and failed.value.applied == ["002_a"]
+    assert mark_applied(engine, "003_b", tmp_path) is True
+    assert mark_applied(engine, "003_b", tmp_path) is False  # already recorded
+    with pytest.raises(ValueError, match="No migration"):
+        mark_applied(engine, "999_x", tmp_path)
+    assert apply_migrations(engine, tmp_path) == ["004_c"]
