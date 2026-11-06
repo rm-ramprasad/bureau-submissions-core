@@ -1,0 +1,10 @@
+# Type descriptor (step 5, issue #17): see consumer/type.yaml.
+submission_type: COMMERCIAL
+label: Commercial
+order: 20
+engine: delimited
+file_label: Bureau file
+record_noun: Facilities
+header_tag_required: false
+# Commercial 4.3: Commercial-<DL/W1/W2/W3/ME...>-<date reported>-<internal reference>
+default_file_name: "Commercial-{cycle}-{as_of:%d%m%Y}-{member_id}-{created:%H%M%S}.txt"

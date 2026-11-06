@@ -21,8 +21,8 @@ from app.api.common import (
 from app.api.config import versioned
 from app.enums import (
     ReportingCycle,
-    SubmissionType,
 )
+from bureau_core.types import descriptor
 from canonical.db import utcnow
 
 # ---------------------------------------------------------------- audit
@@ -88,8 +88,8 @@ def save_bureau_profile(submission_type: str, bureau_code: str):
         fail("Member short name: up to 16 characters (the file header has room for 16).")
     if len(tag) > 4 or (tag and not re.fullmatch(r"[A-Za-z0-9]+", tag)):
         fail("Header tag: up to 4 letters or digits.")
-    if current.submission_type is SubmissionType.CONSUMER and not tag:
-        fail("Header tag: required for consumer files.")
+    if descriptor(current.submission_type).header_tag_required and not tag:
+        fail(f"Header tag: required for {descriptor(current.submission_type).label.lower()} files.")
     if not pattern or len(pattern) > 200 or FILE_NAME_FORBIDDEN.search(re.sub(r"\{[^}]*\}", "", pattern)):
         fail(r'File name pattern: up to 200 characters, without \ / : * ? " < > |.')
     updated = replace(

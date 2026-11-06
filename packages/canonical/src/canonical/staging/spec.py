@@ -93,13 +93,30 @@ def parse(data: dict, submission_type: str) -> WorkbookSpec:
     return WorkbookSpec(submission_type, str(data["workbook"]), tuple(sheets))
 
 
+def type_file(submission_type: str, name: str) -> Path:
+    """The type's file here (canonical/types/<type>/), else in its type folder (a type added outside the product)."""
+    path = TYPES_DIR / submission_type.lower() / name
+    if not path.is_file():
+        from bureau_core.types import descriptors
+
+        found = descriptors().get(submission_type.upper())
+        if found and (found[1] / name).is_file():
+            return found[1] / name
+    return path
+
+
 @cache
 def load_spec(submission_type: str) -> WorkbookSpec:
-    path = TYPES_DIR / submission_type.lower() / "inputs.yaml"
+    path = type_file(submission_type, "inputs.yaml")
     if not path.is_file():
         raise SpecError(f"No input workbook layout for {submission_type} ({path})")
     return parse(yaml.safe_load(path.read_text(encoding="utf-8")), submission_type.upper())
 
 
 def available_specs() -> list[str]:
-    return sorted(p.parent.name.upper() for p in TYPES_DIR.glob("*/inputs.yaml"))
+    from bureau_core.types import descriptors
+
+    return sorted(
+        {p.parent.name.upper() for p in TYPES_DIR.glob("*/inputs.yaml")}
+        | {name for name, (_d, folder) in descriptors().items() if (folder / "inputs.yaml").is_file()}
+    )

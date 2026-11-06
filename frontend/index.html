@@ -53,8 +53,8 @@
         <div class="kpi" title="Records that passed validation and can be reported">
           <span class="label">Accepted</span><span class="value" x-text="F.num(board.accepted)"></span>
           <span class="hint" x-show="board.records" x-text="F.num(board.records - board.accepted) + ' rejected'"></span></div>
-        <div class="kpi"><span class="label" x-text="commercial() ? 'Facilities excluded' : 'Loans excluded'"></span><span class="value" x-text="F.num(board.excluded)"></span></div>
-        <div class="kpi"><span class="label" x-text="commercial() ? 'Facilities overridden' : 'Loans overridden'"></span><span class="value" x-text="F.num(board.overridden)"></span></div>
+        <div class="kpi"><span class="label" x-text="(F.type(type).record_noun || 'Loans') + ' excluded'"></span><span class="value" x-text="F.num(board.excluded)"></span></div>
+        <div class="kpi"><span class="label" x-text="(F.type(type).record_noun || 'Loans') + ' overridden'"></span><span class="value" x-text="F.num(board.overridden)"></span></div>
       </div>
 
       <div class="panel flush" x-show="board.nbfc_status">

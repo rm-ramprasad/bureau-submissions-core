@@ -50,7 +50,7 @@
             <td class="num" x-text="f.excluded_accounts || 0"></td><td class="num" x-text="f.overridden_accounts || 0"></td>
             <td>
               <template x-if="f.has_file"><span>
-                <a href="#" @click.prevent="download(f, 'file')" x-text="f.submission_type === 'CONSUMER' ? 'TUDF' : 'Bureau file'"></a>
+                <a href="#" @click.prevent="download(f, 'file')" x-text="F.type(f.submission_type).file_label || 'Bureau file'"></a>
                 (<a :href="`tudf.html?request=${f.request_id}&name=${encodeURIComponent(f.output_file_name || '')}`">view</a>)
                 <span x-show="f.has_excel"> · <a href="#" @click.prevent="download(f, 'excel')">Bureau Excel</a></span>
                 <span x-show="f.has_review"> · <a href="#" @click.prevent="download(f, 'review')">Review Excel</a></span>

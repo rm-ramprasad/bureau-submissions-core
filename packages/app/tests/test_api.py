@@ -70,7 +70,7 @@ def test_meta_lists_choices(api):
     status, meta = api.get("/meta")
     assert status == 200 and {t["tenant_id"] for t in meta["tenants"]} == {"nbfc_001", "nbfc_002"}
     types = {t["value"]: t["enabled"] for t in meta["submission_types"]}
-    assert types == {"CONSUMER": True, "COMMERCIAL": True, "NESL": False}  # nbfc_001 has both mappings
+    assert types == {"CONSUMER": True, "COMMERCIAL": True}  # nbfc_001 has both mappings; NESL has no type folder
     assert {o["value"] for o in meta["override_fields"]} >= {"days_past_due", "settlement_amount"}
     dates = [d["value"] for d in meta["as_of_dates"]]
     assert meta["default_as_of"] == dates[0] and dates == sorted(dates, reverse=True)

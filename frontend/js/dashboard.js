@@ -21,9 +21,8 @@ document.addEventListener("alpine:init", () => {
     },
 
     periodLabel() { return (this.periods.find((p) => p.value === this.period) || this.periods[0]).label; },
-    typeLabel() { return F.title(this.type); },
+    typeLabel() { return F.type(this.type).label || F.title(this.type); },
     tracker(stage) { return F.url("tracker.html", { stage, period: this.period, type: this.type }); },
     queueSlow() { return !!this.$store.app.health?.slow; },
-    commercial() { return this.type === "COMMERCIAL"; }
   }));
 });

@@ -1,0 +1,10 @@
+# Type descriptor (step 5, issue #17): what the app and the pages need to know about this type. The registry
+# (bureau_core.types) is built from these files; adding a type is a new folder, no code change.
+submission_type: CONSUMER
+label: Consumer
+order: 10                       # position in lists and schedules (lowest first)
+engine: tudf                    # file engine: tudf (fixed-width segments) or delimited
+file_label: TUDF                # what the bureau file is called on the pages
+record_noun: Loans              # what one record is called on the pages
+header_tag_required: true       # bureau profiles need a header segment tag
+default_file_name: "{member_id}-{created:%d%m%Y}-{created:%H%M%S}.txt"

@@ -41,7 +41,7 @@ def _rule_kind(rule, custom_defs=None) -> str:
 
 def _rules_type() -> SubmissionType:
     try:
-        sub_type = SubmissionType(arg("type") or SubmissionType.CONSUMER.value)
+        sub_type = SubmissionType(arg("type") or enabled_types()[0])
     except ValueError:
         fail("Unknown submission type")
     if sub_type not in enabled_types():

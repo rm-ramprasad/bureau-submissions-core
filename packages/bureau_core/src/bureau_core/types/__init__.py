@@ -5,18 +5,23 @@
   rules.yaml          validation rule pack (rules, categories, record decision)
   layout.yaml         file layout, read by a generic file engine (bureau_core/formats/)
   excel_layout.yaml   the Excel (review / Data Submission Form) layout, if the type has one
+  type.yaml           the descriptor: label, order, engine, page wording, flags (step 5: the type registry)
 
 A host adds its own side (the app: submissions/types/<type>/ pipeline.py, inputs.yaml, input_checks.yaml).
 
-A type folder is found by its codes.yaml `submission_type:`. Adding a file type (NeSL, MFI, ...) is a new folder plus
-its reference rows; no engine changes.
+A type folder is found by its type.yaml. The folders are the product's (here) plus any listed in
+SUBMISSIONS_TYPE_PATH (folders separated by the OS path separator, each holding type folders): adding a file type
+(NeSL, MFI, ...) is a new folder plus its reference rows and source views; no code changes. A type folder may also
+hold the host's side (inputs.yaml, input_checks.yaml) when it is not in the product.
 """
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -34,6 +39,86 @@ class TypeDefinitionError(ValueError):
 class Translation:
     output_code: str
     active: bool = True
+
+
+ENGINES = ("tudf", "delimited")
+
+
+def type_dirs() -> list[Path]:
+    """Folders holding type folders: the product's, then SUBMISSIONS_TYPE_PATH's."""
+    extra = [Path(p) for p in os.environ.get("SUBMISSIONS_TYPE_PATH", "").split(os.pathsep) if p.strip()]
+    return [TYPES_DIR, *extra]
+
+
+@dataclass(frozen=True)
+class Descriptor:
+    """type.yaml: what the app and the pages need to know about a type."""
+
+    submission_type: str
+    label: str
+    order: int
+    engine: str
+    file_label: str
+    record_noun: str
+    header_tag_required: bool
+    default_file_name: str
+
+    @classmethod
+    def read(cls, path: Path) -> Descriptor:
+        raw: dict[str, Any] = _read(path)
+        missing = [f for f in cls.__dataclass_fields__ if f not in raw]
+        if missing:
+            raise TypeDefinitionError(f"{path}: missing {', '.join(missing)}")
+        unknown = set(raw) - set(cls.__dataclass_fields__)
+        if unknown:
+            raise TypeDefinitionError(f"{path}: unknown keys {', '.join(sorted(unknown))}")
+        if raw["engine"] not in ENGINES:
+            raise TypeDefinitionError(f"{path}: engine {raw['engine']!r} is not one of {', '.join(ENGINES)}")
+        return cls(
+            submission_type=str(raw["submission_type"]),
+            label=str(raw["label"]),
+            order=int(raw["order"]),
+            engine=str(raw["engine"]),
+            file_label=str(raw["file_label"]),
+            record_noun=str(raw["record_noun"]),
+            header_tag_required=bool(raw["header_tag_required"]),
+            default_file_name=str(raw["default_file_name"]),
+        )
+
+
+@cache
+def descriptors() -> dict[str, tuple[Descriptor, Path]]:
+    """Type name -> (descriptor, folder), in descriptor order. Read without SubmissionType (which checks against it)."""
+    found: dict[str, tuple[Descriptor, Path]] = {}
+    for base in type_dirs():
+        for path in sorted(base.glob("*/type.yaml")):
+            d = Descriptor.read(path)
+            if d.submission_type in found:
+                raise TypeDefinitionError(
+                    f"Two folders for {d.submission_type}: {found[d.submission_type][1]}, {path.parent}"
+                )
+            found[d.submission_type] = (d, path.parent)
+    return dict(sorted(found.items(), key=lambda kv: (kv[1][0].order, kv[0])))
+
+
+def registered_names() -> tuple[str, ...]:
+    return tuple(descriptors())
+
+
+def descriptor(submission_type: SubmissionType | str) -> Descriptor:
+    found = descriptors().get(str(submission_type))
+    if found is None:
+        raise TypeDefinitionError(f"No submission type folder for {submission_type}")
+    return found[0]
+
+
+def reload() -> None:
+    """Forget the cached type folders (after SUBMISSIONS_TYPE_PATH changes: tests)."""
+    from bureau_core.validation.rules import pack_paths
+
+    descriptors.cache_clear()
+    type_definitions.cache_clear()
+    pack_paths.cache_clear()
 
 
 @dataclass(frozen=True)
@@ -60,8 +145,8 @@ def _read(path: Path) -> dict:
 def _load(folder: Path) -> TypeDefinition:
     codes, req = _read(folder / "codes.yaml"), _read(folder / "requirements.yaml")
     st = SubmissionType(codes["submission_type"])
-    if SubmissionType(req["submission_type"]) is not st:
-        raise TypeDefinitionError(f"{folder.name}: codes.yaml and requirements.yaml name different types")
+    if SubmissionType(req["submission_type"]) is not st or descriptor(st).submission_type != st:
+        raise TypeDefinitionError(f"{folder.name}: type.yaml, codes.yaml and requirements.yaml name different types")
     model = canonical_model()
 
     translations = {}
@@ -99,15 +184,8 @@ def _load(folder: Path) -> TypeDefinition:
 
 @cache
 def type_definitions() -> dict[SubmissionType, TypeDefinition]:
-    found = {}
-    for folder in sorted(p.parent for p in TYPES_DIR.glob("*/codes.yaml")):
-        d = _load(folder)
-        if d.submission_type in found:
-            raise TypeDefinitionError(
-                f"Two folders for {d.submission_type}: {found[d.submission_type].folder.name}, {folder.name}"
-            )
-        found[d.submission_type] = d
-    return found
+    """Every registered type's definition, in descriptor order."""
+    return {SubmissionType(name): _load(folder) for name, (_d, folder) in descriptors().items()}
 
 
 def type_definition(submission_type: SubmissionType | str) -> TypeDefinition:

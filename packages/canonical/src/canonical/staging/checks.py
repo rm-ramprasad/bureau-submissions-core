@@ -50,7 +50,7 @@ import yaml
 from sqlalchemy import Engine, insert, select, text, update
 
 from bureau_core.text import as_date
-from canonical.staging.spec import TYPES_DIR, load_spec
+from canonical.staging.spec import load_spec, type_file
 from canonical.staging.tables import input_issue, input_load, staging_tables
 
 MAX_ISSUES_PER_CHECK = 200  # issues listed per check; the rest are counted in one summary issue
@@ -185,7 +185,7 @@ def _parse_checks(raw_checks, where: str, columns: set[str], cols_of, seen: set)
 @cache
 def load_checks(submission_type: str) -> CheckSet | None:
     """The type's checks, or None if it has no input_checks.yaml."""
-    path = TYPES_DIR / submission_type.lower() / "input_checks.yaml"
+    path = type_file(submission_type, "input_checks.yaml")
     if not path.is_file():
         return None
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))

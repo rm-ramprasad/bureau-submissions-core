@@ -33,7 +33,7 @@
       <div class="panel-head"><h2 x-text="F.title(type)"></h2>
         <span class="muted">File name fields: <span class="mono" x-text="data.pattern_fields"></span></span></div>
       <div class="table-wrap"><table class="bureaus">
-        <thead><tr><th>Bureau</th><th>Member ID</th><th>Member short name</th><th x-show="type === 'CONSUMER'">Header tag</th>
+        <thead><tr><th>Bureau</th><th>Member ID</th><th>Member short name</th><th x-show="F.type(type).header_tag_required">Header tag</th>
           <th>File name pattern</th><th>Active</th><th x-show="canEdit()"></th></tr></thead>
         <tbody>
           <template x-for="p in profiles(type)" :key="key(p)">
@@ -46,7 +46,7 @@
               <td>
                 <input type="text" x-show="canEdit()" x-model="edit[key(p)].member_short_name" maxlength="16" size="16">
                 <span x-show="!canEdit()" x-text="p.member_short_name || '—'"></span></td>
-              <td x-show="type === 'CONSUMER'">
+              <td x-show="F.type(type).header_tag_required">
                 <input type="text" class="mono" x-show="canEdit()" x-model="edit[key(p)].header_segment_tag" maxlength="4" size="5">
                 <span class="mono" x-show="!canEdit()" x-text="p.header_segment_tag || '—'"></span></td>
               <td>
@@ -71,7 +71,7 @@
     <dl class="glossary">
       <dt>Member ID</dt><dd>The ID the bureau issued to the NBFC. It goes in the file header and every record, and can be part of the file name.</dd>
       <dt>Member short name</dt><dd>The NBFC's short name in the file header (up to 16 characters).</dd>
-      <dt>Header tag</dt><dd>Consumer files: the header segment tag the bureau expects (for example TUDF for CIBIL).</dd>
+      <dt>Header tag</dt><dd>Types that need one (consumer): the header segment tag the bureau expects (for example TUDF for CIBIL).</dd>
       <dt>File name pattern</dt><dd>How the file is named. Fields in braces are filled in: the member ID, the bureau, the cycle, the as-of date and the creation date and time.</dd>
       <dt>Active</dt><dd>Only active bureaus are offered when generating files.</dd>
     </dl>

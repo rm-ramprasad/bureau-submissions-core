@@ -71,7 +71,7 @@ def create_request():
         )
     try:
         offered = available_types(s.engine)  # one look at the views, not one per type
-        not_enabled = [t for t in types if SubmissionType(t) not in offered]
+        not_enabled = [t for t in types if t not in SubmissionType or SubmissionType(t) not in offered]
         if not_enabled:
             raise RequestValidationError(
                 f"Not set up for this NBFC: {', '.join(not_enabled)} (its views automn.vw_<type>_* are not in the database)"

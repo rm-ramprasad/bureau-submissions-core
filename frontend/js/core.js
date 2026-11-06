@@ -126,6 +126,8 @@ const Api = {
 
 // ---------------------------------------------------------------- formatting
 const F = {
+  // A submission type's descriptor from /api/meta (label, file_label, record_noun, header_tag_required, ...).
+  type: (value) => (Alpine.store("app").meta?.submission_types || []).find((t) => t.value === value) || {},
   pad: (n) => String(n).padStart(2, "0"),
   dt(iso) {                                   // UTC from the API -> local "dd-mm-yyyy hh:mm"
     if (!iso) return "";
