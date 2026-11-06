@@ -113,6 +113,24 @@ def test_migrate_job_seeds_reference_and_profiles(engine, monkeypatch):
     assert run(engine, {"job": "migrate"})["bureau_profiles_added"] == 0  # existing profiles are never changed
 
 
+def test_migrate_reports_a_failed_migration_and_marks_a_hand_run_one(engine, monkeypatch):
+    from canonical import migrate as m
+
+    def failing(e):
+        raise m.MigrationFailed("006_generate_once", [], RuntimeError("Column name 'generate_key' ... more than once"))
+
+    monkeypatch.setattr("canonical.migrate.apply_migrations", failing)
+    out = run(engine, {"job": "migrate"})
+    assert out["failed"] == "006_generate_once" and "--mark-applied 006_generate_once" in out["hint"]
+    marked = []
+    monkeypatch.setattr("canonical.migrate.mark_applied", lambda e, v: marked.append(v) or True)
+    monkeypatch.setattr("canonical.migrate.apply_migrations", lambda e: [])
+    out = run(engine, {"job": "migrate", "args": ["--mark-applied", "006_generate_once"]})
+    assert marked == ["006_generate_once"] and out["marked_applied"] == "006_generate_once" and out["applied"] == []
+    with pytest.raises(ValueError, match="--mark-applied"):
+        run(engine, {"job": "migrate", "args": ["--bogus"]})
+
+
 def test_views_recovery_retention_and_unknown_jobs(engine, requests_repo):
     out = run(engine, {"job": "views", "args": ["consumer", "--as-of", "2026-09-30", "--load-id", "1"]})
     assert out["ok"] is False and "Required views missing" in out["errors"][0]

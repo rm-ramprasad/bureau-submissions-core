@@ -69,6 +69,10 @@ class Report:
     def same(self) -> bool:
         return all(p.same for p in self.parts)
 
+    @property
+    def different(self) -> bool:
+        return any(p.differences for p in self.parts)
+
     def text(self) -> str:
         lines = [f"Parity check of request {self.old_batch} (old app) against the new code", ""]
         for p in self.parts:
@@ -77,7 +81,13 @@ class Report:
             lines += [f"             - {e}" for e in p.examples]
             if p.differences > len(p.examples):
                 lines.append(f"             ... and {p.differences - len(p.examples)} more")
-        lines += ["", "RESULT: " + ("IDENTICAL" if self.same else "DIFFERENCES FOUND (see above)")]
+        if self.same:
+            result = "IDENTICAL"
+        elif self.different:
+            result = "DIFFERENCES FOUND (see above)"
+        else:
+            result = "INCOMPLETE: no differences, but some files were not compared (see NOT COMPARED above)"
+        lines += ["", "RESULT: " + result]
         return "\n".join(lines)
 
 

@@ -1,7 +1,8 @@
 """Admin jobs: run by the Function App's admin endpoint (POST /ops/<job>, function key; deploy/ops.ps1), by its
 timers (recovery, retention) and locally (python -m shell_azure.admin <job> ...).
 
-  migrate                 apply pending migrations, seed reference data, add missing placeholder bureau profiles
+  migrate [--mark-applied V]  apply pending migrations, seed reference data, add missing placeholder bureau
+                          profiles; --mark-applied records a migration run by hand without running it
   users <args>            add / email / disable / enable / list app users
   views <TYPE> --as-of D --load-id N   read-only check of a type's source views for one upload and date
   recovery                release or fail stuck runs, re-dispatch PENDING rows never picked up
@@ -32,13 +33,29 @@ RUN_TIMEOUT = timedelta(minutes=40)  # longer than host.json functionTimeout (30
 PENDING_GRACE = timedelta(minutes=10)
 
 
-def migrate(engine: Engine, tenant: str | None) -> dict[str, Any]:
+def migrate(engine: Engine, tenant: str | None, mark_applied: str | None = None) -> dict[str, Any]:
+    """`mark_applied`: record that migration as applied without running it (it was run by hand), then migrate."""
     from app.bureaus import BureauRepository
     from app.bureaus.seed import seed_missing
-    from canonical.migrate import apply_migrations
+    from canonical import migrate as m
     from canonical.reference import seed
 
-    result: dict[str, Any] = {"applied": apply_migrations(engine), "reference": seed(engine)}
+    result: dict[str, Any] = {}
+    if mark_applied:
+        result["marked_applied"] = mark_applied if m.mark_applied(engine, mark_applied) else None
+    try:
+        result["applied"] = m.apply_migrations(engine)
+    except m.MigrationFailed as exc:  # a plain answer instead of an error 500; nothing of that file was kept
+        return result | {
+            "applied": exc.applied,
+            "failed": exc.version,
+            "error": str(exc.cause).splitlines()[0][:500],
+            "hint": (
+                f"If {exc.version} was already run by hand (e.g. in SSMS) and its change is in the database, record "
+                f"it: ops.ps1 migrate --mark-applied {exc.version}"
+            ),
+        }
+    result["reference"] = seed(engine)
     if tenant:  # placeholder profiles it lacks; never edits existing (real) ones
         result["bureau_profiles_added"] = seed_missing(BureauRepository(engine), tenant)
     return result
@@ -143,7 +160,12 @@ def run_job(
     job = (event or {}).get("job")
     args = [str(a) for a in event.get("args") or []]
     if job == "migrate":
-        return migrate(engine, tenant)
+        mark = None
+        if args[:1] == ["--mark-applied"] and len(args) == 2:
+            mark = args[1]
+        elif args:
+            raise ValueError("migrate takes no arguments, or --mark-applied <version>")
+        return migrate(engine, tenant, mark)
     if job == "users":
         return users(engine, args, actor)
     if job == "views":
