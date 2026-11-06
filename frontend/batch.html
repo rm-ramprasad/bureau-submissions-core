@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Request · Open Terrace Analytics</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="app.css">
+  <script defer src="config.js"></script>
+  <script defer src="vendor/oidc-client-ts.min.js"></script>
+  <script defer src="js/core.js"></script>
+  <script defer src="js/batch.js"></script>
+  <script defer src="vendor/alpine.min.js"></script>
+</head>
+<body data-nav="tracker" data-crumb='<a href="tracker.html">Submission tracker</a> <span>/</span> Request'>
+<script>
+  if (!new URLSearchParams(location.search).get("id")) {           // no request yet: this is "New request"
+    document.body.dataset.nav = "new";
+    document.body.dataset.crumb = "New request";
+  }
+</script>
+<main class="content" x-data="batchPage">
+  <div class="page-head">
+    <div>
+      <h1 x-text="!id ? 'New request' : (b ? 'Request · ' + b.tenant.display_name : 'Request')"></h1>
+      <p class="subtitle" x-show="!id">Create the request, upload the input workbook, add any exceptions, validate, then
+        generate the bureau files. This page shows each step as you go.</p>
+      <p class="subtitle" x-show="b" x-cloak>
+        <span class="mono" x-text="id"></span> · as of <span x-text="F.d(b?.rows[0].as_of_date)"></span>
+        · <span x-text="validationRows().map((r) => F.title(r.submission_type)).join(', ')"></span>
+        · requested <span x-text="F.dt(b?.rows[0].requested_at)"></span> by <span x-text="b?.rows[0].requested_by || '—'"></span>
+        <strong x-show="b?.active"> · refreshing every 5 s</strong></p>
+    </div>
+  </div>
+
+  <ol class="steps stepper">
+    <template x-for="([key, label], n) in STEPS" :key="key">
+      <li :class="steps()[key] + (key === current() ? ' here' : '')">
+        <a href="#" @click.prevent="show(key)">
+          <span class="step-no" x-text="steps()[key] === 'done' ? '✓' : steps()[key] === 'failed' ? '!' : n + 1"></span>
+          <span x-text="label"></span></a></li>
+    </template>
+  </ol>
+  <p class="loading" x-show="id && !b">Loading…</p>
+
+  <!-- ===================== 1 create -->
+  <template x-if="!id">
+    <form class="panel step-panel" id="step-create" @submit.prevent="create()">
+      <h2><span class="step-no">1</span> Create the request</h2>
+      <p class="loading" x-show="!$store.app.meta">Loading…</p>
+      <div class="row" x-show="$store.app.meta">
+        <div><label for="as_of_date">As-of date</label>
+          <div class="datepick" @click.outside="cal.open = false" @keydown.escape="cal.open = false">
+            <button type="button" id="as_of_date" class="datepick-field" @click="openCalendar()"
+                    x-text="form.as_of_date ? F.d(form.as_of_date) + (dateCycle(form.as_of_date) ? ' · ' + dateCycle(form.as_of_date) : '') : 'Choose a date'"></button>
+            <div class="calendar" x-show="cal.open" x-cloak>
+              <div class="cal-head">
+                <button type="button" class="linkish" @click="shiftMonth(-1)" aria-label="Previous month">‹</button>
+                <strong x-text="cal.month.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })"></strong>
+                <button type="button" class="linkish" @click="shiftMonth(1)" :disabled="!canNext()" aria-label="Next month">›</button>
+              </div>
+              <div class="cal-grid">
+                <template x-for="w in ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']" :key="w"><span class="cal-dow" x-text="w"></span></template>
+                <template x-for="c in calendarCells()" :key="c.key">
+                  <button type="button" class="cal-day" :disabled="!c.ok" @click="pickDate(c.iso)"
+                          :class="{ blank: !c.day, on: c.iso === form.as_of_date, cycle: !!c.cycle && c.ok }"
+                          :title="c.cycle || ''" x-text="c.day || ''"></button>
+                </template>
+              </div>
+            </div>
+          </div></div>
+        <div><label for="reporting_cycle">Reporting cycle</label>
+          <select id="reporting_cycle" x-model="form.reporting_cycle"
+                  @change="if (!form.reporting_cycle) form.as_of_date = $store.app.meta?.default_as_of">
+            <option value="">Regular (W1 / W2 / W3 / ME from the date)</option>
+            <template x-for="c in $store.app.meta?.cycles || []" :key="c.value">
+              <option :value="c.value" x-text="c.label" :selected="c.value === form.reporting_cycle"></option>
+            </template>
+          </select></div>
+      </div>
+      <p class="hint" x-show="!form.reporting_cycle">Regular: reporting dates only, the 9th (W1), 16th (W2), 23rd (W3) and
+        the last day of each month (ME); the cycle follows from the date.</p>
+      <p class="hint" x-show="form.reporting_cycle">With DL, DC, AH or RR any past date can be used.</p>
+      <label>Submission types</label>
+      <div class="choices">
+        <template x-for="t in $store.app.meta?.submission_types || []" :key="t.value">
+          <label :class="!t.enabled && 'disabled'">
+            <input type="checkbox" :value="t.value" x-model="form.submission_types" :disabled="!t.enabled">
+            <span x-text="t.label + (t.enabled ? '' : ' (not set up)')"></span>
+          </label>
+        </template>
+      </div>
+      <p style="margin-top:20px"><button type="submit" :disabled="busy">Create request</button></p>
+    </form>
+  </template>
+
+  <template x-if="b && page">
+    <div>
+      <div class="panel status" x-show="steps().upload === 'failed'">
+        <div><strong>Discarded.</strong> This draft request was discarded. <a href="batch.html">Create a new request</a>.</div>
+      </div>
+
+      <p class="choices" x-show="page.rows.length > 1">
+        <span class="muted">Workbook and exceptions for:</span>
+        <template x-for="r in page.rows" :key="r.request_id">
+          <a class="button small" :class="r.request_id !== page.row.request_id && 'secondary'" href="#"
+             @click.prevent="selectType(r.submission_type)" x-text="F.title(r.submission_type)"></a>
+        </template>
+      </p>
+
+      <!-- ===================== 2 upload & check -->
+      <section class="panel flush step-panel" id="step-upload" :class="steps().upload">
+        <div class="panel-head clickable" @click="toggle('upload')">
+          <h2><span class="step-no" x-text="steps().upload === 'done' ? '✓' : '2'"></span> Upload &amp; check the workbook</h2>
+          <span><span class="muted" x-show="!isOpen('upload')" x-text="input()?.latest
+              ? `${input().latest.file_name} · ${Object.values(input().latest.row_counts).reduce((a, n) => a + n, 0)} rows · `
+                + `${(input().latest.summary || []).filter((g) => g.severity === 'ERROR').length} blocking, `
+                + `${(input().latest.summary || []).filter((g) => g.severity !== 'ERROR').length} note(s)`
+              : 'Not uploaded'"></span> <span x-text="isOpen('upload') ? '▾' : '▸'"></span></span></div>
+        <div class="panel-body stack" x-show="isOpen('upload')">
+          <p class="muted" x-show="!input()?.needs_workbook">This type needs no workbook.</p>
+          <p class="muted" x-show="input()?.needs_workbook && !input()?.latest">No workbook uploaded yet. Upload this
+            period's input file (.xlsx): its sheets are loaded and checked straight away.</p>
+          <template x-if="input()?.latest">
+            <div>
+              <p><span class="badge" :class="input().latest.status === 'LOADED' ? 'b-SUCCEEDED' : 'b-FAILED'"
+                       x-text="{ LOADED: 'Loaded and checked', DQ_FAILED: 'Checks failed' }[input().latest.status] || 'Not loaded'"></span>
+                <span x-text="input().latest.file_name"></span> · uploaded by <span x-text="input().latest.loaded_by"></span>
+                on <span x-text="F.dt(input().latest.loaded_at)"></span></p>
+              <p class="muted" x-show="input().latest.status !== 'LOADED'" x-text="input().latest.error_message"></p>
+              <table x-show="Object.keys(input().latest.row_counts).length">
+                <thead><tr><th>Sheet</th><th class="num">Rows loaded</th></tr></thead>
+                <tbody>
+                  <template x-for="[sheet, n] in Object.entries(input().latest.row_counts)" :key="sheet">
+                    <tr><td x-text="sheet"></td><td class="num" x-text="F.num(n)"></td></tr>
+                  </template>
+                </tbody>
+              </table>
+              <div class="issue-summary" x-show="input().latest.summary?.length">
+                <h3>What was found</h3>
+                <table>
+                  <thead><tr><th></th><th>Check</th><th>Sheet</th><th>Column</th><th class="num">Rows</th></tr></thead>
+                  <template x-for="g in input().latest.summary" :key="g.code + g.sheet + g.column">
+                    <tbody>
+                      <tr class="clickable" @click="g.open = !g.open">
+                        <td><span class="badge" :class="g.severity === 'ERROR' ? 'b-FAILED' : 'b-WARN'"
+                                  x-text="g.severity === 'ERROR' ? 'Blocks' : 'Note'"></span></td>
+                        <td><span x-text="(g.open ? '▾ ' : '▸ ') + g.title"></span>
+                          <div class="hint mono" x-text="g.code"></div></td>
+                        <td x-text="g.sheet || '—'"></td><td class="mono" x-text="g.column || ''"></td>
+                        <td class="num" x-text="F.num(g.count)"></td></tr>
+                      <tr x-show="g.open"><td></td><td colspan="4">
+                        <table class="nested">
+                          <thead><tr><th class="num">Excel row</th><th>Detail</th></tr></thead>
+                          <tbody>
+                            <template x-for="(r, k) in g.rows" :key="k">
+                              <tr><td class="num" x-text="r.row || ''"></td><td x-text="r.message"></td></tr>
+                            </template>
+                          </tbody>
+                        </table>
+                        <p class="hint" x-show="g.truncated"
+                           x-text="`Showing ${g.rows.length} of ${F.num(g.count)} rows; fix these and upload again to see the rest.`"></p>
+                      </td></tr>
+                    </tbody>
+                  </template>
+                </table>
+              </div>
+              <details x-show="input().latest.issues.length">
+                <summary x-text="'All ' + input().latest.issues.length + ' item(s), in order'"></summary>
+                <table>
+                  <thead><tr><th></th><th>Sheet</th><th class="num">Row</th><th>What</th></tr></thead>
+                  <tbody>
+                    <template x-for="(i, n) in input().latest.issues" :key="n">
+                      <tr><td><span class="badge" :class="i.severity === 'ERROR' ? 'b-FAILED' : 'b-WARN'"
+                                    x-text="i.severity === 'ERROR' ? 'Error' : 'Note'"></span></td>
+                        <td x-text="i.sheet || '—'"></td><td class="num" x-text="i.source_row || ''"></td>
+                        <td x-text="i.message"></td></tr>
+                    </template>
+                  </tbody>
+                </table>
+              </details>
+            </div>
+          </template>
+          <div class="upload-row" x-show="draft() && input()?.needs_workbook">
+            <input type="file" class="visually-hidden" tabindex="-1" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                   x-ref="workbook" @change="file = $event.target.files[0] || null; uploadWorkbook()">
+            <button type="button" :class="input()?.latest && input().latest.status === 'LOADED' && 'secondary'" :disabled="busy"
+                    @click="$refs.workbook.click()"
+                    x-text="busy && file ? 'Uploading ' + file.name + '…' : (input()?.latest ? 'Upload a corrected workbook…' : 'Choose and upload workbook…')"></button>
+            <span class="hint">.xlsx; it is loaded and checked as soon as you choose it</span>
+          </div>
+          <p class="hint" x-show="!draft()">Locked: the request was submitted.</p>
+        </div>
+      </section>
+
+      <!-- ===================== 3 exceptions + submit -->
+      <section class="panel flush step-panel" id="step-exceptions" :class="steps().exceptions">
+        <div class="panel-head clickable" @click="toggle('exceptions')">
+          <h2><span class="step-no" x-text="steps().exceptions === 'done' ? '✓' : '3'"></span> Exceptions (optional) and submit</h2>
+          <span><span class="muted" x-show="!isOpen('exceptions')"
+                      x-text="page.adjustments.filter((a) => a.is_active).length + ' exclusion(s) / override(s)'"></span>
+            <span x-text="isOpen('exceptions') ? '▾' : '▸'"></span></span></div>
+        <div x-show="isOpen('exceptions')">
+          <template x-if="draft()">
+            <div class="panel-body">
+              <p class="muted">Excluded loans and customers are left out of the validation and the files; overrides
+                replace the source values. Exceptions are optional. After submitting, the workbook and the exceptions are
+                locked.</p>
+              <div class="grid two">
+                <form class="stack" @submit.prevent="exclude()">
+                  <h3>Exclude</h3>
+                  <div class="choices">
+                    <label><input type="radio" value="account" x-model="ex.kind"> Loan account numbers</label>
+                    <label><input type="radio" value="customer" x-model="ex.kind"> Customer IDs (all their loans)</label>
+                  </div>
+                  <label for="keys">One per line (paste a column from Excel)</label>
+                  <textarea id="keys" rows="6" required x-model="ex.keys" placeholder="B122HL10788234&#10;B107PL79230310"></textarea>
+                  <label for="ex_reason">Reason <span class="muted">(optional)</span></label>
+                  <input type="text" id="ex_reason" maxlength="500" x-model="ex.reason">
+                  <p><button type="submit" class="secondary" :disabled="busy">Add exclusions</button></p>
+                </form>
+                <form class="stack" @submit.prevent="override()">
+                  <h3>Override a value</h3>
+                  <label for="account_number">Loan account number</label>
+                  <input type="text" id="account_number" maxlength="50" required x-model="ov.account_number">
+                  <div class="row">
+                    <div><label for="field">Field</label>
+                      <select id="field" required x-model="ov.field">
+                        <template x-for="f in $store.app.meta?.override_fields || []" :key="f.value">
+                          <option :value="f.value" x-text="f.label" :selected="f.value === ov.field"></option>
+                        </template>
+                      </select></div>
+                    <div><label for="value">New value</label>
+                      <input type="text" id="value" inputmode="decimal" required x-model="ov.value" x-ref="value"></div>
+                  </div>
+                  <p class="hint">OD days: whole number. Amounts in rupees, up to 2 decimals; only the ledger balance may be
+                    negative. A new override replaces the previous one for the same loan and field.</p>
+                  <label for="ov_reason">Reason <span class="muted">(optional)</span></label>
+                  <input type="text" id="ov_reason" maxlength="500" x-model="ov.reason">
+                  <p><button type="submit" class="secondary" :disabled="busy">Save override</button></p>
+                </form>
+              </div>
+            </div>
+          </template>
+
+          <div class="panel-head sub"><h3 x-text="(history ? 'All exceptions' : 'Exceptions') + ' of this request'"></h3>
+            <span><span class="muted" x-text="page.adjustments.length + ' item(s)'"></span> ·
+              <a href="#" @click.prevent="history = !history; load()" x-text="history ? 'Hide removed' : 'Show removed'"></a></span></div>
+          <div class="table-wrap" x-show="page.adjustments.length"><table>
+            <thead><tr><th>Kind</th><th>Loan / customer</th><th>Change</th><th>Reason</th><th>By</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              <template x-for="a in page.adjustments" :key="a.adjustment_id">
+                <tr :class="!a.is_active && 'removed'">
+                  <td x-text="KINDS[a.kind]"></td>
+                  <td class="mono" x-text="a.key"></td>
+                  <td>
+                    <template x-if="a.field"><span><span x-text="a.field_label + ': '"></span>
+                      <span x-show="a.status === 'APPLIED'" x-text="(a.old_value ?? '—') + ' → '"></span>
+                      <strong x-text="a.override_value"></strong></span></template>
+                    <template x-if="!a.field && a.kind === 'EXCLUDE_CUSTOMER' && a.excluded_loans">
+                      <span x-text="a.excluded_loans + ' loan(s)'"></span></template>
+                    <template x-if="!a.field && !(a.kind === 'EXCLUDE_CUSTOMER' && a.excluded_loans)">
+                      <span class="muted">whole loan</span></template>
+                  </td>
+                  <td x-text="a.reason || ''"></td>
+                  <td><span x-text="a.created_by"></span><div class="hint" x-text="F.dt(a.created_at)"></div></td>
+                  <td>
+                    <span class="badge" :class="ADJ_STATUS[a.status][1]" x-text="ADJ_STATUS[a.status][0]"></span>
+                    <div class="hint" x-show="a.status === 'REMOVED'" x-text="(a.removed_by || '') + ', ' + F.dt(a.removed_at)"></div>
+                    <div class="hint" x-show="a.status === 'NOT_FOUND'">no such loan / customer in the source data</div>
+                    <div class="hint" x-show="a.status === 'APPLIED'" x-text="a.loans_affected + ' loan(s)'"></div>
+                  </td>
+                  <td><button class="small secondary" x-show="a.is_active && draft()" @click="remove(a)">Remove</button></td>
+                </tr>
+              </template>
+            </tbody>
+          </table></div>
+          <div class="panel-body muted" x-show="!page.adjustments.length">
+            No exclusions or overrides<span x-show="draft()"> yet</span>.</div>
+
+          <div class="panel-body actions-bar" x-show="draft()">
+            <span class="muted" x-show="uploadsMissing().length"
+                  x-text="'Upload and pass the checks first: ' + uploadsMissing().join(', ')"></span>
+            <span class="muted" x-show="!uploadsMissing().length">Ready to validate.</span>
+            <span class="actions">
+              <button class="secondary" @click="discard()" :disabled="busy">Discard request</button>
+              <button @click="submit()" :disabled="busy || uploadsMissing().length > 0">Submit for validation</button>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== 4 validation -->
+      <section class="panel flush step-panel" id="step-validate" :class="steps().validate">
+        <div class="panel-head clickable" @click="toggle('validate')">
+          <h2><span class="step-no" x-text="steps().validate === 'done' ? '✓' : '4'"></span> Validate</h2>
+          <span><span class="muted" x-show="!isOpen('validate')" x-text="{ todo: 'After you submit', running: 'Running…',
+              failed: 'Failed', done: b.snapshots.map((s) => `${F.num(s.report.kpis.reported)} of ${F.num(s.report.kpis.records)} will be reported`).join(' · ') }[steps().validate]"></span>
+            <span x-text="isOpen('validate') ? '▾' : '▸'"></span></span></div>
+        <div x-show="isOpen('validate')">
+          <div class="panel-body muted" x-show="steps().validate === 'todo'">Validation starts when you submit the request.</div>
+          <div class="table-wrap" x-show="steps().validate !== 'todo'"><table>
+            <thead><tr><th>Type</th><th>Status</th><th class="num">Records</th><th class="num">Accepted</th>
+              <th class="num">Rejected</th><th>Findings</th><th></th></tr></thead>
+            <template x-for="r in validationRows()" :key="r.request_id">
+              <tbody>
+                <tr><td x-text="F.title(r.submission_type)"></td>
+                  <td><span class="badge" :class="'b-' + r.status" x-text="F.title(r.status)"></span>
+                    <span class="muted" x-show="r.attempt_count > 1" x-text="'attempt ' + r.attempt_count"></span></td>
+                  <td class="num" x-text="r.total_records ?? ''"></td>
+                  <td class="num" x-text="r.accepted_records ?? ''"></td>
+                  <td class="num" x-text="r.rejected_records ?? ''"></td>
+                  <td><a x-show="r.snapshot_id" :href="'findings.html?snapshot=' + r.snapshot_id">All findings</a></td>
+                  <td><button class="small secondary" x-show="r.status === 'PENDING'" @click="rowAction(r, 'cancel')" :disabled="busy">Cancel</button>
+                    <button class="small secondary" x-show="['FAILED', 'CANCELLED'].includes(r.status)" @click="rowAction(r, 'retry')" :disabled="busy">Retry</button></td></tr>
+                <tr x-show="r.error_message"><td></td><td colspan="6" class="error-text" x-text="r.error_message"></td></tr>
+              </tbody>
+            </template>
+          </table></div>
+
+          <template x-for="s in b.snapshots" :key="s.snapshot.snapshot_id">
+            <div class="snapshot-report">
+              <div class="panel-head sub">
+                <h3 :title="'Snapshot #' + s.snapshot.snapshot_id"><span x-text="F.title(s.snapshot.submission_type)"></span> validation
+                  <span class="badge" :class="'b-' + s.snapshot.status" x-text="F.title(s.snapshot.status)"></span></h3>
+                <span x-show="s.report.categories.length"><a :href="'findings.html?snapshot=' + s.snapshot.snapshot_id">All findings</a> ·
+                  <a href="#" @click.prevent="csv(s.snapshot.snapshot_id)">Download CSV</a></span>
+              </div>
+              <div class="panel-body" x-show="s.report.kpis.records">
+                <div class="kpis small">
+                  <div class="kpi"><span class="label">Records checked</span><span class="value" x-text="F.num(s.report.kpis.records)"></span></div>
+                  <div class="kpi k-COMPLETED"><span class="label">Will be reported</span><span class="value" x-text="F.num(s.report.kpis.reported)"></span></div>
+                  <div class="kpi k-FAILED"><span class="label">Not reported</span><span class="value" x-text="F.num(s.report.kpis.not_reported)"></span></div>
+                  <div class="kpi k-VALIDATED"><span class="label">Reported with gaps</span><span class="value" x-text="F.num(s.report.kpis.with_gaps)"></span></div>
+                </div>
+              </div>
+              <template x-for="c in s.report.categories" :key="c.key">
+                <details class="category">
+                  <summary><strong x-text="c.label"></strong>
+                    <span class="badge b-REJECTED" x-show="c.not_reported" x-text="`${c.not_reported} not reported`"></span>
+                    <span class="badge b-WARN" x-show="c.with_gaps" x-text="`${c.with_gaps} with gaps`"></span>
+                    <span class="muted" x-show="!c.not_reported && !c.with_gaps">warnings only</span></summary>
+                  <div class="table-wrap"><table>
+                    <thead><tr><th>Issue</th><th>Effect</th><th class="num">Records</th><th></th></tr></thead>
+                    <tbody>
+                      <template x-for="r in c.rules" :key="r.rule_id + r.outcome">
+                        <tr :class="r.expected && 'expected'"><td><span x-text="r.message"></span><br><span class="muted mono small-text" x-text="r.rule_id"></span></td>
+                          <td><span class="badge" :class="r.expected ? 'b-EXPECTED' : 'b-' + r.outcome" x-text="r.effect"></span></td>
+                          <td class="num" x-text="r.records || r.findings"></td>
+                          <td class="num"><a :href="`findings.html?snapshot=${s.snapshot.snapshot_id}&rule_id=${encodeURIComponent(r.rule_id)}`">View</a></td></tr>
+                      </template>
+                    </tbody>
+                  </table></div>
+                </details>
+              </template>
+              <div class="panel-body" x-show="s.adjusted.excluded_accounts || s.adjusted.overridden_accounts || s.adjusted.not_found">
+                <strong>Exceptions applied:</strong> <span x-text="s.adjusted.excluded_accounts"></span> loan(s) excluded ·
+                <span x-text="s.adjusted.overridden_accounts"></span> loan(s) overridden
+                <span x-show="s.adjusted.not_found"> · <span class="badge b-WARN" x-text="s.adjusted.not_found + ' not found'"></span></span>
+              </div>
+              <p class="panel-body error-text" x-show="s.snapshot.error_message" x-text="s.snapshot.error_message"></p>
+            </div>
+          </template>
+        </div>
+      </section>
+
+      <!-- ===================== 5 generate (once) -->
+      <section class="panel flush step-panel" id="step-generate" :class="steps().generate">
+        <div class="panel-head clickable" @click="toggle('generate')">
+          <h2><span class="step-no" x-text="steps().generate === 'done' ? '✓' : '5'"></span> Generate the bureau files</h2>
+          <span><span class="muted" x-show="!isOpen('generate')"
+                      x-text="steps().generate === 'done' ? generatedSummary() : steps().generate === 'todo' ? 'After validation' : 'Choose the bureaus'"></span>
+            <span x-text="isOpen('generate') ? '▾' : '▸'"></span></span></div>
+        <div x-show="isOpen('generate')">
+          <div class="panel-body muted" x-show="steps().generate === 'todo'">Available once the validation has succeeded.</div>
+          <div class="panel-body" x-show="steps().generate === 'done'">
+            <p>Files were generated from this validation: <strong x-text="generatedSummary()"></strong>.</p>
+            <p class="muted">Files are generated once per validation. To generate them again (for example after fixing the
+              data), <a href="batch.html">create a new request</a>.</p>
+          </div>
+          <template x-for="g in steps().generate === 'current' ? b.generate_from : []" :key="g.request_id">
+            <form class="panel-body stack" @submit.prevent="generate(g)">
+              <h3 x-text="F.title(g.submission_type)"></h3>
+              <p class="muted">Files are written from snapshot #<span x-text="g.snapshot_id"></span>: exactly the data
+                validated above. <strong>This can be done once</strong>: choose every bureau you need now.</p>
+              <template x-if="adjusted(g).excluded_accounts || adjusted(g).overridden_accounts">
+                <label class="confirm"><input type="checkbox" x-model="confirm[g.request_id]" required>
+                  <span>I confirm <strong x-text="adjusted(g).excluded_accounts + ' loan(s) excluded'"></strong> and
+                    <strong x-text="adjusted(g).overridden_accounts + ' loan(s) with overrides'"></strong>
+                    (<a href="#" @click.prevent="show('exceptions')">review</a>).</span></label>
+              </template>
+              <div class="choices">
+                <template x-for="code in g.bureaus" :key="code">
+                  <label><input type="checkbox" :value="code" x-model="chosen[g.request_id]"> <span x-text="F.title(code)"></span></label>
+                </template>
+                <span class="muted" x-show="!g.bureaus.length">No active bureau profiles for this NBFC.</span>
+              </div>
+              <p x-show="g.bureaus.length"><button type="submit" :disabled="busy || !(chosen[g.request_id] || []).length">Generate files</button></p>
+            </form>
+          </template>
+        </div>
+      </section>
+
+      <!-- ===================== 6 files -->
+      <section class="panel flush step-panel" id="step-files" :class="steps().files">
+        <div class="panel-head clickable" @click="toggle('files')">
+          <h2><span class="step-no" x-text="steps().files === 'done' ? '✓' : '6'"></span> Files</h2>
+          <span><span class="muted" x-show="!isOpen('files')" x-text="{ todo: 'After generation', running: 'Generating…',
+              failed: 'Generation failed', done: b.generations.filter((g) => g.status === 'SUCCEEDED').length + ' bureau file(s) ready' }[steps().files]"></span>
+            <span x-text="isOpen('files') ? '▾' : '▸'"></span></span></div>
+        <div x-show="isOpen('files')">
+          <div class="panel-body muted" x-show="!b.generations.length">The files appear here once they are generated.</div>
+          <div class="table-wrap" x-show="b.generations.length"><table>
+            <thead><tr><th>Bureau</th><th>Type</th><th>Status</th><th class="num">Records written</th><th class="num">Rejected</th>
+              <th>Download</th><th></th></tr></thead>
+            <template x-for="r in b.generations" :key="r.request_id">
+              <tbody>
+                <tr><td x-text="F.title(r.bureau_code)"></td>
+                  <td x-text="F.title(r.submission_type)"></td>
+                  <td><span class="badge" :class="'b-' + r.status" x-text="F.title(r.status)"></span>
+                    <span class="muted" x-show="r.attempt_count > 1" x-text="'attempt ' + r.attempt_count"></span>
+                    <div class="hint" x-text="F.dt(r.finished_at || r.requested_at)"></div></td>
+                  <td class="num" x-text="r.accepted_records ?? ''"></td>
+                  <td class="num" x-text="r.rejected_records ?? ''"></td>
+                  <td>
+                    <a href="#" x-show="r.status === 'SUCCEEDED' && r.has_file" @click.prevent="download(r, 'file')" x-text="r.submission_type === 'CONSUMER' ? 'TUDF' : 'Bureau file'"></a>
+                    <span x-show="r.status === 'SUCCEEDED' && r.has_file"> (<a :href="`tudf.html?request=${r.request_id}&name=${encodeURIComponent(r.output_file_name || '')}`">view</a>)</span>
+                    <span x-show="r.status === 'SUCCEEDED' && r.has_excel"> · <a href="#" @click.prevent="download(r, 'excel')">Bureau Excel</a></span>
+                    <span x-show="(r.status === 'SUCCEEDED' || r.status === 'FAILED') && r.has_review"><span x-show="r.status === 'SUCCEEDED'"> · </span><a href="#" @click.prevent="download(r, 'review')">Review Excel</a></span>
+                    <span x-show="r.status === 'SUCCEEDED' && r.has_exceptions"> · <a href="#" @click.prevent="download(r, 'exceptions')">Exceptions</a></span>
+                    <span class="info-pop" x-show="r.output_location" tabindex="0" aria-label="Where this file is stored">ⓘ
+                      <span class="pop"><span class="pop-title">Stored at</span><code x-text="r.output_location"></code>
+                        <button type="button" class="small secondary" @click.stop="App.copy(r.output_location)">Copy</button></span></span>
+                  </td>
+                  <td><button class="small secondary" x-show="r.status === 'PENDING'" @click="rowAction(r, 'cancel')" :disabled="busy">Cancel</button>
+                    <button class="small secondary" x-show="r.status === 'FAILED'" @click="rowAction(r, 'retry')" :disabled="busy">Retry</button></td>
+                </tr>
+                <tr x-show="r.error_message"><td></td><td colspan="6" class="error-text" x-text="r.error_message"></td></tr>
+              </tbody>
+            </template>
+          </table></div>
+        </div>
+      </section>
+    </div>
+  </template>
+</main>
+</body>
+</html>

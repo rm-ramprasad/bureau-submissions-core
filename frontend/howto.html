@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How to · Open Terrace Analytics</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="app.css">
+  <script defer src="config.js"></script>
+  <script defer src="vendor/oidc-client-ts.min.js"></script>
+  <script defer src="js/core.js"></script>
+  <script defer src="vendor/alpine.min.js"></script>
+</head>
+<body data-nav="howto" data-crumb="How to">
+<main class="content howto">
+  <div class="page-head">
+    <div>
+      <h1>How to submit to the credit bureaus</h1>
+    </div>
+  </div>
+
+  <!-- ===================== the steps (details folded) -->
+  <div class="panel">
+    <ol class="flow">
+      <li><div class="flow-step"><span class="flow-no">1</span><strong>Create</strong>
+        <span>Pick the as-of date and the type.</span>
+        <details><summary>More detail</summary><ul>
+          <li>Only reporting dates: the 9th, 16th, 23rd and month end.</li>
+          <li>Choose DL, DC, AH or RR only for a special file.</li></ul></details></div></li>
+      <li><div class="flow-step"><span class="flow-no">2</span><strong>Upload</strong>
+        <span>Upload the workbook. Fix anything marked <b>Blocks</b>.</span>
+        <details><summary>More detail</summary><ul>
+          <li><b>Blocks</b>: fix the workbook and upload it again.</li>
+          <li><b>Note</b>: worth a look; it doesn't stop you.</li></ul></details></div></li>
+      <li><div class="flow-step"><span class="flow-no">3</span><strong>Exceptions</strong>
+        <span>Optional: exclude or override. Then submit.</span>
+        <details><summary>More detail</summary><ul>
+          <li>Give each exception a reason.</li>
+          <li>Submitting locks the workbook and the exceptions.</li></ul></details></div></li>
+      <li><div class="flow-step"><span class="flow-no">4</span><strong>Validate</strong>
+        <span>Every record is checked. Review the results.</span>
+        <details><summary>More detail</summary><ul>
+          <li>Open a category, then <b>View</b>, to see the loans.</li>
+          <li><b>Download CSV</b> for the operations team.</li></ul></details></div></li>
+      <li><div class="flow-step"><span class="flow-no">5</span><strong>Generate</strong>
+        <span>Pick the bureaus. <b>Once</b> per validation.</span>
+        <details><summary>More detail</summary><ul>
+          <li>Choose every bureau you need now.</li>
+          <li>To make the files again, create a new request.</li></ul></details></div></li>
+      <li><div class="flow-step"><span class="flow-no">6</span><strong>Files</strong>
+        <span>Download and upload each to its bureau.</span>
+        <details><summary>More detail</summary><ul>
+          <li>Bureau file, bureau Excel (consumer), review Excel.</li>
+          <li>Also under <a href="files.html">Submitted files</a>.</li></ul></details></div></li>
+    </ol>
+    <p class="flow-loop"><span aria-hidden="true">↺</span> <strong>Need to fix something or make the files again?</strong>
+      Correct the data, then <a href="batch.html">create a new request</a>.</p>
+  </div>
+
+  <div class="grid two">
+    <!-- ===================== stages -->
+    <div class="panel">
+      <h2>Where is my request?</h2>
+      <table class="howto-table">
+        <tbody>
+          <tr><td><span class="badge s-AWAITING_EXCEPTIONS">Awaiting exceptions</span></td><td>Draft: upload and submit.</td></tr>
+          <tr><td><span class="badge s-IN_PROGRESS">In progress</span></td><td>Running: wait a few minutes.</td></tr>
+          <tr><td><span class="badge s-VALIDATED">Validated, files pending</span></td><td>Review, then generate.</td></tr>
+          <tr><td><span class="badge s-COMPLETED">Completed</span></td><td>Files ready to download.</td></tr>
+          <tr><td><span class="badge s-FAILED">Failed</span></td><td>Read the error; retry or start again.</td></tr>
+          <tr><td><span class="badge s-CANCELLED">Cancelled</span></td><td>Nothing more to do.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ===================== findings -->
+    <div class="panel">
+      <h2>Reading the results</h2>
+      <div class="outcomes">
+        <div class="outcome bad"><strong>Not reported</strong><span>Breaks a bureau rule; left out of the file.</span></div>
+        <div class="outcome warn"><strong>Reported with gaps</strong><span>Reported, but a value or section is left out.</span></div>
+        <div class="outcome info"><strong>Warning only</strong><span>Reported as it is. Worth a look.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== glossary -->
+  <div class="panel">
+    <h2>Words used in the app</h2>
+    <dl class="glossary">
+      <dt>As-of date</dt><dd>The date the reported data refers to.</dd>
+      <dt>Reporting cycle</dt><dd>W1 / W2 / W3 / ME follow the date (9th, 16th, 23rd, month end); DL, DC, AH, RR are chosen for special files.</dd>
+      <dt>Finding</dt><dd>One issue in one record, with its effect on the file.</dd>
+      <dt>Bureau file</dt><dd>The file for one bureau (CIBIL, Experian, Equifax, CRIF High Mark).</dd>
+      <dt>Consumer / Commercial</dt><dd>Loans to individuals / to businesses: separate files and rules.</dd>
+    </dl>
+  </div>
+
+  <!-- ===================== administrators -->
+  <details class="panel howto-admin">
+    <summary><h2>For administrators</h2></summary>
+    <ul>
+      <li><a href="rules.html">Rules &amp; policies</a> is read-only for users; administrators (the Bureau Submission – Admins group) change rules and parameters.</li>
+      <li>Every change is recorded in <a href="audit.html">Audit</a>.</li>
+    </ul>
+  </details>
+</main>
+</body>
+</html>

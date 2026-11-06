@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Submission tracker · Open Terrace Analytics</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="app.css">
+  <script defer src="config.js"></script>
+  <script defer src="vendor/oidc-client-ts.min.js"></script>
+  <script defer src="js/core.js"></script>
+  <script defer src="js/tracker.js"></script>
+  <script defer src="vendor/alpine.min.js"></script>
+</head>
+<body data-nav="tracker" data-crumb="Submission tracker">
+<main class="content" x-data="tracker">
+  <div class="page-head">
+    <div>
+      <h1>Submission tracker</h1>
+      <p class="subtitle">Each request is one validation and the files generated from it, newest first
+        · <span x-text="$store.app.tenant || 'all NBFCs'"></span>. Open a request to see where it stands.</p>
+    </div>
+  </div>
+
+  <form class="panel row scope" @submit.prevent="page = 1; load()">
+    <div><label for="stage">Stage</label>
+      <select id="stage" x-model="flt.stage"><option value="">All stages</option>
+        <template x-for="s in $store.app.meta?.stages || []" :key="s.value">
+          <option :value="s.value" x-text="s.label" :selected="s.value === flt.stage"></option></template></select></div>
+    <div><label for="type">Type</label>
+      <select id="type" x-model="flt.type"><option value="">All</option>
+        <template x-for="t in ($store.app.meta?.submission_types || []).filter((t) => t.enabled)" :key="t.value">
+          <option :value="t.value" x-text="t.label" :selected="t.value === flt.type"></option></template></select></div>
+    <div><label for="bureau">Files for bureau</label>
+      <select id="bureau" x-model="flt.bureau"><option value="">Any</option>
+        <template x-for="b in $store.app.meta?.bureaus || []" :key="b.value">
+          <option :value="b.value" x-text="F.title(b.value)" :selected="b.value === flt.bureau"></option></template></select></div>
+    <div><label for="period">Created</label>
+      <select id="period" x-model="flt.period" @change="flt.from = flt.to = ''"><option value="">Any time</option>
+        <template x-for="p in $store.app.meta?.periods || []" :key="p.value">
+          <option :value="p.value" x-text="p.label" :selected="p.value === flt.period"></option></template></select></div>
+    <div><label for="from">or from</label><input type="date" id="from" x-model="flt.from" @change="flt.period = ''"></div>
+    <div><label for="to">to</label><input type="date" id="to" x-model="flt.to" @change="flt.period = ''"></div>
+    <div><button type="submit" class="secondary">Filter</button>
+      <a href="#" x-show="filtered()" @click.prevent="clear()">Clear</a></div>
+  </form>
+
+  <div class="panel flush">
+    <div class="panel-head"><h2 x-text="(data?.total ?? '…') + ' request(s)'"></h2>
+      <span class="muted" x-show="data?.pages > 1" x-text="`page ${data?.page} of ${data?.pages}`"></span></div>
+    <div data-request-table="data?.requests"></div>
+    <div class="panel-body muted" x-show="data && !data.requests.length">
+      <span x-show="filtered()">No requests match these filters.</span>
+      <span x-show="!filtered()">No requests yet. <a href="batch.html">Create a request</a>.</span></div>
+  </div>
+  <div class="pager" x-show="data?.pages > 1">
+    <a href="#" x-show="page > 1" @click.prevent="page--; load()">Previous</a>
+    <span class="muted" x-text="`Page ${page} of ${data?.pages}`"></span>
+    <a href="#" x-show="page < data?.pages" @click.prevent="page++; load()">Next</a>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Findings · Open Terrace Analytics</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="app.css">
+  <script defer src="config.js"></script>
+  <script defer src="vendor/oidc-client-ts.min.js"></script>
+  <script defer src="js/core.js"></script>
+  <script defer src="js/findings.js"></script>
+  <script defer src="vendor/alpine.min.js"></script>
+</head>
+<body data-nav="tracker" data-crumb='<a href="tracker.html">Submission tracker</a> <span>/</span> Findings'>
+<main class="content" x-data="findingsPage">
+  <p class="loading" x-show="!data">Loading…</p>
+  <template x-if="data">
+    <div>
+      <div class="page-head">
+        <div>
+          <h1 x-text="'Findings · snapshot #' + data.snapshot.snapshot_id"></h1>
+          <p class="subtitle"><span x-text="F.title(data.snapshot.submission_type)"></span>
+            · as of <span x-text="F.d(data.snapshot.as_of_date)"></span>
+            <span x-show="data.snapshot.batch_id"> · request <a class="mono" :href="'batch.html?id=' + data.snapshot.batch_id" x-text="data.snapshot.batch_id"></a></span>
+            · <span class="badge" :class="'b-' + data.snapshot.status" x-text="F.title(data.snapshot.status)"></span>
+            <span class="badge b-ACCEPTED" x-text="(data.records.ACCEPTED || 0) + ' accepted'"></span>
+            <span class="badge b-REJECTED" x-text="(data.records.REJECTED || 0) + ' rejected'"></span></p>
+        </div>
+        <button class="secondary" @click="csv()" :disabled="busy">Download CSV</button>
+      </div>
+
+      <div class="kpis small" x-show="data.report.kpis.records">
+        <div class="kpi"><span class="label">Records checked</span><span class="value" x-text="F.num(data.report.kpis.records)"></span></div>
+        <div class="kpi k-COMPLETED"><span class="label">Will be reported</span><span class="value" x-text="F.num(data.report.kpis.reported)"></span></div>
+        <div class="kpi k-FAILED"><span class="label">Not reported</span><span class="value" x-text="F.num(data.report.kpis.not_reported)"></span></div>
+        <div class="kpi k-VALIDATED"><span class="label">Reported with gaps</span><span class="value" x-text="F.num(data.report.kpis.with_gaps)"></span></div>
+      </div>
+
+      <div class="panel flush">
+        <div class="panel-head"><h2>Issues by category</h2></div>
+        <template x-for="c in data.report.categories" :key="c.key">
+          <details class="category" :open="c.key === flt.category">
+            <summary><strong x-text="c.label"></strong>
+              <span class="badge b-REJECTED" x-show="c.not_reported" x-text="`${c.not_reported} not reported`"></span>
+              <span class="badge b-WARN" x-show="c.with_gaps" x-text="`${c.with_gaps} with gaps`"></span>
+              <a href="#" @click.prevent="pick({ category: c.key })">Show findings</a></summary>
+            <div class="table-wrap"><table>
+              <thead><tr><th>Issue</th><th>Effect</th><th class="num">Records</th></tr></thead>
+              <tbody>
+                <template x-for="r in c.rules" :key="r.rule_id + r.outcome">
+                  <tr :class="r.expected && 'expected'"><td><a href="#" @click.prevent="pick({ rule_id: r.rule_id })" x-text="r.message"></a><br>
+                      <span class="muted mono small-text" x-text="r.rule_id"></span></td>
+                    <td><span class="badge" :class="r.expected ? 'b-EXPECTED' : 'b-' + r.outcome" x-text="r.effect"></span></td>
+                    <td class="num" x-text="r.records || r.findings"></td></tr>
+                </template>
+              </tbody>
+            </table></div>
+          </details>
+        </template>
+        <p class="panel-body muted" x-show="!data.report.categories.length">No findings.</p>
+      </div>
+
+      <form class="panel row" @submit.prevent="page = 1; load()">
+        <div><label for="category">Category</label>
+          <select id="category" x-model="flt.category"><option value="">All</option>
+            <template x-for="c in data.report.categories" :key="c.key"><option :value="c.key" x-text="c.label" :selected="c.key === flt.category"></option></template>
+          </select></div>
+        <div><label for="rule_id">Issue</label>
+          <select id="rule_id" x-model="flt.rule_id"><option value="">All</option>
+            <template x-for="r in issues()" :key="r.rule_id"><option :value="r.rule_id" x-text="r.message" :selected="r.rule_id === flt.rule_id"></option></template>
+          </select></div>
+        <div><label for="outcome">Effect</label>
+          <select id="outcome" x-model="flt.outcome"><option value="">All</option>
+            <template x-for="(label, o) in data.report.effects" :key="o"><option :value="o" x-text="label" :selected="o === flt.outcome"></option></template>
+          </select></div>
+        <div><label for="account_key">Account</label><input type="text" id="account_key" x-model="flt.account_key" size="12"></div>
+        <div><label for="party_key">Customer</label><input type="text" id="party_key" x-model="flt.party_key" size="12"></div>
+        <div><button type="submit">Filter</button></div>
+      </form>
+
+      <div class="panel flush">
+        <div class="panel-head"><h2 x-text="`Findings (${data.total})`"></h2>
+          <span class="muted" x-show="canAdjust()">This validation is locked: Exclude / Override add the exception to a new
+            draft request for <span x-text="F.d(data.snapshot.as_of_date)"></span>.</span></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Account</th><th>Customer</th><th>Issue</th><th>Effect</th><th>Field</th><th>Value</th>
+            <th x-show="canAdjust()" title="Adds the exception to a new draft request for this date">Exception</th></tr></thead>
+          <tbody>
+            <template x-for="f in data.findings" :key="f.finding_id">
+              <tr><td class="mono" x-text="f.account_key || ''"></td><td class="mono" x-text="f.party_key || ''"></td>
+                <td><span x-text="f.message"></span><br><span class="muted mono small-text" x-text="f.rule_id"></span></td>
+                <td><span class="badge" :class="expected(f) ? 'b-EXPECTED' : 'b-' + f.outcome"
+                          x-text="expected(f) ? 'Spec rule (no action)' : data.report.effects[f.outcome] || f.outcome"></span></td>
+                <td x-text="f.field ? F.title(f.field) : ''"></td><td class="mono" x-text="f.value || ''"></td>
+                <td class="nowrap" x-show="canAdjust()">
+                  <template x-if="f.account_key"><span>
+                    <button class="small secondary" @click="exclude(f)" :disabled="busy">Exclude loan</button>
+                    <button class="small secondary" @click="override(f)" :disabled="busy">Override…</button></span></template>
+                </td></tr>
+            </template>
+            <tr x-show="!data.findings.length"><td colspan="7" class="muted">No findings match.</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="pager" x-show="data.pages > 1">
+        <a href="#" x-show="page > 1" @click.prevent="page--; load()">Previous</a>
+        <span class="muted" x-text="`Page ${page} of ${data.pages}`"></span>
+        <a href="#" x-show="page < data.pages" @click.prevent="page++; load()">Next</a>
+      </div>
+    </div>
+  </template>
+</main>
+</body>
+</html>

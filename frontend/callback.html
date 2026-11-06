@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Signing in · Open Terrace Analytics</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="app.css">
+  <script src="config.js"></script>
+  <script src="vendor/oidc-client-ts.min.js"></script>
+  <script src="js/core.js"></script>
+</head>
+<body>
+<script>
+  Splash.show("Signing you in…");
+
+  // Entra ID redirects here with ?code=...&state=...: exchange the code (PKCE), then go back to the page the user asked for.
+  Auth.mgr().signinRedirectCallback().then((user) => {
+    sessionStorage.setItem("signed-in", "1");                // the next page records the login
+    const target = typeof user.state === "string" && user.state.startsWith("/") && !user.state.startsWith("//")
+      ? user.state : "/";
+    location.replace(target);
+  }).catch((err) => {
+    Splash.hide();
+    document.body.insertAdjacentHTML("beforeend", `<div class="center-page"><div class="login-box">
+      <p>Sign-in failed: ${String(err.message || err).replace(/</g, "&lt;")}. <a href="/">Try again</a>.</p></div></div>`);
+  });
+</script>
+</body>
+</html>

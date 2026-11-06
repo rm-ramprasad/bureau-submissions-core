@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bureau file viewer · Open Terrace Analytics</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="app.css">
+  <script defer src="config.js"></script>
+  <script defer src="vendor/oidc-client-ts.min.js"></script>
+  <script defer src="js/core.js"></script>
+  <script defer src="js/tudf-reader.js"></script>
+  <script defer src="js/tudf.js"></script>
+  <script defer src="vendor/alpine.min.js"></script>
+</head>
+<body data-nav="tudf" data-crumb="Bureau file viewer">
+<main class="content" x-data="tudfPage">
+  <div class="page-head">
+    <div>
+      <h1>Bureau file viewer</h1>
+      <p class="subtitle">Read a bureau file exactly as it is: consumer TUDF, or the commercial pipe-delimited file
+        shown one loan account at a time. Every value on screen is the file's own text, split at the tags, lengths and
+        delimiters the file carries; nothing is converted or corrected. Hover a value for its field name. The file
+        stays in this browser.</p>
+    </div>
+  </div>
+
+  <!-- ===================== open -->
+  <div class="panel tudf-drop" :class="{ over: dragging }" @dragover.prevent="dragging = true"
+       @dragleave.prevent="dragging = false" @drop.prevent="dragging = false; openFile($event.dataTransfer.files[0])">
+    <div class="row">
+      <div><label for="tudf-file">Bureau file (.txt)</label>
+        <input id="tudf-file" type="file" accept=".txt,text/plain" @change="openFile($event.target.files[0])"></div>
+      <span class="muted">or drop it here</span>
+      <span class="muted" x-show="loading">Reading…</span>
+    </div>
+  </div>
+
+  <template x-if="file">
+    <div>
+      <!-- ===================== file -->
+      <div class="panel">
+        <div class="tudf-facts">
+          <div><span class="muted">File</span><strong class="mono" x-text="file.name"></strong></div>
+          <div><span class="muted">Size</span><strong x-text="F.num(file.size) + ' bytes'"></strong></div>
+          <div><span class="muted">Records</span><strong x-text="F.num(result.records.length)"></strong></div>
+          <div><span class="muted">Trailer</span>
+            <strong :class="result.trailer ? 'ok-text' : 'error-text'" x-text="result.trailer ? 'present' : 'missing'"></strong></div>
+          <div><span class="muted">Format</span><strong x-text="labels.layout + ' · ' + (delimited ? 'pipe-delimited, one segment per line' : result.style === 'tlv' ? 'TUDF, tags with length (PN03N01)' : 'TUDF, plain tags (PNN01)')"></strong></div>
+          <div class="wide"><span class="muted">SHA-256 (compare with the submitted file)</span>
+            <strong class="mono break" x-text="file.sha256 || 'calculating…'"></strong></div>
+        </div>
+        <div class="flash error" x-show="result.problems.length">
+          <strong x-text="result.problems.length + ' place(s) where the file does not follow its layout'"></strong>
+          <ul><template x-for="(pr, n) in result.problems.slice(0, 50)" :key="n">
+            <li><a href="#" @click.prevent="jumpTo(pr.at)" x-text="`character ${F.num(pr.at + 1)}: ${pr.message}`"></a></li>
+          </template></ul>
+        </div>
+        <div class="flash ok" x-show="!result.problems.length">The whole file follows its layout: header,
+          <span x-text="F.num(result.records.length)"></span>
+          <span x-text="delimited ? 'loan accounts (every line with its segment\'s field count; the trailer counts agree)' : 'records each ending in ES02**'"></span>,
+          and the trailer.</div>
+      </div>
+
+      <!-- ===================== header -->
+      <div class="panel flush">
+        <div class="panel-head"><h2>Header</h2><span class="muted mono" x-text="`characters ${result.header.start + 1}–${result.header.end}`"></span></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Field</th><th>As in the file</th><th class="num">Width</th><th class="num">Characters</th></tr></thead>
+          <tbody><template x-for="(f, n) in result.header.fields" :key="n">
+            <tr><td x-text="f.name"></td><td><span class="tudf-value" x-text="show(f.start, f.end)"></span></td>
+              <td class="num" x-text="f.end - f.start"></td><td class="num mono" x-text="`${f.start + 1}–${f.end}`"></td></tr>
+          </template></tbody>
+        </table></div>
+      </div>
+
+      <!-- ===================== records -->
+      <div class="tudf-split">
+        <div class="panel flush tudf-list">
+          <div class="panel-head"><h2 x-text="F.num(matches.length) + (delimited ? ' loan account(s)' : ' record(s)')"></h2></div>
+          <div class="tudf-search"><input type="text" x-model.debounce.250ms="query" placeholder="Account, name or ID number"></div>
+          <div class="tudf-rows">
+            <template x-for="s in matches.slice(0, 300)" :key="s.n">
+              <a href="#" class="tudf-row" :class="{ active: s.n === selected, bad: s.bad }" @click.prevent="select(s.n)">
+                <span class="muted mono" x-text="'#' + (s.n + 1)"></span>
+                <span><strong x-text="s.name || '(no name)'"></strong><small class="mono" x-text="s.account"></small></span>
+              </a>
+            </template>
+            <div class="hint" x-show="matches.length > 300" style="padding: 8px 16px">Showing the first 300; search to narrow.</div>
+          </div>
+        </div>
+
+        <div class="panel flush tudf-record" x-show="record">
+          <div class="panel-head">
+            <h2 x-text="record ? `Record ${selected + 1} of ${result.records.length}` : ''"></h2>
+            <div class="row">
+              <span class="muted mono" x-text="record ? `characters ${F.num(record.start + 1)}–${F.num(record.end)}` : ''"></span>
+              <button class="small secondary" @click="select(selected - 1)" :disabled="selected <= 0">Previous</button>
+              <button class="small secondary" @click="select(selected + 1)" :disabled="selected >= result.records.length - 1">Next</button>
+              <label class="inline"><input type="checkbox" x-model="raw"> Show raw</label>
+            </div>
+          </div>
+          <template x-if="record && raw">
+            <pre class="tudf-raw" x-text="rawOf(record)"></pre>
+          </template>
+          <template x-if="record && !raw">
+            <div class="tudf-segments">
+              <template x-for="(seg, k) in record.segments" :key="k">
+                <div class="tudf-seg" :class="{ bad: seg.bad }">
+                  <div class="tudf-seg-head">
+                    <span class="tudf-tag" x-text="seg.bad ? '??' : seg.tag"></span>
+                    <span class="mono" x-show="!seg.bad" x-text="seg.seqEnd !== undefined ? show(seg.seqStart, seg.seqEnd) : ''"></span>
+                    <small class="muted" x-text="seg.bad ? 'not readable' : segName(seg.tag)"></small>
+                  </div>
+                  <div class="tudf-fields">
+                    <template x-if="seg.bad"><span class="tudf-value bad" x-text="show(seg.start, seg.end)"></span></template>
+                    <template x-for="(f, j) in seg.fields" :key="j">
+                      <span class="tudf-field" :class="{ bad: f.bad }" :title="hover(seg, f)">
+                        <span class="tudf-mark" x-text="markOf(f)"></span><span class="tudf-value" x-text="show(f.valueStart, f.end)"></span>
+                        <small x-text="fieldName(seg.tag, f.tag)"></small>
+                      </span>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </template>
+</main>
+</body>
+</html>

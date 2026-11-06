@@ -90,6 +90,7 @@ module = [
     "app.audit", "app.bureaus.*", "app.requests.*", "app.users",  # ported in 1.3a
     "app.adjustments.*", "app.validation.custom", "app.validation.results", "app.validation.tables",  # 1.3b
     "app.ops.*", "app.pipeline.outputs", "app.render", "app.types.*", "app.worker.*",  # 1.3c
+    "app.api.*",  # 1.3d
 ]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
@@ -147,6 +148,17 @@ module = [
     "app.requests.repository",
     "app.requests.stages",
     "app.users",
+    "app.api.admin",
+    "app.api.auth",
+    "app.api.common",
+    "app.api.dashboard",
+    "app.api.exceptions",
+    "app.api.findings",
+    "app.api.inputs",
+    "app.api.meta",
+    "app.api.requests",
+    "app.api.rules",
+    "app.api.serialize",
     "app.adjustments.repository",
     "app.ops.recovery",
     "app.ops.retention",

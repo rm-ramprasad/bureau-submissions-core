@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rules &amp; policies · Open Terrace Analytics</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="app.css">
+  <script defer src="config.js"></script>
+  <script defer src="vendor/oidc-client-ts.min.js"></script>
+  <script defer src="js/core.js"></script>
+  <script defer src="js/rules.js"></script>
+  <script defer src="vendor/alpine.min.js"></script>
+</head>
+<body data-nav="rules" data-crumb="Rules &amp; policies">
+<main class="content" x-data="rulesPage">
+  <div class="page-head">
+    <div>
+      <h1>Rules &amp; policies<span x-show="tenantName()" x-text="' · ' + tenantName()"></span></h1>
+      <p class="subtitle">The validation rules (<span x-text="data?.rules.length ?? '…'"></span>) for
+        <span x-text="F.title(type)"></span> submissions. The UCRF rules come with the app; each NBFC can switch a rule off
+        or change its outcome. Changes apply to requests validated from then on and are audited.</p>
+    </div>
+  </div>
+
+  <div class="flash error" x-show="data && !data.tenant_id">No NBFC is configured for this deployment (SUBMISSIONS_TENANT), so its rule settings cannot be changed.
+    Showing the defaults.</div>
+  <div class="panel status" x-show="data && data.tenant_id && $store.app.user && !$store.app.user.is_admin">
+    <div><strong>Read only.</strong> Rules, parameters and custom rules are changed by administrators (the Bureau
+      Submission – Admins group). Every change is in the <a href="audit.html">Audit</a>.</div></div>
+  <p class="loading" x-show="!data">Loading…</p>
+
+  <template x-if="data">
+    <div>
+      <!-- ===================== parameters -->
+      <div class="panel flush" x-show="data.parameters.length">
+        <div class="panel-head"><h2>Rule parameters</h2>
+          <span class="muted">Values the rules use. Spec-fixed values (DPD cap 900, dates after 01-01-1900) are not editable.</span></div>
+        <div class="table-wrap"><table class="rules">
+          <thead><tr><th>Parameter</th><th>Used by</th><th>Default</th><th x-text="data.tenant_id ? 'This NBFC' : 'Value'"></th></tr></thead>
+          <tbody>
+            <template x-for="p in data.parameters" :key="p.name + data.tenant_id">
+              <tr :class="p.override && 'changed'" x-data="{ value: p.value, reason: '' }">
+                <td><strong x-text="p.label"></strong><div class="hint" x-text="p.description"></div><div class="hint mono" x-text="p.name"></div></td>
+                <td class="mono hint"><template x-for="r in p.used_by" :key="r">
+                  <div><a href="#" @click.prevent="q = r" x-text="r"></a></div></template></td>
+                <td class="mono nowrap" x-text="p.type === 'date' ? F.d(p.default) : p.default"></td>
+                <td>
+                  <template x-if="canEdit()">
+                    <div>
+                      <form class="rule-form" @submit.prevent="saveParameter(p, value, reason)">
+                        <template x-if="p.type === 'date'"><input type="date" x-model="value" required></template>
+                        <template x-if="p.type === 'int'"><input type="number" x-model="value" :min="p.min" :max="p.max" required></template>
+                        <template x-if="p.type === 'regex'"><input type="text" class="mono" x-model="value" size="34" maxlength="300" required></template>
+                        <input type="text" x-model="reason" placeholder="Reason for the change" maxlength="500" size="22">
+                        <button class="small" :disabled="busy">Save</button>
+                      </form>
+                      <div class="hint" x-show="p.override">Changed by <span x-text="p.override?.updated_by"></span>
+                        <span x-text="F.dt(p.override?.updated_at)"></span> ·
+                        <a :href="'audit.html?target=' + encodeURIComponent(p.name)">history</a> ·
+                        <button class="linkish" @click="post(`/rules/parameters/${p.name}/reset`)">reset to default</button></div>
+                    </div>
+                  </template>
+                  <span class="mono" x-show="!canEdit()" x-text="p.type === 'date' ? F.d(p.value) : p.value"></span>
+                  <div class="hint" x-show="!canEdit() && p.override">Changed by <span x-text="p.override?.updated_by"></span>
+                    <span x-text="F.dt(p.override?.updated_at)"></span> ·
+                    <a :href="'audit.html?target=' + encodeURIComponent(p.name)">history</a></div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table></div>
+      </div>
+
+      <!-- ===================== custom rules (per NBFC) -->
+      <template x-if="data.tenant_id">
+        <div class="panel flush" id="custom">
+          <div class="panel-head"><h2 x-text="'Custom rules for ' + tenantName()"></h2>
+            <span class="muted"><span x-text="customRules().length"></span> rule(s) · they run with the UCRF rules and take the
+              same on/off and outcome settings below</span></div>
+          <div class="table-wrap" x-show="customRules().length"><table class="rules">
+            <thead><tr><th>Rule</th><th>Checks</th><th>Outcome</th><th></th></tr></thead>
+            <tbody>
+              <template x-for="r in customRules()" :key="r.rule_id">
+                <tr :class="!r.enabled && 'off'">
+                  <td class="mono"><span x-text="r.rule_id"></span><div class="hint" x-text="r.kind_label"></div></td>
+                  <td><span x-text="data.custom[r.rule_id]?.describe || r.message"></span>
+                    <div class="hint" x-show="data.custom[r.rule_id]" x-text="r.message"></div></td>
+                  <td class="nowrap" x-text="LABELS[r.outcome] + (r.enabled ? '' : ' · off')"></td>
+                  <td class="nowrap">
+                    <button class="small secondary" x-show="canEdit() && data.custom[r.rule_id]" @click="edit(r.rule_id)">Edit</button>
+                    <button class="small secondary" x-show="canEdit()" @click="deleteRule(r.rule_id)" :disabled="busy">Delete</button></td>
+                </tr>
+              </template>
+            </tbody>
+          </table></div>
+
+          <form class="panel-body stack custom-form" id="rule-form" x-show="canEdit()" @submit.prevent="saveCustom()">
+            <h2 x-text="form.editing ? 'Edit ' + form.editing : 'Add a custom rule'"></h2>
+            <div class="row">
+              <div><label for="name">Name</label>
+                <input type="text" id="name" x-model="form.name" placeholder="MIN_SANCTION" maxlength="40" required :readonly="!!form.editing">
+                <div class="hint" x-text="`Becomes CUSTOM.${data.tenant_id.toUpperCase()}.<NAME>`"></div></div>
+              <div><label for="field">Field to check</label>
+                <select id="field" x-model="form.field" required>
+                  <template x-for="[entity, cols] in Object.entries(data.fields)" :key="entity">
+                    <optgroup :label="F.title(entity)">
+                      <template x-for="[col, typ] in cols" :key="col">
+                        <option :value="entity + '.' + col" x-text="`${col} (${typ})`" :selected="form.field === entity + '.' + col"></option></template>
+                    </optgroup></template>
+                </select></div>
+              <div><label for="check">Check</label>
+                <select id="check" x-model="form.check" required>
+                  <template x-for="[k, label] in Object.entries(data.checks)" :key="k">
+                    <option :value="k" x-text="label" :selected="k === form.check"></option></template>
+                </select></div>
+            </div>
+            <fieldset><legend>Check details <span class="muted">(fill in what the chosen check needs)</span></legend>
+              <div class="row">
+                <div><label for="values">Values <span class="muted">· one of / not one of</span></label>
+                  <textarea id="values" rows="2" x-model="form.values" placeholder="one per line or comma-separated"></textarea></div>
+                <div><label for="min">Minimum <span class="muted">· between / length</span></label><input type="text" id="min" x-model="form.min" size="12"></div>
+                <div><label for="max">Maximum</label><input type="text" id="max" x-model="form.max" size="12"></div>
+                <div><label for="pattern">Pattern <span class="muted">· regular expression</span></label>
+                  <input type="text" id="pattern" class="mono" x-model="form.pattern" size="22"></div>
+              </div>
+              <div class="row">
+                <div><label for="operator">Compare: must be</label>
+                  <select id="operator" x-model="form.operator"><option value="">—</option>
+                    <template x-for="[op, label] in Object.entries(data.operators)" :key="op">
+                      <option :value="op" x-text="label" :selected="op === form.operator"></option></template></select></div>
+                <div><label for="other_field">than / to field</label>
+                  <select id="other_field" x-model="form.other_field"><option value="">—</option>
+                    <template x-for="[entity, cols] in Object.entries(data.fields)" :key="entity">
+                      <optgroup :label="F.title(entity)">
+                        <template x-for="[col, typ] in cols" :key="col">
+                          <option :value="entity + '.' + col" x-text="`${col} (${typ})`" :selected="form.other_field === entity + '.' + col"></option></template>
+                      </optgroup></template></select></div>
+              </div>
+              <div class="hint">Dates as YYYY-MM-DD. Amounts in rupees. Text checks are exact (case-sensitive).</div>
+            </fieldset>
+            <fieldset><legend>Only when <span class="muted">(optional)</span></legend>
+              <div class="row">
+                <div><label for="when_field">Field</label>
+                  <select id="when_field" x-model="form.when_field"><option value="">always</option>
+                    <template x-for="[entity, cols] in Object.entries(data.fields)" :key="entity">
+                      <optgroup :label="F.title(entity)">
+                        <template x-for="[col, typ] in cols" :key="col">
+                          <option :value="entity + '.' + col" x-text="`${col} (${typ})`" :selected="form.when_field === entity + '.' + col"></option></template>
+                      </optgroup></template></select></div>
+                <div><label for="when_values">is one of</label>
+                  <textarea id="when_values" rows="2" x-model="form.when_values" placeholder="e.g. 05 (personal loan)"></textarea></div>
+              </div>
+            </fieldset>
+            <div class="row">
+              <div><label for="outcome">Outcome</label>
+                <select id="outcome" x-model="form.outcome">
+                  <template x-for="o in data.outcomes" :key="o"><option :value="o" x-text="LABELS[o]" :selected="o === form.outcome"></option></template>
+                </select></div>
+              <div class="grow"><label for="message">Message in findings</label>
+                <input type="text" id="message" x-model="form.message" maxlength="500" required></div>
+            </div>
+            <label for="reason">Reason <span class="muted">(audit trail; needed to save)</span></label>
+            <input type="text" id="reason" x-model="form.reason" maxlength="500">
+            <p><button type="button" class="secondary" @click="preview()" :disabled="busy">Preview on the latest validation</button>
+              <button type="submit" :disabled="busy" x-text="form.editing ? 'Save changes' : 'Save rule'"></button>
+              <a href="#" x-show="form.editing" @click.prevent="cancelEdit()">Cancel</a></p>
+
+            <div class="preview" x-show="previewResult">
+              <template x-if="previewResult && !previewResult.snapshot">
+                <span><strong>No validated request yet for this NBFC</strong>: nothing to preview against.</span></template>
+              <template x-if="previewResult?.snapshot">
+                <div>
+                  <strong x-text="previewResult.count + ' finding(s)'"></strong> in the latest validation (snapshot
+                  #<span x-text="previewResult.snapshot.snapshot_id"></span>, as of
+                  <span x-text="F.d(previewResult.snapshot.as_of_date)"></span>). Nothing was saved.
+                  <table class="mini" x-show="previewResult.examples.length"><tr><th>Account</th><th>Customer</th><th>Value</th></tr>
+                    <template x-for="(x, i) in previewResult.examples" :key="i">
+                      <tr><td class="mono" x-text="x.account_key || ''"></td><td class="mono" x-text="x.party_key || ''"></td>
+                        <td class="mono" x-text="x.value ?? ''"></td></tr></template></table>
+                  <details><summary class="hint">Generated SQL</summary><pre class="sql" x-text="previewResult.sql"></pre></details>
+                </div>
+              </template>
+            </div>
+          </form>
+        </div>
+      </template>
+
+      <!-- ===================== catalogue -->
+      <div class="panel row scope">
+        <div x-show="enabledTypes().length > 1"><label for="type">Type</label>
+          <select id="type" x-model="type" @change="load()">
+            <template x-for="t in enabledTypes()" :key="t.value"><option :value="t.value" x-text="t.label" :selected="t.value === type"></option></template>
+          </select></div>
+        <div><label for="q">Search</label><input type="text" id="q" x-model.debounce.200ms="q" size="28" placeholder="rule id, field or text"></div>
+        <div class="choices"><label><input type="checkbox" x-model="onlyChanged">
+          Only changed for this NBFC (<span x-text="data.rules.filter((r) => r.changed).length"></span>)</label></div>
+        <div><a href="#" x-show="q || onlyChanged" @click.prevent="q = ''; onlyChanged = false">Clear</a></div>
+      </div>
+
+      <div class="panel flush">
+        <div class="panel-head"><h2 x-text="shown().length + ' rule(s)'"></h2>
+          <span class="muted">Outcomes: Warn only · Drop field · Drop segment · Reject record · Block file</span></div>
+        <div class="table-wrap"><table class="rules">
+          <thead><tr><th>Rule</th><th>What it checks</th><th>Default</th><th x-text="data.tenant_id ? 'This NBFC' : 'Setting'"></th></tr></thead>
+          <tbody>
+            <template x-for="r in shown()" :key="r.rule_id + data.tenant_id + r.enabled + r.outcome">
+              <tr :class="[r.changed && 'changed', !r.enabled && 'off']" x-data="{ enabled: r.enabled, outcome: r.outcome, reason: '' }">
+                <td class="mono"><span x-text="r.rule_id"></span>
+                  <div class="hint" x-text="[r.segment, r.field].filter(Boolean).join(' · ') + ' · ' + r.kind_label"></div></td>
+                <td><span x-text="r.message"></span>
+                  <details x-show="r.sql || r.python"><summary class="hint" x-text="r.sql ? 'SQL' : 'Python check'"></summary>
+                    <pre class="sql" x-show="r.sql" x-text="r.sql"></pre>
+                    <p class="hint mono" x-show="r.python" x-text="'submissions/validation/python_rules.py · ' + r.python"></p></details></td>
+                <td class="nowrap"><span x-text="LABELS[r.default.outcome]"></span>
+                  <div class="hint" x-show="!r.default.enabled">off by default</div></td>
+                <td>
+                  <template x-if="canEdit()">
+                    <div>
+                      <form class="rule-form" @submit.prevent="savePolicy(r, enabled, outcome, reason)">
+                        <label class="toggle"><input type="checkbox" x-model="enabled"> On</label>
+                        <select x-model="outcome" aria-label="Outcome">
+                          <template x-for="o in data.outcomes" :key="o"><option :value="o" x-text="LABELS[o]" :selected="o === outcome"></option></template>
+                        </select>
+                        <input type="text" x-model="reason" placeholder="Reason for the change" maxlength="500" size="22">
+                        <button class="small" :disabled="busy">Save</button>
+                      </form>
+                      <div class="hint" x-show="r.changed">Changed <span x-text="F.dt(r.policy?.updated_at)"></span> ·
+                        <a :href="'audit.html?target=' + encodeURIComponent(r.rule_id)">history</a> ·
+                        <button class="linkish" @click="post(`/rules/${encodeURIComponent(r.rule_id)}/reset`)">reset to default</button></div>
+                    </div>
+                  </template>
+                  <span x-show="!canEdit()" x-text="(r.enabled ? 'On' : 'Off') + ' · ' + LABELS[r.outcome]"></span>
+                  <div class="hint" x-show="!canEdit() && r.changed">Changed <span x-text="F.dt(r.policy?.updated_at)"></span> ·
+                    <a :href="'audit.html?target=' + encodeURIComponent(r.rule_id)">history</a></div>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="!shown().length"><td colspan="4" class="muted">No rules match.</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+  </template>
+</main>
+</body>
+</html>
