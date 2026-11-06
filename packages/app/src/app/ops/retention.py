@@ -1,4 +1,8 @@
-"""Retention: remove old PII (canonical rows, findings, record outcomes, generated files, staged input workbooks).
+"""Retention: remove old PII from the database (canonical rows, findings, record outcomes, staged input rows).
+
+Files are never removed (owner decision 2026-11-06): the uploaded input workbooks and the generated outputs (bureau
+file, exceptions file, bureau Excel, review Excel) stay in storage for good. The retention policy for the database
+is to be finalized; until then SUBMISSIONS_RETENTION_DAYS applies.
 
 The snapshot header and its per-rule validation_summary are kept for trends; the snapshot becomes PURGED. An input
 load keeps its input_load header (PURGED); its staged rows, issues and uploaded workbook are removed.
@@ -58,25 +62,9 @@ def purge(
             for t in (validation_finding, record_outcome):
                 conn.execute(delete(t).where(t.c.snapshot_id == snap.snapshot_id))
         snapshots.mark_purged(snap.snapshot_id)
-    for req in requests.finished_with_files_before(cutoff):
-        uris = [
-            u
-            for u in (req.output_file_path, req.exceptions_file_path, req.excel_file_path, req.review_file_path)
-            if u and store.owns(u)
-        ]  # never elsewhere
-        result.files += uris
-        if dry_run:
-            continue
-        for uri in uris:
-            store.delete(uri)
-        requests.clear_files(req.request_id)
-    result.loads, uploads = _input_loads_before(engine, cutoff)
-    result.files += [u for u in uploads if store.owns(u)]
+    result.loads = _input_loads_before(engine, cutoff)
     if not dry_run:
-        for uri in uploads:
-            if store.owns(uri):
-                store.delete(uri)
-        purge_loads(engine, cutoff)
+        purge_loads(engine, cutoff)  # staged rows only; the uploaded workbook file stays
     if not dry_run and (result.snapshots or result.files or result.loads):
         audit.record(
             engine,
@@ -90,13 +78,10 @@ def purge(
     return result
 
 
-def _input_loads_before(engine: Engine, cutoff: datetime) -> tuple[list[int], list[str]]:
+def _input_loads_before(engine: Engine, cutoff: datetime) -> list[int]:
     with engine.connect() as conn:
-        rows = list(
+        return list(
             conn.execute(
-                select(input_load.c.load_id, input_load.c.file_uri).where(
-                    input_load.c.loaded_at < cutoff, input_load.c.status != "PURGED"
-                )
-            )
+                select(input_load.c.load_id).where(input_load.c.loaded_at < cutoff, input_load.c.status != "PURGED")
+            ).scalars()
         )
-    return [r.load_id for r in rows], [r.file_uri for r in rows if r.file_uri]
