@@ -6,7 +6,7 @@
 .DESCRIPTION
   Function App: builds a Linux / Python 3.14 package on this machine (the workspace packages as wheels, the
   third-party packages as manylinux wheels; no remote build), then publishes it with Azure Functions Core Tools.
-  Pages: copies frontend/, writes config.js (Entra sign-in + API address) and the API address into the CSP, then
+  Pages: copies frontend/, writes config.json (Entra sign-in + API address) and the sign-in and API addresses into the CSP, then
   deploys with the Static Web Apps CLI (the deployment token is fetched at run time and kept in memory only).
   Needs: uv, az (signed in to the RarFinance subscription), func (Core Tools v4), node/npx. Run from the repo root.
   Creates or changes no Azure resource: it only publishes code to the existing Function App and Static Web App.
@@ -83,13 +83,15 @@ if (-not $FunctionOnly) {
     $web = Join-Path $Dist "web"
     if (Test-Path $web) { Remove-Item -Recurse -Force $web }
     Copy-Item -Recurse (Join-Path $Root "frontend") $web
-    @"
-// Written by deploy/deploy.ps1. Sign-in with Microsoft Entra ID; the API is the Function App (another origin, CORS).
-window.APP_CONFIG = { auth: "entra", tenantId: "$EntraTenantId", clientId: "$EntraClientId",
-                      apiScope: "api://$EntraClientId/access_as_user", apiBase: "$ApiBase" };
-"@ | Set-Content -Encoding utf8 (Join-Path $web "config.js")
+    # Sign-in with Microsoft Entra ID (one OIDC configuration); the API is the Function App (another origin, CORS).
+    $authOrigin = "https://login.microsoftonline.com"
+    [ordered]@{
+        auth = "oidc"; authority = "$authOrigin/$EntraTenantId/v2.0"; clientId = $EntraClientId
+        scope = "api://$EntraClientId/access_as_user"; apiBase = $ApiBase
+    } | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $web "config.json")
     $swaConfig = Join-Path $web "staticwebapp.config.json"
-    (Get-Content -Raw $swaConfig).Replace("__API_BASE__", $ApiBase) | Set-Content -Encoding utf8 -NoNewline $swaConfig
+    (Get-Content -Raw $swaConfig).Replace("__API_BASE__", $ApiBase).Replace("__AUTH_ORIGIN__", $authOrigin) |
+        Set-Content -Encoding utf8 -NoNewline $swaConfig
 
     Step "Deploy pages to $StaticWebApp"
     $token = az staticwebapp secrets list -n $StaticWebApp -g $ResourceGroup --query "properties.apiKey" -o tsv

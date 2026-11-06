@@ -77,14 +77,14 @@ def dispatcher() -> Dispatcher:
 @cache
 def flask_app() -> Flask:
     from app.api import ApiServices, create_app
-    from app.api.auth import Groups, identity_provider
+    from app.api.auth import identity_provider
 
     s = settings()
     services = ApiServices.build(
         engine(), store(), dispatcher(), exports(), tenant=s.tenant, require_inputs=s.require_inputs
     )
-    groups = Groups(s.entra_user_group_id, s.entra_admin_group_id, s.app_user_fallback)
-    identify = identity_provider(s.auth, s.entra_tenant_id, s.entra_client_id, groups)
+    config, groups = s.sign_in()
+    identify = identity_provider(s.auth, config, groups)
     return create_app(services, identify, s.frontend_dir)
 
 

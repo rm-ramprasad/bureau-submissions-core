@@ -1,31 +1,37 @@
 """Who is calling the API.
 
-auth = "entra" (Azure): the browser signs in with Microsoft Entra ID (the company tenant, code + PKCE) and sends the
-token as `Authorization: Bearer <token>`. App Service authentication (Easy Auth) on the Function App rejects calls
-without a valid token before the app runs. The Function App endpoint is public (no network isolation), so the app
-also verifies the token itself: signature (the tenant's published keys), issuer, tenant, audience (the app
-registration, as client id or api://<client id>) and expiry.
+Sign-in is generic OpenID Connect (step 3): the browser signs in at an OIDC provider (authorization code + PKCE) and
+sends the token as `Authorization: Bearer <token>`. The app verifies it itself against an `OidcConfig`: signature
+(the provider's published keys, JWKS), issuer, audience, expiry and any fixed claims. Microsoft Entra ID is one such
+configuration (`OidcConfig.entra`: the tenant's keys and issuers, audience = the app registration as client id or
+api://<client id>, `tid` = the tenant); any other provider (Cognito, Keycloak, Okta, ...) is `OidcConfig(...)` with
+its issuer, JWKS address, audience and groups claim. On Azure, App Service authentication (Easy Auth) also rejects
+calls without a valid token before the app runs; the endpoint is public, so the app's own check is what counts.
 
 Who may use the app:
-- With Entra security groups configured (SUBMISSIONS_ENTRA_USER_GROUP_ID / _ADMIN_GROUP_ID; the app registration emits
-  the `groups` claim): members of either group get in, Admins group members are administrators. IT manages access in
-  Entra. Their app_user row is created at first sign-in (name, e-mail, last sign-in); an app_user disabled in the app
-  stays locked out (emergency stop). While SUBMISSIONS_APP_USER_FALLBACK is on (the switch-over), active app users
-  outside the groups still get in, with their app_user admin flag.
+- With groups configured (`Groups`; the provider puts the caller's groups in the token, claim `groups` for Entra,
+  e.g. `cognito:groups` for Cognito): members of either group get in, admin group members are administrators. IT
+  manages access at the provider. Their app_user row is created at first sign-in (name, e-mail, last sign-in); an
+  app_user disabled in the app stays locked out (emergency stop). While the app-user fallback is on (the
+  switch-over), active app users outside the groups still get in, with their app_user admin flag.
 - Without groups: the signed-in e-mail must belong to an active app_user (who may use the app, and who is an
   administrator).
 
 auth = "none" (local development and tests): no sign-in; a fronting proxy may pass X-Forwarded-User.
 
+Roles (`ROLES`) are defined for maker-checker (step 4 on): viewer, maker, approver, admin, auditor. Today every
+signed-in user holds viewer, maker and approver, administrators also admin and auditor; only `admin` is enforced
+(`admin_only`), so access is unchanged until roles get their own groups.
+
 The shell picks one with `identity_provider(...)` and hands it to create_app: the port is any callable that returns
-the caller's Identity for the current request (or aborts 401 / 403). Generic OIDC (AWS) comes in step 3.
+the caller's Identity for the current request (or aborts 401 / 403).
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from functools import cache, wraps
 from typing import Any, NoReturn, cast
 
@@ -37,6 +43,10 @@ from app.users import UserRepository
 
 LOGIN = "https://login.microsoftonline.com"
 
+ROLES = ("viewer", "maker", "approver", "admin", "auditor")
+USER_ROLES = frozenset({"viewer", "maker", "approver"})
+ADMIN_ROLES = frozenset(ROLES)
+
 
 @dataclass(frozen=True)
 class Identity:
@@ -44,6 +54,32 @@ class Identity:
     display_name: str
     email: str | None
     is_admin: bool
+
+    @property
+    def roles(self) -> frozenset[str]:
+        return ADMIN_ROLES if self.is_admin else USER_ROLES
+
+
+@dataclass(frozen=True)
+class OidcConfig:
+    """How to verify a provider's tokens. `claims`: values the token must carry (e.g. Entra's tenant `tid`)."""
+
+    issuers: tuple[str, ...]
+    jwks_uri: str
+    audiences: tuple[str, ...]
+    groups_claim: str = "groups"
+    claims: Mapping[str, str] = field(default_factory=dict)
+    algorithms: tuple[str, ...] = ("RS256",)
+
+    @classmethod
+    def entra(cls, tenant_id: str, client_id: str) -> OidcConfig:
+        """Microsoft Entra ID, one tenant: v2 (ID or access) and v1 access tokens for the app registration."""
+        return cls(
+            issuers=(f"{LOGIN}/{tenant_id}/v2.0", f"https://sts.windows.net/{tenant_id}/"),
+            jwks_uri=f"{LOGIN}/{tenant_id}/discovery/v2.0/keys",
+            audiences=(client_id, f"api://{client_id}"),
+            claims={"tid": tenant_id},
+        )
 
 
 @dataclass(frozen=True)
@@ -83,30 +119,31 @@ def admin_only[View: Callable[..., Any]](view: View) -> View:
 
 
 @cache
-def _signing_keys(tenant_id: str) -> jwt.PyJWKClient:
-    """The tenant's token signing keys, cached per process (refetched when a token names an unknown key)."""
-    return jwt.PyJWKClient(f"{LOGIN}/{tenant_id}/discovery/v2.0/keys", cache_keys=True, lifespan=3600, timeout=10)
+def _signing_keys(jwks_uri: str) -> jwt.PyJWKClient:
+    """The provider's token signing keys, cached per process (refetched when a token names an unknown key)."""
+    return jwt.PyJWKClient(jwks_uri, cache_keys=True, lifespan=3600, timeout=10)
 
 
-def verify_token(token: str, tenant_id: str, client_id: str) -> dict:
-    """The token's claims, or abort 401. Accepts v2 (ID or access token) and v1 access tokens of this tenant."""
+def verify_token(token: str, config: OidcConfig) -> dict:
+    """The token's claims, or abort 401 (503 when the provider's keys cannot be fetched)."""
     try:
-        key = _signing_keys(tenant_id).get_signing_key_from_jwt(token).key
+        key = _signing_keys(config.jwks_uri).get_signing_key_from_jwt(token).key
         claims = jwt.decode(
             token,
             key,
-            algorithms=["RS256"],
-            audience=[client_id, f"api://{client_id}"],
-            issuer=[f"{LOGIN}/{tenant_id}/v2.0", f"https://sts.windows.net/{tenant_id}/"],
+            algorithms=list(config.algorithms),
+            audience=list(config.audiences),
+            issuer=list(config.issuers),
             options={"require": ["exp", "iat", "aud", "iss"]},
             leeway=60,
         )
     except jwt.PyJWKClientConnectionError:
-        abort(503, "Sign-in keys could not be fetched from Microsoft Entra ID; try again")
+        abort(503, "Sign-in keys could not be fetched from the sign-in provider; try again")
     except jwt.PyJWTError:
         abort(401, "Sign in again (the session token is not valid)")
-    if claims.get("tid") != tenant_id:
-        abort(401, "Sign in again (token from another directory)")
+    for name, value in config.claims.items():
+        if claims.get(name) != value:
+            abort(401, "Sign in again (token from another directory)")
     return claims
 
 
@@ -137,20 +174,15 @@ def _deny(engine, email: str, claims: dict, reason: str) -> NoReturn:
     )
 
 
-def identify(auth_mode: str, tenant_id: str | None, client_id: str | None, groups: Groups = Groups()) -> Identity:  # noqa: B008 (frozen)
-    """The caller's identity, or abort 401 (no / wrong token) or 403 (no access)."""
-    if auth_mode == "none":
+def identify(config: OidcConfig | None, groups: Groups = Groups()) -> Identity:  # noqa: B008 (frozen)
+    """The caller's identity, or abort 401 (no / wrong token) or 403 (no access). `config` None = no sign-in."""
+    if config is None:
         name = (request.headers.get("X-Forwarded-User") or "internal-user")[:100]
         return Identity(name, name, None, True)
-    if auth_mode != "entra" or not tenant_id or not client_id:
-        abort(
-            500,
-            "Sign-in is not configured (SUBMISSIONS_AUTH, SUBMISSIONS_ENTRA_TENANT_ID, SUBMISSIONS_ENTRA_CLIENT_ID)",
-        )
     header = request.headers.get("Authorization", "")
     if not header.startswith("Bearer "):
         abort(401, "Sign in first")
-    claims = verify_token(header[7:].strip(), tenant_id, client_id)
+    claims = verify_token(header[7:].strip(), config)
     # `email` needs the optional claim on the app registration; preferred_username / upn are the sign-in name
     email = (claims.get("email") or claims.get("preferred_username") or claims.get("upn") or "").strip().lower()
     engine = current_app.extensions["bureau_submissions"].engine
@@ -159,8 +191,10 @@ def identify(auth_mode: str, tenant_id: str | None, client_id: str | None, group
     if user is not None and not user.is_active:
         _deny(engine, email, claims, "disabled")  # the in-app emergency stop wins over groups
     if groups.enabled:
-        member_of = {str(x).lower() for x in claims.get("groups") or []}
-        overage = "groups" in (claims.get("_claim_names") or {})  # over 200 groups: Entra leaves the list out
+        member_of = {str(x).lower() for x in claims.get(config.groups_claim) or []}
+        overage = config.groups_claim in (
+            claims.get("_claim_names") or {}
+        )  # over 200 groups: Entra leaves the list out
         log_reason = "groups claim overage" if overage else "not in the groups"
         is_admin = bool(groups.admin and groups.admin in member_of)
         if is_admin or (groups.user and groups.user in member_of):
@@ -175,7 +209,7 @@ def identify(auth_mode: str, tenant_id: str | None, client_id: str | None, group
                     "USER_ADDED",
                     target=user.username,
                     email=email,
-                    reason="member of the Entra group",
+                    reason="member of the sign-in group",
                     ip=request.remote_addr,
                 )
             return Identity(user.username, user.display_name, user.email, is_admin)
@@ -190,10 +224,16 @@ def identify(auth_mode: str, tenant_id: str | None, client_id: str | None, group
 IdentityProvider = Callable[[], Identity]
 
 
-def identity_provider(
-    mode: str, tenant_id: str | None = None, client_id: str | None = None, groups: Groups | None = None
-) -> IdentityProvider:
-    """The sign-in check for this deployment: "entra" (token verified in the app) or "none" (development, tests)."""
-    if mode not in ("entra", "none"):
-        raise ValueError(f"Unknown sign-in mode {mode!r}: entra or none")
-    return lambda: identify(mode, tenant_id, client_id, groups or Groups())
+def identity_provider(mode: str, config: OidcConfig | None = None, groups: Groups | None = None) -> IdentityProvider:
+    """The sign-in check for this deployment: "entra" / "oidc" (token verified against `config`) or "none"."""
+    if mode not in ("entra", "oidc", "none"):
+        raise ValueError(f"Unknown sign-in mode {mode!r}: entra, oidc or none")
+    if mode == "none":
+        return lambda: identify(None)
+    if config is None:
+
+        def unconfigured() -> Identity:
+            abort(500, "Sign-in is not configured (SUBMISSIONS_AUTH and the provider's settings)")
+
+        return unconfigured
+    return lambda: identify(config, groups or Groups())

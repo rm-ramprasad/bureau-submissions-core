@@ -12,8 +12,12 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sqlalchemy import URL
+
+if TYPE_CHECKING:
+    from app.api.auth import Groups, OidcConfig
 
 
 def _flag(value: str | None, default: bool) -> bool:
@@ -37,12 +41,18 @@ class Settings:
     dispatch: str = "none"  # "queue" on Azure, "none" locally (the polling worker)
     validate_queue: str = "validate-jobs"
     generate_queue: str = "generate-jobs"
-    auth: str = "entra"  # "entra" or "none" (development)
+    auth: str = "entra"  # "entra", "oidc" (any other OpenID Connect provider) or "none" (development)
     entra_tenant_id: str | None = None
     entra_client_id: str | None = None
     entra_user_group_id: str | None = None
     entra_admin_group_id: str | None = None
     app_user_fallback: bool = True
+    oidc_issuer: str | None = None
+    oidc_jwks_uri: str | None = None
+    oidc_audience: tuple[str, ...] = ()
+    oidc_groups_claim: str = "groups"
+    oidc_user_group: str | None = None
+    oidc_admin_group: str | None = None
     require_inputs: bool = True
     frontend_dir: Path | None = None  # local development: serve the static frontend
     retention_days: int = 90
@@ -88,6 +98,12 @@ class Settings:
             entra_user_group_id=(get("SUBMISSIONS_ENTRA_USER_GROUP_ID") or "").lower() or None,
             entra_admin_group_id=(get("SUBMISSIONS_ENTRA_ADMIN_GROUP_ID") or "").lower() or None,
             app_user_fallback=_flag(get("SUBMISSIONS_APP_USER_FALLBACK"), True),
+            oidc_issuer=get("SUBMISSIONS_OIDC_ISSUER") or None,
+            oidc_jwks_uri=get("SUBMISSIONS_OIDC_JWKS_URI") or None,
+            oidc_audience=tuple(a.strip() for a in (get("SUBMISSIONS_OIDC_AUDIENCE") or "").split(",") if a.strip()),
+            oidc_groups_claim=get("SUBMISSIONS_OIDC_GROUPS_CLAIM") or "groups",
+            oidc_user_group=(get("SUBMISSIONS_OIDC_USER_GROUP") or "").lower() or None,
+            oidc_admin_group=(get("SUBMISSIONS_OIDC_ADMIN_GROUP") or "").lower() or None,
             require_inputs=_flag(get("SUBMISSIONS_REQUIRE_INPUTS"), True),
             frontend_dir=Path(frontend) if frontend else None,
             retention_days=int(get("SUBMISSIONS_RETENTION_DAYS", "90")),
@@ -95,13 +111,34 @@ class Settings:
         settings.check()
         return settings
 
+    def sign_in(self) -> tuple[OidcConfig | None, Groups]:
+        """The token check and access groups for SUBMISSIONS_AUTH (None: no sign-in, or Entra not configured)."""
+        from app.api.auth import Groups, OidcConfig
+
+        if self.auth == "oidc" and self.oidc_issuer and self.oidc_jwks_uri:
+            config = OidcConfig(
+                issuers=(self.oidc_issuer,),
+                jwks_uri=self.oidc_jwks_uri,
+                audiences=self.oidc_audience,
+                groups_claim=self.oidc_groups_claim,
+            )
+            return config, Groups(self.oidc_user_group, self.oidc_admin_group, self.app_user_fallback)
+        groups = Groups(self.entra_user_group_id, self.entra_admin_group_id, self.app_user_fallback)
+        if self.auth == "entra" and self.entra_tenant_id and self.entra_client_id:
+            return OidcConfig.entra(self.entra_tenant_id, self.entra_client_id), groups
+        return None, groups
+
     def check(self) -> None:
         for name, value, allowed in (
             ("SUBMISSIONS_STORAGE", self.storage, ("blob", "local")),
             ("SUBMISSIONS_DISPATCH", self.dispatch, ("queue", "none")),
-            ("SUBMISSIONS_AUTH", self.auth, ("entra", "none")),
+            ("SUBMISSIONS_AUTH", self.auth, ("entra", "oidc", "none")),
         ):
             if value not in allowed:
                 raise RuntimeError(f"{name} must be one of {', '.join(allowed)}, not {value!r}")
+        if self.auth == "oidc" and not (self.oidc_issuer and self.oidc_jwks_uri and self.oidc_audience):
+            raise RuntimeError(
+                "SUBMISSIONS_AUTH=oidc needs SUBMISSIONS_OIDC_ISSUER, SUBMISSIONS_OIDC_JWKS_URI and SUBMISSIONS_OIDC_AUDIENCE"
+            )
         if self.retention_days < 1:
             raise RuntimeError("SUBMISSIONS_RETENTION_DAYS must be at least 1")

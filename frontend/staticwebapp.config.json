@@ -8,9 +8,9 @@
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "same-origin",
-    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://login.microsoftonline.com __API_BASE__; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' __AUTH_ORIGIN__ __API_BASE__; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
   },
   "routes": [
-    { "route": "/config.js", "headers": { "Cache-Control": "no-store" } }
+    { "route": "/config.json", "headers": { "Cache-Control": "no-store" } }
   ]
 }
