@@ -550,7 +550,7 @@ def sso(make_api, engine, monkeypatch):
     monkeypatch.setattr(
         auth,
         "_signing_keys",
-        lambda tenant_id: type("C", (), {"get_signing_key_from_jwt": staticmethod(lambda token: signing)})(),
+        lambda jwks_uri: type("C", (), {"get_signing_key_from_jwt": staticmethod(lambda token: signing)})(),
     )
     UserRepository(engine).add("asha.k", "Asha K", "asha.k@company.in", is_admin=True)
     return make_api(auth="entra", entra_tenant_id=TENANT_ID, entra_client_id=CLIENT_ID)
@@ -618,7 +618,7 @@ def grouped(make_api, monkeypatch):
     monkeypatch.setattr(
         auth,
         "_signing_keys",
-        lambda tenant_id: type("C", (), {"get_signing_key_from_jwt": staticmethod(lambda token: signing)})(),
+        lambda jwks_uri: type("C", (), {"get_signing_key_from_jwt": staticmethod(lambda token: signing)})(),
     )
 
     def make(**kw):

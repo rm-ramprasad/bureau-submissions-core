@@ -1,7 +1,23 @@
-// Shared by every page: sign-in (Microsoft Entra ID, authorization code + PKCE), API calls, the page shell (sidebar,
-// top bar, NBFC selector), flash messages and formatting. Loaded before the page's own script and before Alpine.
+// Shared by every page: sign-in (any OpenID Connect provider, authorization code + PKCE), API calls, the page shell
+// (sidebar, top bar, NBFC selector), flash messages and formatting. Loaded before the page's own script and before
+// Alpine.
 
-const CFG = window.APP_CONFIG || { auth: "none" };
+// config.json (same origin, written by the deploy step; locally { "auth": "none" }):
+//   { "auth": "oidc", "authority": "<issuer URL>", "clientId": "<client id>", "scope": "<API scope, optional>",
+//     "apiBase": "<API address, optional>", "useIdToken": false }
+// useIdToken: send the ID token instead of the access token (providers whose access tokens carry no audience, e.g.
+// Cognito); the API checks the audience either way.
+// Read synchronously so every script after this one sees it, as the old config.js did.
+const CFG = (() => {
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", "/config.json", false);
+    xhr.send();
+    if (xhr.status === 200) return JSON.parse(xhr.responseText.replace(/^\uFEFF/, ""));   // PowerShell 5 writes a BOM
+  } catch (e) { /* no config: development */ }
+  return { auth: "none" };
+})();
+const SIGN_IN = CFG.auth === "oidc";
 const API_BASE = (CFG.apiBase || "").replace(/\/$/, "");    // the Function App (another origin, CORS); "" = same origin
 
 // ---------------------------------------------------------------- sign-in
@@ -9,10 +25,10 @@ const Auth = {
   manager: null,
 
   mgr() {
-    if (!this.manager && CFG.auth === "entra") {
+    if (!this.manager && SIGN_IN) {
       this.manager = new oidc.UserManager({
-        authority: `https://login.microsoftonline.com/${CFG.tenantId}/v2.0`, client_id: CFG.clientId,
-        response_type: "code", scope: `openid profile email ${CFG.apiScope}`,
+        authority: CFG.authority, client_id: CFG.clientId,
+        response_type: "code", scope: `openid profile email ${CFG.scope || ""}`.trim(),
         redirect_uri: location.origin + "/callback.html", loadUserInfo: false, automaticSilentRenew: false,
         userStore: new oidc.WebStorageStateStore({ store: window.sessionStorage }),   // gone when the tab closes
       });
@@ -20,12 +36,12 @@ const Auth = {
     return this.manager;
   },
 
-  // The access token for the API (scope CFG.apiScope), or a redirect to the sign-in page (the promise then never
+  // The access token for the API (scope CFG.scope), or a redirect to the sign-in page (the promise then never
   // resolves).
   async token() {
-    if (CFG.auth !== "entra") return null;
+    if (!SIGN_IN) return null;
     const user = await this.mgr().getUser();
-    if (user && !user.expired) return user.access_token;
+    if (user && !user.expired) return CFG.useIdToken ? user.id_token : user.access_token;
     await this.signIn();
     return new Promise(() => {});
   },
@@ -37,7 +53,7 @@ const Auth = {
 
   async signOut() {
     try { await Api.post("/session/end"); } catch (e) { /* signing out anyway */ }
-    if (CFG.auth !== "entra") { location.href = "/"; return; }
+    if (!SIGN_IN) { location.href = "/"; return; }
     await this.mgr().signoutRedirect({ post_logout_redirect_uri: location.origin + "/signed-out.html" });
   },
 };
@@ -57,7 +73,7 @@ const Api = {
     if (body) headers["Content-Type"] = "application/json";
     const resp = await fetch(`${API_BASE}/api${path}${query.toString() ? "?" + query : ""}`,
                              { method, headers, body: body ? JSON.stringify(body) : null });
-    if (resp.status === 401 && CFG.auth === "entra") { await Auth.signIn(); return new Promise(() => {}); }
+    if (resp.status === 401 && SIGN_IN) { await Auth.signIn(); return new Promise(() => {}); }
     return resp;
   },
 
@@ -70,7 +86,7 @@ const Api = {
     const token = await Auth.token();
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const resp = await fetch(`${API_BASE}/api${path}`, { method: "POST", headers, body: form });
-    if (resp.status === 401 && CFG.auth === "entra") { await Auth.signIn(); return new Promise(() => {}); }
+    if (resp.status === 401 && SIGN_IN) { await Auth.signIn(); return new Promise(() => {}); }
     if (resp.status === 422) return { ...(await resp.json().catch(() => ({}))), rejected: true };
     return this.json(resp);
   },
@@ -301,7 +317,7 @@ function renderShell() {
     <div class="sidebar-foot">
       <div class="user"><span class="avatar" x-text="($store.app.user?.display_name || '··').slice(0, 2).toUpperCase()"></span>
         <span><strong x-text="$store.app.user?.display_name"></strong><small x-text="$store.app.user?.email || 'Bureau reporting team'"></small></span></div>
-      <div class="user-actions" x-show="CFG.auth === 'entra'"><button class="linkish" @click="Auth.signOut()">Sign out</button></div>
+      <div class="user-actions" x-show="SIGN_IN"><button class="linkish" @click="Auth.signOut()">Sign out</button></div>
       <div class="powered"><img src="ota-mark.png" alt=""><span>Powered by Open Terrace Analytics</span></div>
     </div>
   </aside>

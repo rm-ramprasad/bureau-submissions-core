@@ -77,14 +77,14 @@ def dispatcher():
 def make_api(engine, tmp_path, dispatcher):  # noqa: F811
     """make_api(store=None, tenant=None, exports=None, auth="none", entra_..., require_inputs=False) -> Api."""
     from app.api import ApiServices, create_app
-    from app.api.auth import Groups, identity_provider
+    from app.api.auth import Groups, OidcConfig, identity_provider
     from app.ports.files import LocalFileStore
 
     def make(store=None, tenant=None, exports=None, auth="none", require_inputs=False, app_dispatcher=None, **entra):
+        tid, cid = entra.get("entra_tenant_id"), entra.get("entra_client_id")
         identify = identity_provider(
             auth,
-            entra.get("entra_tenant_id"),
-            entra.get("entra_client_id"),
+            entra.get("oidc") or (OidcConfig.entra(tid, cid) if tid and cid else None),
             Groups(entra.get("entra_user_group_id"), entra.get("entra_admin_group_id"),
                    entra.get("app_user_fallback", True)),
         )  # fmt: skip

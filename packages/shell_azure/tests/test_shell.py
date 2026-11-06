@@ -32,6 +32,25 @@ def test_settings_from_the_environment(tmp_path):
         Settings.from_env(ENV | {"SUBMISSIONS_RETENTION_DAYS": "0"})
 
 
+def test_sign_in_settings_entra_and_generic_oidc():
+    config, groups = Settings.from_env(
+        ENV | {"SUBMISSIONS_ENTRA_TENANT_ID": "t-1", "SUBMISSIONS_ENTRA_CLIENT_ID": "c-1",
+               "SUBMISSIONS_ENTRA_USER_GROUP_ID": "G-U"}
+    ).sign_in()  # fmt: skip
+    assert config is not None and config.claims == {"tid": "t-1"} and groups.user == "g-u"
+    assert Settings.from_env(ENV).sign_in()[0] is None  # Entra not configured: the API answers 500
+    s = Settings.from_env(
+        ENV | {"SUBMISSIONS_AUTH": "OIDC", "SUBMISSIONS_OIDC_ISSUER": "https://idp.example",
+               "SUBMISSIONS_OIDC_JWKS_URI": "https://idp.example/jwks", "SUBMISSIONS_OIDC_AUDIENCE": "web, api",
+               "SUBMISSIONS_OIDC_GROUPS_CLAIM": "cognito:groups", "SUBMISSIONS_OIDC_ADMIN_GROUP": "Admins"}
+    )  # fmt: skip
+    config, groups = s.sign_in()
+    assert config is not None and (config.issuers, config.audiences) == (("https://idp.example",), ("web", "api"))
+    assert config.groups_claim == "cognito:groups" and groups.admin == "admins" and groups.user is None
+    with pytest.raises(RuntimeError, match="SUBMISSIONS_OIDC_ISSUER"):
+        Settings.from_env(ENV | {"SUBMISSIONS_AUTH": "oidc"})
+
+
 def test_the_sql_login_file_is_read_and_masked(tmp_path):
     env_file = tmp_path / "test.env.sql"
     env_file.write_text(
