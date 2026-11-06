@@ -29,7 +29,7 @@ _PK = BigInteger().with_variant(Integer(), "sqlite")
 reconciliation_summary = Table(
     "reconciliation_summary",
     metadata,
-    Column("request_id", BigInteger, primary_key=True),  # the GENERATE request (one bureau's files)
+    Column("request_id", BigInteger, primary_key=True, autoincrement=False),  # the GENERATE request (not a new id)
     Column("snapshot_id", BigInteger, nullable=False),
     Column("submission_type", String(20), nullable=False),
     Column("bureau_code", String(20), nullable=False),
