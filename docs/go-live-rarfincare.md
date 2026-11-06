@@ -70,9 +70,16 @@ The screens did not change, so `-WebOnly` is not needed. The app settings stay a
 
 Expected: `"applied": []` (no new migrations in this move), reference rows unchanged, `"bureau_profiles_added": 0`.
 
-If it answers `"failed": "<version>"` with "already exists" in the error, that migration was run by hand earlier
-without its history row (this happened with 006 on go-live day). Check in SSMS that its change is there, then record
-it and migrate again: `.\deploy\ops.ps1 migrate --mark-applied <version>`.
+New migrations (files under `packages/canonical/src/canonical/migrations/azure/`) are run by the owner in SSMS with
+the admin login; `migrate` only checks and records them. The app identity has SELECT/INSERT/UPDATE/DELETE/EXECUTE
+on schema `automn` and nothing more (by design), so running a new migration through `migrate` answers
+`"failed": "<version>"` with "CREATE TABLE permission denied" (or similar). For each new migration:
+
+1. Run `<version>.sql` in SSMS (admin login) against rarfinmisdb.
+2. Record it and migrate again: `.\deploy\ops.ps1 migrate --mark-applied <version>`.
+
+The same applies if the error says "already exists": the migration was run by hand earlier without its history row
+(this happened with 006 on go-live day). Check in SSMS that its change is there, then step 2.
 
 ## 4. Smoke test (10 minutes)
 

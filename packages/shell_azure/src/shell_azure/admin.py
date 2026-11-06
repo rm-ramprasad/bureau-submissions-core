@@ -51,7 +51,8 @@ def migrate(engine: Engine, tenant: str | None, mark_applied: str | None = None)
             "failed": exc.version,
             "error": str(exc.cause).splitlines()[0][:500],
             "hint": (
-                f"If {exc.version} was already run by hand (e.g. in SSMS) and its change is in the database, record "
+                f"New migrations are run by the owner in SSMS (admin login): the app identity has no CREATE/ALTER "
+                f"permission, so 'permission denied' here is expected. Run {exc.version}.sql in SSMS, then record "
                 f"it: ops.ps1 migrate --mark-applied {exc.version}"
             ),
         }
