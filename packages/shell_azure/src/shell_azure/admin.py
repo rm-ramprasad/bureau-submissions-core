@@ -33,6 +33,14 @@ RUN_TIMEOUT = timedelta(minutes=40)  # longer than host.json functionTimeout (30
 PENDING_GRACE = timedelta(minutes=10)
 
 
+def deployed_version() -> str:
+    """The release this package was built from (deploy/build.sh writes shell_azure/VERSION); "dev" otherwise."""
+    from pathlib import Path
+
+    path = Path(__file__).with_name("VERSION")
+    return path.read_text(encoding="utf-8").strip() if path.is_file() else "dev"
+
+
 def migrate(engine: Engine, tenant: str | None, mark_applied: str | None = None) -> dict[str, Any]:
     """`mark_applied`: record that migration as applied without running it (it was run by hand), then migrate."""
     from app.bureaus import BureauRepository
@@ -41,7 +49,7 @@ def migrate(engine: Engine, tenant: str | None, mark_applied: str | None = None)
     from canonical import migrate as m
     from canonical.reference import seed
 
-    result: dict[str, Any] = {}
+    result: dict[str, Any] = {"version": deployed_version()}
     if mark_applied:
         result["marked_applied"] = mark_applied if m.mark_applied(engine, mark_applied) else None
     try:

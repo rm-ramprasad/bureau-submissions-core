@@ -1,0 +1,91 @@
+# Deploy a release to an install (today: rarfincare). Started by hand (Actions > Deploy > Run workflow) with the
+# version; the `rarfincare` environment asks the owner to approve before anything changes. Signs in to Azure with
+# GitHub's OIDC token (a federated credential on a managed identity: no stored secrets, deploy/setup-github-oidc.ps1).
+#
+# Order: Function App code -> wait until it answers -> migrate (records migrations the owner ran in SSMS:
+# `mark_applied`) -> pages (config.json written for this install) -> smoke test (the deployed version, the sign-in
+# page, the API). Stops at the first failure. deploy/deploy.ps1 stays as the fallback from a workstation.
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release to deploy (tag, e.g. v1.4.0)"
+        required: true
+      mark_applied:
+        description: "Migrations you ran in SSMS for this release, comma-separated (see the release notes), or empty"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write                      # the OIDC token for azure/login
+
+concurrency:
+  group: deploy-rarfincare
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.version }} to rarfincare
+    runs-on: ubuntu-latest
+    environment: rarfincare            # required reviewer: the owner; holds the install's variables
+    env:
+      VERSION: ${{ inputs.version }}
+      RG: ${{ vars.RESOURCE_GROUP }}
+      FUNCTION_APP: ${{ vars.FUNCTION_APP }}
+      STATIC_WEB_APP: ${{ vars.STATIC_WEB_APP }}
+      ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+      ENTRA_CLIENT_ID: ${{ vars.ENTRA_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@v4      # this workflow's scripts only; the code comes from the release
+      - name: Download the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "$VERSION" --pattern '*.zip' --dir release
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Function App code
+        run: |
+          az functionapp deployment source config-zip -g "$RG" -n "$FUNCTION_APP" --src release/function.zip \
+            --build-remote false --timeout 900
+      - name: Wait until the API answers
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://$FUNCTION_APP.azurewebsites.net/api/meta" || true)
+            if [ "$code" = "401" ] || [ "$code" = "200" ]; then echo "API up ($code)"; exit 0; fi
+            echo "waiting ($code)"; sleep 10
+          done
+          echo "The API did not come up in 5 minutes" >&2; exit 1
+      - name: Migrate (record migrations run in SSMS) and check the deployed version
+        env:
+          MARK_APPLIED: ${{ inputs.mark_applied }}
+        run: deploy/ci_ops.sh migrate
+
+      - name: Pages
+        run: |
+          rm -rf web && mkdir web && (cd web && unzip -q ../release/web.zip)
+          auth_origin=https://login.microsoftonline.com
+          api_base="https://$FUNCTION_APP.azurewebsites.net"
+          cat > web/config.json <<JSON
+          {"auth": "oidc", "authority": "$auth_origin/$ENTRA_TENANT_ID/v2.0", "clientId": "$ENTRA_CLIENT_ID",
+           "scope": "api://$ENTRA_CLIENT_ID/access_as_user", "apiBase": "$api_base"}
+          JSON
+          sed -i "s#__API_BASE__#$api_base#g; s#__AUTH_ORIGIN__#$auth_origin#g" web/staticwebapp.config.json
+          token=$(az staticwebapp secrets list -n "$STATIC_WEB_APP" -g "$RG" --query properties.apiKey -o tsv)
+          echo "::add-mask::$token"
+          npx --yes @azure/static-web-apps-cli@2.0.2 deploy web --deployment-token "$token" --env production
+
+      - name: Smoke test
+        run: |
+          host=$(az staticwebapp show -n "$STATIC_WEB_APP" -g "$RG" --query defaultHostname -o tsv)
+          curl -fsS "https://$host/" | grep -q "<html" || { echo "sign-in page not served" >&2; exit 1; }
+          curl -fsS "https://$host/config.json" | grep -q "$ENTRA_CLIENT_ID" || { echo "config.json wrong" >&2; exit 1; }
+          code=$(curl -s -o /dev/null -w '%{http_code}' "https://$FUNCTION_APP.azurewebsites.net/api/meta")
+          [ "$code" = "401" ] || { echo "API without sign-in answered $code, expected 401 (Easy Auth)" >&2; exit 1; }
+          echo "Deployed $VERSION: pages, sign-in settings and API OK"
