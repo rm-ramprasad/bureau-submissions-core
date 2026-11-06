@@ -1,0 +1,70 @@
+# Publish a release to a client's deployment repository (installs/<client>/install.json `repo`): copies the release
+# files (function.zip, web.zip, migrations.zip) and notes there as a release of the same version, and refreshes that
+# repository's Deploy workflow, scripts, README and install.json from installs/ at that version. The client then
+# deploys from their repository. No source code leaves this repository.
+#
+# Needs one secret per client: INSTALL_TOKEN_<CLIENT> (e.g. INSTALL_TOKEN_RARFINCARE), a fine-grained GitHub token
+# for that one repository with Contents and Workflows: read and write (docs/release.md).
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release to publish (tag, e.g. v1.4.0)"
+        required: true
+      client:
+        description: "Client"
+        required: true
+        type: choice
+        options: [rarfincare]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish ${{ inputs.version }} to ${{ inputs.client }}
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+      CLIENT: ${{ inputs.client }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}   # the install files as they were at that release
+      - name: Release files and notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$VERSION" --pattern '*.zip' --dir release
+          gh release view "$VERSION" --json body --jq .body > release/notes.md
+          echo "TARGET=$(jq -er .repo "installs/$CLIENT/install.json")" >> "$GITHUB_ENV"
+      - name: Deployment repository files (Deploy workflow, scripts, README, install.json)
+        env:
+          TOKEN: ${{ secrets[format('INSTALL_TOKEN_{0}', inputs.client)] }}
+        run: |
+          [ -n "$TOKEN" ] || { echo "Secret INSTALL_TOKEN_${CLIENT^^} is not set" >&2; exit 1; }
+          git clone --quiet "https://x-access-token:$TOKEN@github.com/$TARGET.git" target
+          cd target
+          git checkout -B main
+          rm -rf .github/workflows/deploy.yml scripts
+          cp -r ../installs/template/. .
+          cp "../installs/$CLIENT/install.json" install.json
+          git add -A
+          if git diff --cached --quiet; then echo "Files unchanged"; else
+            git -c user.name="Open Terrace release" -c user.email="noreply@openterrace.in" commit -qm "Release $VERSION"
+            git push --quiet origin main
+          fi
+      - name: Release in the deployment repository
+        env:
+          GH_TOKEN: ${{ secrets[format('INSTALL_TOKEN_{0}', inputs.client)] }}
+        run: |
+          if gh release view "$VERSION" --repo "$TARGET" >/dev/null 2>&1; then
+            echo "$TARGET already has $VERSION: replacing its files"
+            gh release upload "$VERSION" release/*.zip --repo "$TARGET" --clobber
+          else
+            gh release create "$VERSION" release/*.zip --repo "$TARGET" --title "$VERSION" --notes-file release/notes.md \
+              --target main
+          fi
+          echo "Published $VERSION to $TARGET: deploy it there (Actions > Deploy)."
