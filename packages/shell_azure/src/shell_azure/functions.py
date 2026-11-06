@@ -6,7 +6,7 @@ shell_azure.handlers. The deployed package's function_app.py imports `app` from 
   validate_worker  queue validate-jobs   one VALIDATE request per message
   generate_worker  queue generate-jobs   one GENERATE request per message
   recovery         timer every 15 minutes
-  retention        timer 02:00 IST (20:30 UTC)
+  retention        timer 02:00 IST (20:30 UTC); switched off: nothing is removed (owner 2026-11-06)
 
 Unchanged from the reference app: the same functions, routes, queues and schedules, so the Function App's settings,
 Easy Auth exclusions and alerts keep working. host.json sets routePrefix "": the API's catch-all would otherwise also
@@ -65,4 +65,7 @@ def recovery(timer: func.TimerRequest) -> None:
 @app.function_name("retention")
 @app.timer_trigger(arg_name="timer", schedule="0 30 20 * * *", run_on_startup=False)  # UTC = 02:00 IST
 def retention(timer: func.TimerRequest) -> None:
-    logging.info("retention: %s", handlers.jobs({"job": "retention"}, actor="retention"))
+    # Off (owner decision 2026-11-06): input files, outputs and database data are all kept indefinitely until a
+    # retention policy is agreed. The timer stays declared so the Function App's functions and alerts are unchanged;
+    # the purge can still be run by hand (`ops.ps1 retention --dry-run` first).
+    logging.info("retention: off, nothing removed (keep everything until a retention policy is agreed)")

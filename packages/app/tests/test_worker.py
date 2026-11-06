@@ -222,7 +222,7 @@ def test_an_abandoned_snapshot_build_is_failed_and_cleaned(engine, clock, reques
 
 
 # ---------------------------------------------------------------- retention
-def test_purge_removes_pii_and_files_and_keeps_the_summary(worker, engine, tmp_path):
+def test_purge_removes_pii_and_keeps_the_outputs_and_the_summary(worker, engine, tmp_path):
     row = validated(worker)
     gen = worker.requests.create_batch(
         "nbfc_001", AS_OF, M.GENERATE, ["CONSUMER"], ["CIBIL"], snapshot_id=row.snapshot_id
@@ -235,7 +235,7 @@ def test_purge_removes_pii_and_files_and_keeps_the_summary(worker, engine, tmp_p
 
     future = lambda: datetime.now() + timedelta(days=200)  # noqa: E731
     preview = purge(engine, timedelta(days=90), LocalFileStore(tmp_path), dry_run=True, clock=future)
-    assert preview.snapshots == [sid] and len(preview.files) == 3 and all(f.exists() for f in files)
+    assert preview.snapshots == [sid] and preview.files == [] and all(f.exists() for f in files)
 
     purge(engine, timedelta(days=90), LocalFileStore(tmp_path), clock=future)
     assert SnapshotRepository(engine).get(sid).status is SnapshotStatus.PURGED
@@ -244,7 +244,8 @@ def test_purge_removes_pii_and_files_and_keeps_the_summary(worker, engine, tmp_p
         count(engine, validation_finding, snapshot_id=sid) == 0 and count(engine, record_outcome, snapshot_id=sid) == 0
     )
     assert count(engine, validation_summary, snapshot_id=sid) == summary_rows > 0
-    assert not any(f.exists() for f in files) and worker.requests.get(g.request_id).output_file_path is None
+    assert all(f.exists() for f in files)  # outputs stay for good (owner 2026-11-06)
+    assert worker.requests.get(g.request_id).output_file_path == str(files[0])
     assert audit.recent(engine)[0].action == "RETENTION_PURGE"
     assert purge(engine, timedelta(days=90), LocalFileStore(tmp_path)).snapshots == []  # recent data kept
 
