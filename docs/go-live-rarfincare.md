@@ -4,11 +4,31 @@ For the owner, on the Windows machine that deploys today. About 1–2 hours. Not
 resource: the new code is published to the **same** Function App and Static Web App, with the **same** app settings.
 The old app stays installable until the end (step 7 is the way back).
 
-## 0. Once: tools
+## 0. Once: tools and the new folder
 
-- `uv` (https://docs.astral.sh/uv/, `winget install astral-sh.uv`), plus what the old deploy already uses: `az`,
-  `func` (Core Tools v4), Node / `npx`, ODBC Driver 18.
-- Get the code: `git clone https://github.com/rm-ramprasad/bureau-submissions-core.git`, then in that folder `uv sync`.
+1. **Install uv** (a program, installed once on the machine like `az` or `git`, not inside any project folder).
+   In any PowerShell: `winget install --id=astral-sh.uv -e`
+   (or `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`), then open a **new**
+   PowerShell and check `uv --version`. The other tools are the ones the old deploy already uses: `az`, `func`
+   (Core Tools v4), Node / `npx`, ODBC Driver 18.
+2. **Get the new code into its own folder, next to the old one** (not inside it):
+
+   ```
+   cd "D:\Local projects"
+   git clone https://github.com/rm-ramprasad/bureau-submissions-core.git
+   cd bureau-submissions-core
+   uv sync
+   ```
+
+   `uv sync` fetches Python 3.14 if needed and installs everything into `.venv` inside the new folder only.
+
+   ```
+   D:\Local projects\
+       submission-azure-functionapp\   <- old app: leave it as it is (the way back, step 7)
+       bureau-submissions-core\        <- new app: run every step below from here
+   ```
+
+   Your `.env.sql` stays where it is, outside both folders; step 1 only needs its path.
 
 ## 1. Parity check (before anything changes)
 
