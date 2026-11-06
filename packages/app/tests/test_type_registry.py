@@ -36,7 +36,7 @@ def make_sample(root: Path) -> Path:
     for name in ("inputs.yaml", "input_checks.yaml"):
         shutil.copy(CANONICAL / "commercial" / name, folder / name)
     (folder / "type.yaml").write_text(
-        "submission_type: SAMPLE\nlabel: Sample\norder: 30\nengine: delimited\nfile_label: Sample file\n"
+        "submission_type: SAMPLE\nlabel: Sample\norder: 35\nengine: delimited\nfile_label: Sample file\n"
         "record_noun: Things\nheader_tag_required: false\ndefault_file_name: 'Sample-{member_id}-{as_of:%d%m%Y}.txt'\n",
         encoding="utf-8",
     )
@@ -60,6 +60,7 @@ def test_the_product_types_come_from_their_folders():
         SubmissionType("NESL")
     assert (descriptor("CONSUMER").engine, descriptor("COMMERCIAL").engine) == ("tudf", "delimited")
     assert descriptor("CONSUMER").header_tag_required and not descriptor("COMMERCIAL").header_tag_required
+    assert [(d.submission_type, d.label) for d in types.planned_types()] == [("NESL", "NeSL"), ("MFI", "MFI")]
     assert repr(SubmissionType.CONSUMER) == "SubmissionType('CONSUMER')" and SubmissionType.CONSUMER.value == "CONSUMER"
 
 
@@ -112,6 +113,8 @@ def test_a_new_type_folder_works_end_to_end(sample, make_api, worker, engine, re
 
     api = make_api()
     listed = {t["value"]: t for t in api.get("/types")[1]["types"]}
+    assert list(listed) == ["CONSUMER", "COMMERCIAL", "SAMPLE", "NESL", "MFI"]  # planned types after the runnable
+    assert listed["NESL"] == {"value": "NESL", "label": "NeSL", "enabled": False, "planned": True}
     assert listed["SAMPLE"]["file_label"] == "Sample file" and listed["SAMPLE"]["label"] == "Sample"
     assert listed["SAMPLE"]["enabled"] and listed["SAMPLE"]["record_noun"] == "Things"
 

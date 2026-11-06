@@ -77,8 +77,12 @@ def type_list(offered: list[SubmissionType]) -> list[dict]:
                 "file_label": d.file_label,
                 "record_noun": d.record_noun,
                 "header_tag_required": d.header_tag_required,
+                "planned": False,
             }
         )
+    from bureau_core.types import planned_types
+
+    out += [{"value": d.submission_type, "label": d.label, "enabled": False, "planned": True} for d in planned_types()]
     return out
 
 
