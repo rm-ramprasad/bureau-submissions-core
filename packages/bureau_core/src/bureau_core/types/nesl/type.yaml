@@ -1,0 +1,7 @@
+# Planned type (owner 2026-11-06: keep upcoming submissions visible to clients). Shown greyed out ("coming soon") on
+# the pages; cannot be run. When it is built, add its files here (codes, requirements, rules, layout), complete this
+# descriptor (see consumer/type.yaml) and remove `planned`.
+submission_type: NESL
+label: NeSL
+order: 30
+planned: true

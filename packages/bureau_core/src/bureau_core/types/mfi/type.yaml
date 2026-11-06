@@ -1,0 +1,5 @@
+# Planned type: see nesl/type.yaml. Needs the CIC's MFI specification first (requirements.md 10.3).
+submission_type: MFI
+label: MFI
+order: 40
+planned: true
