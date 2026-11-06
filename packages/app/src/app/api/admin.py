@@ -18,6 +18,7 @@ from app.api.common import (
     selected_tenant,
     svc,
 )
+from app.api.config import versioned
 from app.enums import (
     ReportingCycle,
     SubmissionType,
@@ -118,6 +119,7 @@ def save_bureau_profile(submission_type: str, bureau_code: str):
         before={f: getattr(current, f) for f in fields if getattr(current, f) != getattr(updated, f)},
         after={f: getattr(updated, f) for f in fields if getattr(current, f) != getattr(updated, f)},
     )
+    versioned(tenant_id, "BUREAU_PROFILE_CHANGED", f"{bureau_code}/{submission_type}", reason[:500])
     return message(
         f"{updated.display_name} ({submission_type.title()}) saved. Applies to files generated from now on.",
         profile=_profile_json(updated),

@@ -14,6 +14,7 @@ from datetime import date, datetime
 from sqlalchemy import Engine, func, select, update
 from sqlalchemy.exc import IntegrityError
 
+from app.configstore import current_version_query
 from app.enums import BureauCode, ReportingCycle, RunMode, SubmissionType
 from app.enums import RequestStatus as S
 from app.requests.models import BatchSummary, RequestResult, SubmissionRequest
@@ -406,6 +407,7 @@ class RequestRepository:
                         finished_at=None,
                         error_message=None,
                         attempt_count=t.c.attempt_count + 1,
+                        config_version=current_version_query(t.c.tenant_id),
                     )
                 ).rowcount
             if claimed == 1:
@@ -426,6 +428,7 @@ class RequestRepository:
                     finished_at=None,
                     error_message=None,
                     attempt_count=t.c.attempt_count + 1,
+                    config_version=current_version_query(t.c.tenant_id),
                 )
             ).rowcount
         return self.get(request_id) if claimed == 1 else None

@@ -47,6 +47,7 @@ submission_request = Table(
     Column("excluded_accounts", Integer),  # loans removed by user exclusions (migration 006)
     Column("overridden_accounts", Integer),  # loans with user overrides
     Column("error_message", Text),
+    Column("config_version", Integer),  # client configuration version when a worker started it (migration 008)
     Index("ix_submission_request_batch", "batch_id"),
     Index("ix_submission_request_status", "status", "requested_at"),
     Index("ix_submission_request_tenant", "tenant_id", "requested_at"),

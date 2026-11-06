@@ -18,6 +18,7 @@ from app.api.common import (
     selected_tenant,
     svc,
 )
+from app.api.config import versioned
 from app.enums import (
     Outcome,
     SubmissionType,
@@ -192,6 +193,7 @@ def save_custom_rule():
         outcome=d.outcome,
         message=d.message,
     )
+    versioned(tenant_id, "CUSTOM_RULE_CHANGED" if editing else "CUSTOM_RULE_ADDED", rule.rule_id, reason[:500])
     return message(
         f"{rule.rule_id} {'updated' if editing else 'added'}: {d.describe()}. "
         "Applies to requests validated from now on.",
@@ -217,6 +219,7 @@ def delete_custom_rule(rule_id: str):
         rule=d.describe() if d else None,
         reason=(body().get("reason") or "").strip() or None,
     )
+    versioned(tenant_id, "CUSTOM_RULE_DELETED", rule_id, (body().get("reason") or "").strip()[:500] or None)
     return message(f"{rule_id} deleted. Earlier findings keep its id.")
 
 
@@ -252,6 +255,7 @@ def save_rule_parameter(name: str):
         default=param.text(param.default),
         rules=list(param.used_by),
     )
+    versioned(tenant_id, "RULE_PARAMETER_CHANGED", f"{sub_type}/{name}", reason[:500])
     return message(f"{param.label} = {param.text(value)} for {tenant_id}. Applies to requests validated from now on.")
 
 
@@ -275,6 +279,7 @@ def reset_rule_parameter(name: str):
             before=param.text(before),
             after=param.text(param.default),
         )
+    versioned(tenant_id, "RULE_PARAMETER_RESET", f"{sub_type}/{name}")
     return message(f"{param.label}: back to the default ({param.text(param.default)}) for {tenant_id}.")
 
 
@@ -318,6 +323,7 @@ def save_rule_policy(rule_id: str):
         after={"enabled": enabled, "outcome": str(outcome)},
         default={"enabled": entry.default.enabled, "outcome": str(entry.default.outcome)},
     )
+    versioned(tenant_id, "RULE_POLICY_CHANGED", rule_id, reason[:500])
     return message(
         f"{rule_id}: {'on' if enabled else 'off'}, outcome {outcome.value} for {tenant_id}. "
         "Applies to requests validated from now on."
@@ -340,4 +346,5 @@ def reset_rule_policy(rule_id: str):
             before={"enabled": (before or {}).get("is_enabled"), "outcome": (before or {}).get("outcome")},  # race-safe
             reason=(body().get("reason") or "").strip()[:500] or None,
         )
+    versioned(tenant_id, "RULE_POLICY_RESET", rule_id, (body().get("reason") or "").strip()[:500] or None)
     return message(f"{rule_id}: back to the default for {tenant_id}.")

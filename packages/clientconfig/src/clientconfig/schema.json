@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openterrace.in/schemas/bureau-submissions/client-config/1",
+  "title": "Bureau Submissions: one NBFC's configuration",
+  "description": "What the client's administrators may change: bureau profiles, rule policies, rule parameters and form-built custom rules. Product defaults (the rule pack, parameter defaults) are not in here: only the client's overrides.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tenant_id", "bureau_profiles", "rule_policies", "rule_parameters", "custom_rules"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "tenant_id": { "type": "string", "minLength": 1, "maxLength": 30 },
+    "exported_at": { "type": "string" },
+    "version_no": { "type": ["integer", "null"] },
+    "bureau_profiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["bureau_code", "submission_type", "member_id", "member_short_name", "header_segment_tag",
+                     "file_name_pattern", "is_active"],
+        "properties": {
+          "bureau_code": { "type": "string", "pattern": "^[A-Z_]{1,20}$" },
+          "submission_type": { "$ref": "#/$defs/submission_type" },
+          "member_id": { "type": "string", "pattern": "^[A-Za-z0-9]{1,30}$" },
+          "member_short_name": { "type": ["string", "null"], "maxLength": 16 },
+          "header_segment_tag": { "type": "string", "pattern": "^[A-Za-z0-9]{0,4}$" },
+          "file_name_pattern": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "is_active": { "type": "boolean" }
+        }
+      }
+    },
+    "rule_policies": {
+      "description": "rule_id -> override of the rule's own switch and outcome (null keeps the rule's own value)",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["is_enabled", "outcome"],
+        "properties": {
+          "is_enabled": { "type": ["boolean", "null"] },
+          "outcome": { "type": ["string", "null"], "maxLength": 20 }
+        }
+      }
+    },
+    "rule_parameters": {
+      "description": "submission type -> parameter name -> value as text (only values that differ from the default)",
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/submission_type" },
+      "additionalProperties": { "type": "object", "additionalProperties": { "type": "string", "maxLength": 1000 } }
+    },
+    "custom_rules": {
+      "description": "submission type -> the client's form-built rules (no SQL: built from the catalogue of checks)",
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/submission_type" },
+      "additionalProperties": { "type": "array", "items": { "$ref": "#/$defs/custom_rule" } }
+    }
+  },
+  "$defs": {
+    "submission_type": { "type": "string", "pattern": "^[A-Z_]{1,20}$" },
+    "custom_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "entity", "field", "check", "outcome", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "entity": { "type": "string", "maxLength": 60 },
+        "field": { "type": "string", "maxLength": 60 },
+        "check": { "enum": ["required", "in_list", "not_in_list", "range", "length", "pattern", "compare"] },
+        "outcome": { "type": "string", "maxLength": 20 },
+        "message": { "type": "string", "maxLength": 500 },
+        "values": { "type": "array", "items": { "type": "string" } },
+        "min": { "type": ["string", "null"] },
+        "max": { "type": ["string", "null"] },
+        "pattern": { "type": ["string", "null"] },
+        "operator": { "type": ["string", "null"] },
+        "other_field": { "type": ["string", "null"] },
+        "when_field": { "type": ["string", "null"] },
+        "when_values": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

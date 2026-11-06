@@ -38,6 +38,7 @@ class SubmissionRequest:
     error_message: str | None
     excel_file_path: str | None = None  # bureau Excel (migration 002)
     review_file_path: str | None = None  # review Excel (migration 002)
+    config_version: int | None = None  # client configuration version used (migration 008)
 
     @classmethod
     def from_row(cls, row) -> SubmissionRequest:
