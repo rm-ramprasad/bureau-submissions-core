@@ -2,7 +2,7 @@
 
 For the owner, on the Windows machine that deploys today. About 1–2 hours. Nothing here creates or deletes an Azure
 resource: the new code is published to the **same** Function App and Static Web App, with the **same** app settings.
-The old app stays installable until the end (step 7 is the way back).
+The previous app's code stays deployable until the end (step 7 is the way back).
 
 ## 0. Once: tools and the new folder
 
@@ -11,24 +11,20 @@ The old app stays installable until the end (step 7 is the way back).
    (or `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`), then open a **new**
    PowerShell and check `uv --version`. The other tools are the ones the old deploy already uses: `az`, `func`
    (Core Tools v4), Node / `npx`, ODBC Driver 18.
-2. **Get the new code into its own folder, next to the old one** (not inside it):
+2. **Get a copy of the code for deploying**, in any folder you like (e.g. `D:\deploy`). It is a clean copy of what
+   is merged on GitHub (`main`), used only to check and deploy; `git pull` in it before each deploy. (The folder
+   this container works in is not used for deploying: its `.venv` belongs to the container.)
 
    ```
-   cd "D:\Local projects"
+   cd D:\deploy
    git clone https://github.com/rm-ramprasad/bureau-submissions-core.git
    cd bureau-submissions-core
    uv sync
    ```
 
-   `uv sync` fetches Python 3.14 if needed and installs everything into `.venv` inside the new folder only.
-
-   ```
-   D:\Local projects\
-       submission-azure-functionapp\   <- old app: leave it as it is (the way back, step 7)
-       bureau-submissions-core\        <- new app: run every step below from here
-   ```
-
-   Your `.env.sql` stays where it is, outside both folders; step 1 only needs its path.
+   `uv sync` fetches Python 3.14 if needed and installs everything into `.venv` inside this folder only. Run every
+   step below from this folder. Your `.env.sql` stays where it is, outside the repository; step 1 only needs its
+   path.
 
 ## 1. Parity check (before anything changes)
 
@@ -91,5 +87,5 @@ Paste the two parity reports (step 1), the migrate output (step 3) and anything 
 
 ## 7. The way back (only if something is wrong after step 2)
 
-In the old app's folder (`submission-azure-functionapp-azure`), as before: `.\deploy\deploy.ps1 -FunctionOnly`.
+Redeploy the previous app's code with its own deploy script, as before (`deploy.ps1 -FunctionOnly`).
 Nothing in the database changed format, so the old app works on everything the new one wrote.
