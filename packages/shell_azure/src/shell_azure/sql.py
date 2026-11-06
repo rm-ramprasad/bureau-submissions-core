@@ -3,9 +3,12 @@
 
 from __future__ import annotations
 
+import os
 import re
 import struct
 from collections.abc import Callable
+from functools import cache
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import URL, Engine, event
@@ -46,3 +49,45 @@ def entra_token_hook(get_token: Callable[[], str]) -> Callable[[Engine], None]:
             add_access_token(cargs, cparams, get_token())
 
     return hook
+
+
+def sql_login_url(server: str, database: str, user: str, password: str) -> URL:
+    """mssql+pyodbc URL for Azure SQL with a SQL login (local development only)."""
+    url = azure_sql_url(server, database)
+    return url.set(username=user, password=password)
+
+
+def url_from_env_file(path: Path) -> URL:
+    """The local SQL login file (.env.sql: SUBMISSIONS_SQL_SERVER / DATABASE / USER / PASSWORD; never committed, never
+    logged: the URL object masks the password when printed). Without USER: Entra token authentication (`az login`)."""
+    env = {
+        k.strip(): v.strip()
+        for k, v in (
+            line.split("=", 1)
+            for line in path.read_text(encoding="utf-8-sig").splitlines()
+            if "=" in line and not line.lstrip().startswith("#")
+        )
+    }
+    server, database = env["SUBMISSIONS_SQL_SERVER"], env["SUBMISSIONS_SQL_DATABASE"]
+    if env.get("SUBMISSIONS_SQL_USER"):
+        return sql_login_url(server, database, env["SUBMISSIONS_SQL_USER"], env.get("SUBMISSIONS_SQL_PASSWORD", ""))
+    return azure_sql_url(server, database)
+
+
+@cache
+def credential() -> Any:
+    """The Function App's user-assigned managed identity (AZURE_CLIENT_ID) on Azure; `az login` locally."""
+    from azure.identity import DefaultAzureCredential
+
+    return DefaultAzureCredential(managed_identity_client_id=os.environ.get("AZURE_CLIENT_ID") or None)
+
+
+def sql_token() -> str:
+    return str(credential().get_token(TOKEN_SCOPE).token)
+
+
+def make_azure_engine(database_url: str | URL, **kwargs: Any) -> Engine:
+    """An engine for the app database: Azure SQL with an Entra token per connection (or a SQL login locally)."""
+    from canonical.db import make_engine
+
+    return make_engine(database_url, hooks=[entra_token_hook(sql_token)], **kwargs)

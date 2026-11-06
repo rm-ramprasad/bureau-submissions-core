@@ -7,7 +7,7 @@ shells. Design: `docs/requirements.md`. Plan and status: `docs/PLAN.md` and the 
 
 - **Layers** (enforced by `lint-imports`): `shell_*` → `app` → `sources` → `canonical` → `bureau_core`;
   `clientconfig` stands alone. Cloud SDKs (`azure.*`, `boto3`) only in `shell_*`.
-- **Workflow:** one short branch per step or sub-step, strictly in order; PR with the template filled in, CI green.
+- **Workflow:** one branch and PR per numbered step (owner decision 2026-11-06), strictly in order; PR with the template filled in, CI green.
   The owner (a data engineer, not a web developer) does not review code: each PR opens with **Decide / Risk / Merge
   if CI is green** in plain words, details folded away. The owner squash-merges; never merge, never push to `main`.
   Reference the issue (`Closes #N`). Verification: CI, golden files, the Database job, `/code-review` on risky PRs,
