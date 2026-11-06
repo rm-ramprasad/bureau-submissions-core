@@ -99,6 +99,8 @@ def test_users_job(engine):
         "output": "error: No user nobody",
     }
     assert run(engine, {"job": "users", "args": ["frobnicate"]})["exit_code"] == 2
+    helped = run(engine, {"job": "users", "args": ["add", "--help"]})
+    assert helped["exit_code"] == 0 and "--email" in helped["output"]
     from app import audit
 
     assert [e.action for e in audit.recent(engine)] == ["USER_DISABLED", "USER_EMAIL_CHANGED", "USER_ADDED"]
@@ -181,6 +183,8 @@ def test_admin_function_route(azure_env):
 
 def test_the_local_admin_command(azure_env, capsys):
     assert admin.main([]) == 2
+    assert admin.main(["retention", "--days", "0"]) == 2  # refused, not run with the default
+    assert "days must be at least 1" in capsys.readouterr().err
     assert admin.main(["recovery"]) == 0 and '"released": []' in capsys.readouterr().out
     assert admin.main(["retention", "--dry-run"]) == 0
     assert admin.main(["users", "list"]) == 0

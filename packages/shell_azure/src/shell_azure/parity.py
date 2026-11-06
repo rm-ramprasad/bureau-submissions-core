@@ -5,7 +5,8 @@
     uv run python -m shell_azure.parity <old request id, e.g. 20261102083455-327be1> [--old-files <folder>] [--keep]
 
 Old files are read from Blob storage with your `az login` (needs read access to the files container), or from a
-folder of files downloaded from the Files page (--old-files). New files go to ./parity-output/<request>/.
+folder of files downloaded from the Files page (--old-files). New files go to ./parity-output/<request>/ (they hold
+real borrower data: the folder is gitignored; delete it when done).
 Exit code 0 = identical, 1 = differences, 2 = could not run.
 """
 
@@ -47,8 +48,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         settings = Settings.from_env()
         engine = make_azure_engine(settings.database_url)
+        source = (
+            engine
+            if settings.source_database_url == settings.database_url
+            else make_azure_engine(settings.source_database_url)
+        )
         reader = local_reader(args.old_files) if args.old_files else _blob_reader(settings)
-        report = run_parity(engine, args.request, args.out / args.request, reader, keep=args.keep)
+        report = run_parity(engine, args.request, args.out / args.request, reader, source_engine=source, keep=args.keep)
     except Exception as exc:  # a plain message for the owner, not a stack trace
         print(f"Could not run the parity check: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2

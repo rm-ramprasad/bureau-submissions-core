@@ -64,7 +64,8 @@ def users(engine: Engine, args: list[str], actor: str = "admin") -> dict[str, An
         try:
             a = ap.parse_args(args)
         except (SystemExit, argparse.ArgumentError) as exc:
-            return {"exit_code": 2, "output": err.getvalue() or str(exc)}
+            code = exc.code if isinstance(exc, SystemExit) and isinstance(exc.code, int) else 2
+            return {"exit_code": code, "output": (out.getvalue() + err.getvalue()) or str(exc)}
     repo = UserRepository(engine)
     try:
         if a.cmd == "list":
@@ -131,6 +132,7 @@ def run_job(
     event: dict[str, Any],
     engine: Engine,
     *,
+    source_engine: Engine | None = None,
     tenant: str | None,
     dispatcher: Callable[[], Dispatcher],
     store: Callable[[], FileStore],
@@ -153,7 +155,7 @@ def run_job(
             a = ap.parse_args(args)
         except (SystemExit, argparse.ArgumentError) as exc:
             raise ValueError(f"views <TYPE> --as-of YYYY-MM-DD --load-id N ({exc})") from None
-        return views(engine, a.submission_type, a.as_of, a.load_id)
+        return views(source_engine or engine, a.submission_type, a.as_of, a.load_id)  # where the views are
     if job == "recovery":
         return recovery(engine, dispatcher())
     if job == "retention":
@@ -175,7 +177,7 @@ def main(argv: list[str] | None = None) -> int:
         ap.add_argument("--days", type=int)
         ap.add_argument("--dry-run", action="store_true")
         a = ap.parse_args(argv[1:])
-        event = {"job": "retention", "dry_run": a.dry_run, **({"days": a.days} if a.days else {})}
+        event = {"job": "retention", "dry_run": a.dry_run, **({"days": a.days} if a.days is not None else {})}
     try:
         result = handlers.jobs(event, actor="admin-cli")
     except ValueError as exc:

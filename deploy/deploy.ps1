@@ -36,6 +36,11 @@ function Step($text) { Write-Host "`n== $text" -ForegroundColor Cyan }
 function Check($what) { if ($LASTEXITCODE -ne 0) { throw "$what failed (exit $LASTEXITCODE)" } }
 
 $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
+# func checks the first `python` on PATH against the app's 3.14 and stops on a mismatch: put the project's
+# environment (made by `uv sync`) first.
+$Venv = Join-Path $Root ".venv\Scripts"
+if (-not (Test-Path (Join-Path $Venv "python.exe"))) { throw "Run 'uv sync' in $Root first (the deploy needs .venv)" }
+$env:Path = $Venv + ";" + $env:Path
 $Func = (Get-Command func -ErrorAction SilentlyContinue).Source
 if (-not $Func) { $Func = "$env:ProgramFiles\Microsoft\Azure Functions Core Tools\func.exe" }
 foreach ($tool in @{ uv = (Get-Command uv -ErrorAction SilentlyContinue); az = (Get-Command az -ErrorAction SilentlyContinue); func = (Test-Path $Func); npx = (Get-Command npx -ErrorAction SilentlyContinue) }.GetEnumerator()) {

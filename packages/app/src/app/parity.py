@@ -30,17 +30,13 @@ from app.adjustments.tables import snapshot_adjustment
 from app.bureaus import BureauRepository
 from app.enums import RunMode
 from app.ports.files import LocalFileStore
-from app.requests import RequestRepository, SubmissionRequest
-from app.validation.run import validate_snapshot
-from app.validation.settings import load_rule_set
+from app.requests import RequestRepository
 from app.validation.tables import record_outcome, validation_finding, validation_summary
 from canonical.db import utcnow
 from canonical.schema import ENTITY_TABLES
 from canonical.snapshot import SnapshotRepository
-from canonical.staging.loads import loaded_workbook
 from canonical.tenants import TenantRepository
-from sources.extract import purge_rows, run_extract
-from sources.views import compile_views
+from sources.extract import purge_rows
 
 SHOWN = 20  # differences listed per part (all are counted)
 FINDING_KEY = ("rule_id", "entity", "account_key", "party_key", "field", "outcome", "value")
@@ -153,19 +149,31 @@ def compare_snapshots(engine: Engine, old_id: int, new_id: int) -> list[Part]:
     return parts
 
 
-def compare_text_files(part: Part, old: bytes, new: bytes) -> None:
-    """Byte for byte; on a difference, the differing lines (the header carries the creation date and time, so a
-    header-only difference is called out as expected)."""
+def compare_text_files(part: Part, old: bytes, new: bytes, header_bytes: int | None = None) -> None:
+    """Byte for byte. The header carries the creation date and time, so a difference only inside the header (the
+    first `header_bytes`, or the first line when None) is noted as expected; any other difference is listed with
+    its position and the bytes around it."""
     part.compared += 1
     if old == new:
         return
-    old_lines, new_lines = old.decode("latin-1").splitlines(), new.decode("latin-1").splitlines()
-    differing = [i for i in range(max(len(old_lines), len(new_lines))) if old_lines[i : i + 1] != new_lines[i : i + 1]]
-    if differing == [0]:
-        part.note = "(only the header line differs: creation date/time, expected)"
+    if header_bytes is None:
+        header_bytes = old.find(b"\n") + 1 if b"\n" in old else 0
+    n = min(len(old), len(new))
+    first = next((i for i in range(n) if old[i] != new[i]), n)
+    tail_same = len(old) == len(new) and old[header_bytes:] == new[header_bytes:]
+    if header_bytes and first < header_bytes and tail_same:
+        part.note = "(only the header differs: creation date/time, expected)"
         return
-    for i in differing:
-        part.differ(f"line {i + 1}: OLD {old_lines[i : i + 1]!r} / NEW {new_lines[i : i + 1]!r}"[:400])
+    offsets = [i for i in range(max(header_bytes, first), n) if old[i] != new[i]]
+    if len(old) != len(new):
+        part.differ(f"length: OLD {len(old)} bytes / NEW {len(new)} bytes")
+    i = 0
+    while i < len(offsets):  # one difference per stretch of differing bytes (the first SHOWN listed)
+        at = offsets[i]
+        a, b = old[max(0, at - 20) : at + 40], new[max(0, at - 20) : at + 40]
+        part.differ(f"byte {at}: OLD {a.decode('latin-1')!r} / NEW {b.decode('latin-1')!r}")
+        while i < len(offsets) and offsets[i] < at + 40:
+            i += 1
 
 
 def compare_workbooks(part: Part, old: bytes, new: bytes, sheet: str | None = None) -> None:
@@ -182,10 +190,23 @@ def compare_workbooks(part: Part, old: bytes, new: bytes, sheet: str | None = No
             part.differ(f"row {i + 1}: OLD {x!r} / NEW {y!r}"[:400])
 
 
-def _parity_request(old: SubmissionRequest, batch_id: str, **changes: Any) -> SubmissionRequest:
-    from dataclasses import replace
+def _old_load_id(engine: Engine, old_batch: str, submission_type: str, built_at: datetime) -> int | None:
+    """The upload the old snapshot was built from: the request's newest LOADED workbook of the type loaded before
+    the snapshot (a later re-upload would otherwise be picked)."""
+    from canonical.staging.tables import input_load as t
 
-    return replace(old, batch_id=batch_id, **changes)
+    with engine.connect() as conn:
+        return conn.execute(
+            select(t.c.load_id)
+            .where(
+                t.c.batch_id == old_batch,
+                t.c.submission_type == str(submission_type),
+                t.c.status == "LOADED",
+                t.c.loaded_at <= built_at,
+            )
+            .order_by(t.c.loaded_at.desc(), t.c.load_id.desc())
+            .limit(1)
+        ).scalar()
 
 
 def run_parity(
@@ -194,57 +215,63 @@ def run_parity(
     out_dir: Path,
     read_old_file: Callable[[str], bytes],
     *,
+    source_engine: Engine | None = None,
     keep: bool = False,
     clock: Callable[[], datetime] = utcnow,
 ) -> Report:
     """The parity report for one old validation request (see the module doc). `read_old_file(uri)` returns an old
-    file's bytes (from Blob storage on Azure, or a local folder)."""
+    file's bytes (from Blob storage on Azure, or a local folder). `source_engine`: where the source views are
+    (default: the app database)."""
+    import secrets
+    from dataclasses import replace
+
+    from app.enums import RequestStatus, SnapshotStatus
     from app.pipeline import Services, get_pipeline
 
     requests, snapshots = RequestRepository(engine), SnapshotRepository(engine)
-    rows = [r for r in requests.list_batch(old_batch) if r.run_mode is RunMode.VALIDATE and r.snapshot_id]
+    rows = [
+        r
+        for r in requests.list_batch(old_batch)
+        if r.run_mode is RunMode.VALIDATE and r.status is RequestStatus.SUCCEEDED and r.snapshot_id
+    ]
+    rows = [r for r in rows if snapshots.get(r.snapshot_id or 0).status is SnapshotStatus.VALIDATED]
     if not rows:
         raise ValueError(f"{old_batch} is not a finished validation request (no validated snapshot)")
     report = Report(old_batch)
-    store = LocalFileStore(out_dir)
-    services = Services(engine, engine, snapshots, store)
+    services = Services(engine, source_engine or engine, snapshots, LocalFileStore(out_dir))
     tenants, bureaus = TenantRepository(engine), BureauRepository(engine)
-    stamp = clock().strftime("%Y%m%d%H%M%S")
+    batch_id = f"parity-{clock():%Y%m%d%H%M%S}-{secrets.token_hex(3)}"  # unique, within the 40-character limit
     for row in rows:
         old_sid = row.snapshot_id
         assert old_sid is not None
+        old_snap = snapshots.get(old_sid)
         tenant = tenants.get(row.tenant_id)
-        load_id = loaded_workbook(engine, old_batch, row.submission_type)
-        batch_id = f"parity-{old_batch}-{stamp}"[:40]
-        new_sid = run_extract(
-            tenant=tenant,
-            compiled=compile_views(engine, row.submission_type),
-            submission_type=row.submission_type,
-            as_of_date=row.as_of_date,
-            app_engine=engine,
-            source_engine=engine,
-            snapshots=snapshots,
-            owner="parity",
-            batch_id=batch_id,
-            load_id=load_id,
-            adjustments=FrozenAdjustments(engine, old_sid),
-        ).snapshot_id
+        pipeline = get_pipeline(row.submission_type)
+        if pipeline is None:
+            raise ValueError(f"No pipeline for {row.submission_type}")
+        new_sid = None
         try:
-            validate_snapshot(engine, snapshots, new_sid, load_rule_set(engine, tenant.tenant_id, row.submission_type))
+            new_sid, _ = pipeline.build_snapshot(  # the workers' own code path
+                services,
+                tenant,
+                replace(row, batch_id=batch_id),
+                "parity",
+                load_id=_old_load_id(engine, old_batch, row.submission_type, old_snap.created_at),
+                adjustments=FrozenAdjustments(engine, old_sid),
+            )
             for part in compare_snapshots(engine, old_sid, new_sid):
                 part.name = f"{row.submission_type} {part.name}"
                 report.parts.append(part)
-            pipeline = get_pipeline(row.submission_type)
+            header = _header_bytes(row.submission_type)
             for gen in requests.generations([old_sid]):
-                if gen.status.value != "SUCCEEDED" or not gen.bureau_code or pipeline is None:
+                if gen.status is not RequestStatus.SUCCEEDED or not gen.bureau_code:
                     continue
                 label = f"{row.submission_type} {gen.bureau_code} files"
-                new_snap = snapshots.get(new_sid)
                 result = pipeline.generate_file(
                     services,
                     tenant,
-                    _parity_request(gen, f"{batch_id}-{gen.bureau_code}"[:40], snapshot_id=new_sid),
-                    new_snap,
+                    replace(gen, batch_id=f"{batch_id}-{gen.request_id}"[:40], snapshot_id=new_sid),
+                    snapshots.get(new_sid),
                     bureaus.get(gen.tenant_id, gen.bureau_code, gen.submission_type),
                 )
                 file_part = Part(f"{label}: bureau file ({gen.output_file_name})")
@@ -253,21 +280,33 @@ def run_parity(
                 except FileNotFoundError as exc:
                     file_part.note = f"NOT COMPARED: old file not readable ({exc})"
                 else:
-                    compare_text_files(file_part, old_file, Path(result.output_file_path or "").read_bytes())
+                    compare_text_files(file_part, old_file, Path(result.output_file_path or "").read_bytes(), header)
                 report.parts.append(file_part)
                 if gen.excel_file_path and result.excel_file_path:
                     xl_part = Part(f"{label}: bureau Excel")
                     try:
-                        compare_workbooks(
-                            xl_part, read_old_file(gen.excel_file_path), Path(result.excel_file_path).read_bytes()
-                        )
+                        old_xl = read_old_file(gen.excel_file_path)
                     except FileNotFoundError as exc:
                         xl_part.note = f"NOT COMPARED: old file not readable ({exc})"
+                    else:
+                        compare_workbooks(xl_part, old_xl, Path(result.excel_file_path).read_bytes())
                     report.parts.append(xl_part)
         finally:
-            if not keep:
+            if new_sid is None:  # the build failed: its FAILED header (if any) is removed too
+                failed = snapshots.find_for_batch(batch_id, row.tenant_id, row.submission_type)
+                new_sid = failed.snapshot_id if failed else None
+            if new_sid is not None and not keep:
                 remove_snapshot(engine, new_sid)
     return report
+
+
+def _header_bytes(submission_type: str) -> int | None:
+    """The TUDF header's fixed length (a consumer TUDF has no line breaks); None: the first line (pipe files)."""
+    if str(submission_type) == "CONSUMER":
+        from app.types.consumer.file import header_length
+
+        return header_length()
+    return None
 
 
 def remove_snapshot(engine: Engine, snapshot_id: int) -> None:

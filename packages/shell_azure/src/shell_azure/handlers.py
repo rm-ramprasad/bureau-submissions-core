@@ -132,6 +132,7 @@ def jobs(event: dict[str, Any], actor: str = "admin-function") -> dict[str, Any]
     return admin.run_job(
         event,
         engine(),
+        source_engine=source_engine(),
         tenant=s.tenant,
         dispatcher=dispatcher,
         store=store,
