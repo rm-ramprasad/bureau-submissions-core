@@ -224,13 +224,20 @@ event.listen(metadata, "before_drop", DDL("DROP VIEW IF EXISTS automn.v_snapshot
 
 
 # ---------------------------------------------------------------- the private engine
-def sqlite_engine() -> Engine:
-    """In-memory SQLite with schema automn attached and the T-SQL functions the rule SQL uses."""
-    engine = create_engine("sqlite://", poolclass=StaticPool)
+def sqlite_engine(path: str | None = None) -> Engine:
+    """SQLite with schema automn attached and the T-SQL functions the rule SQL uses. In memory by default; with
+    `path`, in that file (and `<path>.automn`): large batches then live on disk (the OS caches it) instead of in the
+    process's memory. The caller deletes the files (validate does)."""
+    engine = create_engine(f"sqlite:///{path}" if path else "sqlite://", poolclass=StaticPool)
+    attach = f"{path}.{SCHEMA}" if path else ":memory:"
 
     @event.listens_for(engine, "connect")
     def _attach(dbapi_conn: Any, _: Any) -> None:
-        dbapi_conn.execute(f"ATTACH DATABASE ':memory:' AS {SCHEMA}")
+        dbapi_conn.execute(f"ATTACH DATABASE '{attach}' AS {SCHEMA}")
+        if path:  # a throw-away database: no crash safety needed, just speed
+            for schema in ("main", SCHEMA):
+                dbapi_conn.execute(f"PRAGMA {schema}.journal_mode = OFF")
+                dbapi_conn.execute(f"PRAGMA {schema}.synchronous = OFF")
         dbapi_conn.execute("PRAGMA foreign_keys = ON")
         dbapi_conn.create_function("LEN", 1, _len, deterministic=True)
         dbapi_conn.create_function("REGEXP_LIKE", 2, _regexp_like, deterministic=True)

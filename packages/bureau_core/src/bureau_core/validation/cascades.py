@@ -35,6 +35,28 @@ def applies(f, account_key: str, party_key: str) -> bool:
     return f.account_key in (None, account_key) and f.party_key in (None, party_key)
 
 
+class FindingIndex:
+    """Record-level findings indexed by account and by party, so finding which hit one record does not scan them all
+    (1 lakh records x every finding grew with the square of the data). The order is the findings' own, as before:
+    the first one is the record's reason."""
+
+    def __init__(self, findings: list) -> None:
+        self.findings = findings
+        self.by_account: dict[str, list[int]] = defaultdict(list)
+        self.by_party: dict[str, list[int]] = defaultdict(list)
+        for i, f in enumerate(findings):
+            if f.account_key is not None:
+                self.by_account[f.account_key].append(i)
+            elif f.party_key is not None:  # account-less: hits every record of the party
+                self.by_party[f.party_key].append(i)
+
+    def reasons(self, account_key: str, party_key: str) -> list[str]:
+        """The rule ids of the findings that hit this record (as `applies`), in the findings' order."""
+        hits = [i for i in self.by_account.get(account_key, ()) if applies(self.findings[i], account_key, party_key)]
+        hits += self.by_party.get(party_key, ())
+        return [self.findings[i].rule_id for i in sorted(hits)]
+
+
 def _rows(conn: Connection, snapshot_id: int, entity: str, *cols):
     t = ENTITY_TABLES[entity]
     return conn.execute(select(*(t.c[c] for c in cols)).where(t.c.snapshot_id == snapshot_id)).all()
@@ -67,6 +89,7 @@ def account_holder_minimums(
         )
     ).all()
     record_rejects = [x for x in findings if x.outcome in RECORD_OUTCOMES]
+    record_index = FindingIndex(record_rejects)
     segment_rejects = defaultdict(list)  # (entity, row_id) -> account restriction (None = all)
     for x in findings:
         if x.outcome in SEGMENT_OUTCOMES and x.row_id is not None:
@@ -87,7 +110,7 @@ def account_holder_minimums(
         def ok(entity, row_id):
             return not any(a is None or a == account_key for a in segment_rejects.get((entity, row_id), []))  # noqa: B023  (called in this iteration only)
 
-        reasons = [x.rule_id for x in record_rejects if applies(x, account_key, party_key)]
+        reasons = record_index.reasons(account_key, party_key)
         valid_ids = [i for i in ids[party_key] if ok("party_identifier", i.row_id)]
         valid_phones = [p for p in phones[party_key] if ok("party_phone", p.row_id)]
         checks = [
@@ -172,6 +195,7 @@ def facility_borrower_minimums(
         )
     ).all()
     record_rejects = [x for x in findings if x.outcome in RECORD_OUTCOMES]
+    record_index = FindingIndex(record_rejects)
     segment_rejects = {(x.entity, x.row_id) for x in findings if x.outcome in SEGMENT_OUTCOMES and x.row_id is not None}
 
     def valid(entity, party_key):
@@ -182,7 +206,7 @@ def facility_borrower_minimums(
         holders.setdefault((r.account_key, r.party_key), r.row_id)
     outcomes, cascade_findings, accepted = [], [], 0
     for (account_key, party_key), holder_row in holders.items():
-        reasons = [x.rule_id for x in record_rejects if applies(x, account_key, party_key)]
+        reasons = record_index.reasons(account_key, party_key)
         checks = [
             (settings["no_identifier_rule"], not valid("party_identifier", party_key)),
             (settings["no_valid_address_rule"], not valid("party_address", party_key)),

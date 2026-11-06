@@ -1,8 +1,8 @@
 """The three outputs of one bureau, for types with an Excel layout (types/<type>/excel_layout.yaml, e.g. consumer):
 
   1. bureau Excel   <stem>.xlsx         the Data Submission Form only: what is uploaded to the bureau's portal
-  2. review Excel   <stem>-review.xlsx  the same form + Reconciliation, Column map, Sample, Mismatches, Findings,
-                                        Left out, Data quality: for the credit team
+  2. review Excel   <stem>-review.xlsx  the check sheets: Reconciliation, Column map, Sample, Mismatches,
+                                        Findings, Left out, Data quality (for the credit team; the rows are in file 1)
   3. TUDF           <stem>.txt          converted from file 1 by the standalone converter (bureau_core.tudf)
 
 File 3 is made from file 1, and the reconciliation (file 1 vs file 3, cell by cell at its TUDF place) goes into file 2.
@@ -26,7 +26,7 @@ from app.enums import RecordOutcome
 from app.render import build_excel
 from app.requests import RequestResult, SubmissionRequest
 from app.validation.tables import record_outcome, validation_finding
-from bureau_core.formats.excel.engine import add_sheets
+from bureau_core.formats.excel.engine import new_workbook
 from bureau_core.tudf import convert
 from bureau_core.tudf.reconcile import reconcile
 from bureau_core.types import type_definition
@@ -158,21 +158,8 @@ def _adjustments(engine, snapshot_id: int) -> list[list]:
 
 
 def _workbook(sheets: dict[str, list[list]]) -> bytes:
-    """A new workbook of these sheets (name -> rows); header rows bold, as add_sheets writes them."""
-    from openpyxl import Workbook
-
-    wb = Workbook()
-    wb.active.title = "_"
-    buf = io.BytesIO()
-    wb.save(buf)
-    content = add_sheets(buf.getvalue(), sheets)
-    from openpyxl import load_workbook
-
-    wb = load_workbook(io.BytesIO(content))
-    del wb["_"]
-    out = io.BytesIO()
-    wb.save(out)
-    return out.getvalue()
+    """A new workbook of these sheets (name -> rows), header rows bold, written row by row."""
+    return new_workbook(sheets)
 
 
 def _file_summary(content: bytes, name: str, bureau: BureauProfile, snapshot: Snapshot, delimiter: str) -> list[list]:
@@ -270,7 +257,9 @@ def generate_outputs(
     sheets["Data quality"] = _data_quality(engine, snapshot.batch_id, submission_type)
     if tudf.warnings:
         sheets["Conversion warnings"] = [["Warning"]] + [[w] for w in tudf.warnings]
-    review_uri = services.store.put(f"{folder}/{stem}-review.xlsx", add_sheets(excel.content, sheets), XLSX)
+    # The review Excel holds the check sheets only (owner decision 2026-11-06): the rows are in the bureau Excel, and
+    # copying them into the review file made the app hold the whole form in memory (over 5 GB at 1 lakh rows).
+    review_uri = services.store.put(f"{folder}/{stem}-review.xlsx", new_workbook(sheets), XLSX)
     if not recon.matched:
         mismatched = sum(c.mismatched for c in recon.columns) + sum(1 for c in recon.checks if not c[3])
         raise OutputsNotMatched(

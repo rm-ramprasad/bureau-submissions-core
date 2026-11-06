@@ -19,6 +19,7 @@ from __future__ import annotations
 import io
 import zipfile
 from collections import defaultdict
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -108,7 +109,9 @@ def _row(entity: str, row_id: int, values: dict) -> SimpleNamespace:
     return SimpleNamespace(**{**blank, **values, "row_id": row_id, "snapshot_id": 0})
 
 
-def _read_form(workbook, sheet_name: str) -> tuple[list[str], list[tuple[int, tuple]]]:
+def _read_form(workbook, sheet_name: str) -> tuple[list[str], Iterator[tuple[int, tuple]]]:
+    """The form's header and its rows as (Excel row number, values), read one at a time (read-only mode): the
+    workbook is never held in memory whole. The rows can be read once; the workbook closes when they run out."""
     import openpyxl
     from openpyxl.utils.exceptions import InvalidFileException
 
@@ -121,14 +124,19 @@ def _read_form(workbook, sheet_name: str) -> tuple[list[str], list[tuple[int, tu
         wb = openpyxl.load_workbook(source, read_only=True, data_only=True)
     except (InvalidFileException, zipfile.BadZipFile, OSError, KeyError, ValueError) as exc:
         raise ConversionError(f"Not an .xlsx workbook ({type(exc).__name__})") from exc
-    try:
-        if sheet_name not in wb.sheetnames:
-            raise ConversionError(f"The workbook has no sheet {sheet_name!r}")
-        rows = wb[sheet_name].iter_rows(values_only=True)
-        header = [str(h) if h is not None else "" for h in next(rows, ())]
-        return header, [(n, r) for n, r in enumerate(rows, start=2)]
-    finally:
+    if sheet_name not in wb.sheetnames:
         wb.close()
+        raise ConversionError(f"The workbook has no sheet {sheet_name!r}")
+    rows = wb[sheet_name].iter_rows(values_only=True)
+    header = [str(h) if h is not None else "" for h in next(rows, ())]
+
+    def stream() -> Iterator[tuple[int, tuple]]:
+        try:
+            yield from enumerate(rows, start=2)
+        finally:
+            wb.close()
+
+    return header, stream()
 
 
 def convert(

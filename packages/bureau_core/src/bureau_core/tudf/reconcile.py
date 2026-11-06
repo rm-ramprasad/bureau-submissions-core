@@ -304,16 +304,17 @@ def reconcile(excel: bytes, tudf: bytes, submission_type: str = "CONSUMER") -> R
     places = column_map(submission_type)
     header_row, rows = _read_form(excel, layout.sheet)
     position = {normalise_header(h): i for i, h in enumerate(header_row)}
-    form_rows = []
-    for n, raw in rows:
-        cells = {
-            p.header: cell_text(raw[position[normalise_header(p.header)]])
-            if position[normalise_header(p.header)] < len(raw)
-            else None
-            for p in places
-        }
-        if any(v is not None for v in cells.values()):
-            form_rows.append((n, cells))
+
+    def form_rows_iter():  # one form row at a time: nothing of the form is kept (memory stays small at 1 lakh rows)
+        for n, raw in rows:
+            cells = {
+                p.header: cell_text(raw[position[normalise_header(p.header)]])
+                if position[normalise_header(p.header)] < len(raw)
+                else None
+                for p in places
+            }
+            if any(v is not None for v in cells.values()):
+                yield n, cells
 
     enc = tudf_layout.encoding
     text = tudf.decode(enc.charset)
@@ -341,7 +342,17 @@ def reconcile(excel: bytes, tudf: bytes, submission_type: str = "CONSUMER") -> R
     for p in places:
         if p.rank:
             families[p.rank_group].append(p)
-    for n, cells in form_rows:
+    member_header = next(p.header for p in places if p.tags == ("01",) and p.segment == "TL")
+    amount_places = [c for c in AMOUNT_COLUMNS if any(p.header == c for p in places)]
+    form_totals = dict.fromkeys(amount_places, Decimal(0))
+    members: set[str] = set()
+    form_count = 0
+    for n, cells in form_rows_iter():
+        form_count += 1
+        members.add(cells[member_header] or "")
+        for col in amount_places:
+            if cells[col]:
+                form_totals[col] += (_num(cells[col]) or Decimal(0)).quantize(Decimal(1))
         key = (cells[account_header], " ".join(printable(cells[name_header] or "").split()))
         if not pending[key]:
             unpaired += 1
@@ -376,16 +387,13 @@ def reconcile(excel: bytes, tudf: bytes, submission_type: str = "CONSUMER") -> R
             samples.append(sample)
     leftover = sum(len(q) for q in pending.values())
 
-    members = {
-        (c[next(p.header for p in places if p.tags == ("01",) and p.segment == "TL")] or "") for _, c in form_rows
-    }
     header_member = header_value(tudf_layout, head, "bureau.member_id")
     checks = [
         (
             "Records: form rows = TUDF records",
-            str(len(form_rows)),
+            str(form_count),
             str(len(records)),
-            len(form_rows) == len(records) and unpaired == 0 and leftover == 0,
+            form_count == len(records) and unpaired == 0 and leftover == 0,
         ),
         ("Member ID in the TUDF header", ", ".join(sorted(members)), header_member, members == {header_member}),
         ("Trailer present", "TRLR", body[-len(enc.trailer) :] if body else "", trailer_ok),
@@ -394,7 +402,7 @@ def reconcile(excel: bytes, tudf: bytes, submission_type: str = "CONSUMER") -> R
         place = next((p for p in places if p.header == col), None)
         if place is None:
             continue
-        form_total = sum((_num(c[col]) or Decimal(0)).quantize(Decimal(1)) for _, c in form_rows if c[col])
+        form_total = form_totals[col]
         tudf_total = Decimal(0)
         for rec in records:
             v = _value_at(place, _segments(rec), {})
@@ -403,5 +411,5 @@ def reconcile(excel: bytes, tudf: bytes, submission_type: str = "CONSUMER") -> R
         checks.append((f"Total {col.strip()}", str(form_total), str(tudf_total), abs(form_total - tudf_total) < 1))
     matched = not any(r.mismatched for r in results.values()) and all(c[3] for c in checks)
     return Reconciliation(
-        matched, len(form_rows), len(records), list(results.values()), mismatches, checks, dict(seg_counts), samples
+        matched, form_count, len(records), list(results.values()), mismatches, checks, dict(seg_counts), samples
     )
