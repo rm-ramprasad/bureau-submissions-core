@@ -46,7 +46,8 @@ def _dashboard_type() -> SubmissionType:
     """The dashboard's submission type (?type=): one type at a time, record counts of types do not add up."""
     offered = _offered_types()
     try:
-        chosen = SubmissionType(request.args.get("type")) if request.args.get("type") else None
+        raw = request.args.get("type")
+        chosen = SubmissionType(raw) if raw else None
     except ValueError:
         fail("Unknown submission type")
     return chosen if chosen in offered else (offered[0] if offered else SubmissionType.CONSUMER)

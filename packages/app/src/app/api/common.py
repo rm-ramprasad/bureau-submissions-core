@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime, timedelta
+from typing import NoReturn, cast
 
 from flask import Blueprint, abort, current_app, jsonify, request
 
@@ -35,7 +36,7 @@ DOWNLOADS = {
 
 
 def svc() -> ApiServices:
-    return current_app.extensions["bureau_submissions"]
+    return cast(ApiServices, current_app.extensions["bureau_submissions"])
 
 
 def body() -> dict:
@@ -52,11 +53,11 @@ def message(text: str, status: int = 200, **extra):
     return jsonify(message=text, **extra), status
 
 
-def fail(text: str, status: int = 400):
+def fail(text: str, status: int = 400) -> NoReturn:
     abort(status, text)
 
 
-CYCLE_LABELS = {
+CYCLE_LABELS: dict[ReportingCycle | None, str] = {
     ReportingCycle.WEEKLY_1: "Week 1 (W1)",
     ReportingCycle.WEEKLY_2: "Week 2 (W2)",
     ReportingCycle.WEEKLY_3: "Week 3 (W3)",

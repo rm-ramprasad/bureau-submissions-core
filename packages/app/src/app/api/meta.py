@@ -90,7 +90,7 @@ def meta():
             {
                 "value": d,
                 "cycle": ReportingCycle.for_date(d),
-                "label": f"{d:%d-%m-%Y} · {CYCLE_LABELS[ReportingCycle.for_date(d)]}",
+                "label": f"{d:%d-%m-%Y} · {CYCLE_LABELS.get(ReportingCycle.for_date(d))}",
             }
             for d in dates
         ],

@@ -27,6 +27,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cache, wraps
+from typing import Any, NoReturn, cast
 
 import jwt
 from flask import abort, current_app, g, request
@@ -59,10 +60,10 @@ class Groups:
 
 
 def current_user() -> str:
-    return g.identity.username
+    return str(g.identity.username)
 
 
-def admin_only(view):
+def admin_only[View: Callable[..., Any]](view: View) -> View:
     """Only administrators (the Admins group, or an admin app user) may call this route; others get 403, audited."""
 
     @wraps(view)
@@ -78,7 +79,7 @@ def admin_only(view):
             abort(403, "Only administrators can change rules and policies.")
         return view(*args, **kwargs)
 
-    return wrapped
+    return cast(View, wrapped)
 
 
 @cache
@@ -120,7 +121,7 @@ def _new_username(repo: UserRepository, email: str) -> str:
     return name
 
 
-def _deny(engine, email: str, claims: dict, reason: str):
+def _deny(engine, email: str, claims: dict, reason: str) -> NoReturn:
     audit.record(
         engine,
         email or claims.get("oid", "-"),

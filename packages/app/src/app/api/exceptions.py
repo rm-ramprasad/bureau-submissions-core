@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from flask import jsonify, request
 
 from app import audit
@@ -70,10 +72,11 @@ def request_exceptions(batch_id: str):
     s = svc()
     rows, row = _request_row(batch_id)
     history = bool(request.args.get("history"))
-    frozen, effects = {}, {}
+    frozen: dict[int, int] = {}
+    effects: dict[int, list[Any]] = {}
     if row.snapshot_id:
         frozen = s.adjustments.frozen(row.snapshot_id)
-        for e in s.adjustments.applied(row.snapshot_id):
+        for e in s.adjustments.applied(row.snapshot_id):  # type: ignore[attr-defined]
             effects.setdefault(e.adjustment_id, []).append(e)
     is_draft = row.status is RequestStatus.DRAFT
     items = []

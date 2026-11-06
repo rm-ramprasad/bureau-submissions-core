@@ -37,7 +37,7 @@ def record(
     action: str,
     *,
     tenant_id: str | None = None,
-    target: str | None = None,
+    target: object | None = None,
     clock: Callable[[], datetime] = utcnow,
     **details,
 ) -> None:
@@ -64,7 +64,7 @@ def recent(
     tenant_id: str | None = None,
     action: str | None = None,
     actor: str | None = None,
-    target: str | None = None,
+    target: object | None = None,
 ) -> list:
     q = select(audit_event).order_by(audit_event.c.event_id.desc()).limit(limit)
     for col, value in (

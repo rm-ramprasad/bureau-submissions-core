@@ -70,7 +70,8 @@ def create_request():
             "(or choose a DL, DC, AH or RR cycle)."
         )
     try:
-        not_enabled = [t for t in types if SubmissionType(t) not in available_types(s.engine)]
+        offered = available_types(s.engine)  # one look at the views, not one per type
+        not_enabled = [t for t in types if SubmissionType(t) not in offered]
         if not_enabled:
             raise RequestValidationError(
                 f"Not set up for this NBFC: {', '.join(not_enabled)} (its views automn.vw_<type>_* are not in the database)"
@@ -121,8 +122,8 @@ def batch(batch_id: str):
                 "adjusted": applied_summary(s.engine, snapshot_id),
             }
         )
-    validated = {x["snapshot"].snapshot_id for x in snapshots if x["snapshot"].status is SnapshotStatus.VALIDATED}
-    made = s.requests.generations({r.snapshot_id for r in rows if r.run_mode is RunMode.VALIDATE})
+    validated = {x["snapshot"].snapshot_id for x in snapshots if x["snapshot"].status is SnapshotStatus.VALIDATED}  # type: ignore[attr-defined]
+    made = s.requests.generations({r.snapshot_id for r in rows if r.run_mode is RunMode.VALIDATE and r.snapshot_id})
     live = {g.snapshot_id for g in made if g.status in LIVE_GENERATION}
     generate_from = [
         {

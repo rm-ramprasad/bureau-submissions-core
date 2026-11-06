@@ -337,7 +337,7 @@ def reset_rule_policy(rule_id: str):
             "RULE_POLICY_RESET",
             tenant_id=tenant_id,
             target=rule_id,
-            before={"enabled": before["is_enabled"], "outcome": before["outcome"]},
+            before={"enabled": (before or {}).get("is_enabled"), "outcome": (before or {}).get("outcome")},  # race-safe
             reason=(body().get("reason") or "").strip()[:500] or None,
         )
     return message(f"{rule_id}: back to the default for {tenant_id}.")

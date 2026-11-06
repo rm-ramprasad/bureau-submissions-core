@@ -93,7 +93,8 @@ def _issue_summary(engine: Engine, load_id: int) -> list[dict]:
             },
         )
         if r.source_row is None and "more row(s) not listed" in (r.message or ""):
-            g["count"] += int(re.search(r"(\d+) more row", r.message).group(1))  # the rows past the list limit
+            more = re.search(r"(\d+) more row", r.message or "")
+            g["count"] += int(more.group(1)) if more else 0  # the rows past the list limit
             g["truncated"] = True
             continue
         g["count"] += 1
@@ -200,13 +201,13 @@ def upload_input(batch_id: str, submission_type: str):
         return jsonify(
             message="The workbook was not loaded: " + "; ".join(i.message for i in result.errors), latest=latest
         ), 422
-    if not checks.passed:
+    if checks is not None and not checks.passed:
         return jsonify(
             message=f"{file_name} loaded, but {checks.blocking} row(s) fail blocking data-quality checks "
             "(see below). Fix the workbook and upload it again.",
             latest=latest,
         ), 422
-    warnings = sum(i.severity == "WARN" for i in result.issues) + checks.warnings
+    warnings = sum(i.severity == "WARN" for i in result.issues) + (checks.warnings if checks else 0)
     total = sum(result.row_counts.values())
     text = f"{file_name} loaded and checked: {total} rows from {len(result.row_counts)} sheet(s)."
     if warnings:
