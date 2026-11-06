@@ -69,6 +69,25 @@ def capture_batch(conn: Connection, snapshot_id: int) -> CanonicalBatch:
     )
 
 
+def snapshot_result(engine: Engine, snapshot_id: int) -> ValidationSummary:
+    """The stored result of an already validated snapshot (a snapshot reused to generate files)."""
+    s, o = validation_summary.c, record_outcome.c
+    with engine.connect() as conn:
+        by_outcome = {
+            k: int(v)
+            for k, v in conn.execute(
+                select(s.outcome, func.sum(s.finding_count)).where(s.snapshot_id == snapshot_id).group_by(s.outcome)
+            )
+        }
+        records: dict[str, int] = dict(
+            conn.execute(select(o.outcome, func.count()).where(o.snapshot_id == snapshot_id).group_by(o.outcome)).all()
+        )
+    accepted, rejected = records.get(str(RecordOutcome.ACCEPTED), 0), records.get(str(RecordOutcome.REJECTED), 0)
+    return ValidationSummary(
+        snapshot_id, accepted + rejected, accepted, rejected, bool(by_outcome.get(str(Outcome.REJECT_FILE))), by_outcome
+    )
+
+
 def core_result(engine: Engine, snapshots: SnapshotRepository, snapshot_id: int, rules: list[Rule]) -> CoreResult:
     """The core's result for the snapshot, from the app database's inputs (nothing is written)."""
     snap = snapshots.get(snapshot_id)

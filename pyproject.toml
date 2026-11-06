@@ -89,6 +89,7 @@ module = [
     "bureau_core", "bureau_core.*", "canonical", "canonical.*", "sources", "sources.*",
     "app.audit", "app.bureaus.*", "app.requests.*", "app.users",  # ported in 1.3a
     "app.adjustments.*", "app.validation.custom", "app.validation.results", "app.validation.tables",  # 1.3b
+    "app.ops.*", "app.pipeline.outputs", "app.render", "app.types.*", "app.worker.*",  # 1.3c
 ]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
@@ -147,6 +148,13 @@ module = [
     "app.requests.stages",
     "app.users",
     "app.adjustments.repository",
+    "app.ops.recovery",
+    "app.ops.retention",
+    "app.pipeline.outputs",
+    "app.render",
+    "app.types.commercial.file",
+    "app.types.consumer.file",
+    "app.worker.runner",
     "app.adjustments.summary",
     "app.validation.custom",
     "app.validation.results",
