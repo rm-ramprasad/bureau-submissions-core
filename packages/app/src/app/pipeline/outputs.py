@@ -20,6 +20,7 @@ from pathlib import Path
 import yaml
 from sqlalchemy import select
 
+from app import reconciliation
 from app.adjustments.summary import adjustments_csv
 from app.bureaus import BureauProfile
 from app.enums import RecordOutcome
@@ -250,6 +251,10 @@ def generate_outputs(
         cycle=str(request.reporting_cycle) if request.reporting_cycle else None,
     )
     recon = reconcile(excel.content, tudf.content, submission_type)
+    # kept in the database too (issue #39): trends across months, and the result outlives the files
+    reconciliation.save(
+        engine, request.request_id, snapshot.snapshot_id, submission_type, str(bureau.bureau_code), recon
+    )
     sheets = recon.sheets()
     sheets["Findings"] = _findings(engine, snapshot.snapshot_id)
     sheets["Left out"] = _left_out(engine, snapshot.snapshot_id)
@@ -261,7 +266,7 @@ def generate_outputs(
     # copying them into the review file made the app hold the whole form in memory (over 5 GB at 1 lakh rows).
     review_uri = services.store.put(f"{folder}/{stem}-review.xlsx", new_workbook(sheets), XLSX)
     if not recon.matched:
-        mismatched = sum(c.mismatched for c in recon.columns) + sum(1 for c in recon.checks if not c[3])
+        mismatched = reconciliation.mismatch_count(recon)
         raise OutputsNotMatched(
             f"Reconciliation NOT MATCHED for {bureau.bureau_code}: {mismatched} problem(s) "
             "between the bureau Excel and the TUDF. Only the review Excel was kept; see its "
