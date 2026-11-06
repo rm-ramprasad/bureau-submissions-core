@@ -62,11 +62,15 @@ class Descriptor:
     record_noun: str
     header_tag_required: bool
     default_file_name: str
+    planned: bool = False  # announced only: shown greyed out on the pages, not runnable, no other files yet
 
     @classmethod
     def read(cls, path: Path) -> Descriptor:
         raw: dict[str, Any] = _read(path)
-        missing = [f for f in cls.__dataclass_fields__ if f not in raw]
+        if raw.get("planned"):  # a planned type needs only its name, label and order
+            raw = {"engine": "tudf", "file_label": "", "record_noun": "", "header_tag_required": False,
+                   "default_file_name": ""} | raw  # fmt: skip
+        missing = [f for f in cls.__dataclass_fields__ if f not in raw and f != "planned"]
         if missing:
             raise TypeDefinitionError(f"{path}: missing {', '.join(missing)}")
         unknown = set(raw) - set(cls.__dataclass_fields__)
@@ -83,6 +87,7 @@ class Descriptor:
             record_noun=str(raw["record_noun"]),
             header_tag_required=bool(raw["header_tag_required"]),
             default_file_name=str(raw["default_file_name"]),
+            planned=bool(raw.get("planned", False)),
         )
 
 
@@ -102,7 +107,13 @@ def descriptors() -> dict[str, tuple[Descriptor, Path]]:
 
 
 def registered_names() -> tuple[str, ...]:
-    return tuple(descriptors())
+    """The types that can run (planned ones excluded): what SubmissionType accepts."""
+    return tuple(name for name, (d, _folder) in descriptors().items() if not d.planned)
+
+
+def planned_types() -> list[Descriptor]:
+    """Types announced but not built yet (e.g. NeSL, MFI), in descriptor order: shown greyed out on the pages."""
+    return [d for d, _folder in descriptors().values() if d.planned]
 
 
 def descriptor(submission_type: SubmissionType | str) -> Descriptor:
@@ -185,7 +196,7 @@ def _load(folder: Path) -> TypeDefinition:
 @cache
 def type_definitions() -> dict[SubmissionType, TypeDefinition]:
     """Every registered type's definition, in descriptor order."""
-    return {SubmissionType(name): _load(folder) for name, (_d, folder) in descriptors().items()}
+    return {SubmissionType(name): _load(folder) for name, (d, folder) in descriptors().items() if not d.planned}
 
 
 def type_definition(submission_type: SubmissionType | str) -> TypeDefinition:

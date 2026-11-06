@@ -85,7 +85,7 @@
         <template x-for="t in $store.app.meta?.submission_types || []" :key="t.value">
           <label :class="!t.enabled && 'disabled'">
             <input type="checkbox" :value="t.value" x-model="form.submission_types" :disabled="!t.enabled">
-            <span x-text="t.label + (t.enabled ? '' : ' (not set up)')"></span>
+            <span x-text="t.label + (t.planned ? ' (coming soon)' : t.enabled ? '' : ' (not set up)')"></span>
           </label>
         </template>
       </div>
