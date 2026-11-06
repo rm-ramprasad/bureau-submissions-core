@@ -73,6 +73,7 @@ known-first-party = ["bureau_core", "canonical", "sources", "clientconfig", "app
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S"]
+"packages/app/src/app/adjustments/sql.py" = ["S608"]  # SQL from code-controlled pieces; values are bound
 
 [tool.mypy]
 python_version = "3.14"
@@ -145,6 +146,8 @@ module = [
     "app.requests.repository",
     "app.requests.stages",
     "app.users",
+    "app.adjustments.repository",
+    "app.adjustments.summary",
     "app.validation.custom",
     "app.validation.results",
     "canonical.snapshot",

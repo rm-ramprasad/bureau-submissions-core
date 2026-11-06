@@ -7,8 +7,11 @@ shells. Design: `docs/requirements.md`. Plan and status: `docs/PLAN.md` and the 
 
 - **Layers** (enforced by `lint-imports`): `shell_*` → `app` → `sources` → `canonical` → `bureau_core`;
   `clientconfig` stands alone. Cloud SDKs (`azure.*`, `boto3`) only in `shell_*`.
-- **Workflow:** one short branch per step or sub-step, PR with the template filled in, CI green. The owner reviews
-  and squash-merges; never merge, never push to `main`. Reference the issue (`Closes #N`).
+- **Workflow:** one short branch per step or sub-step, strictly in order; PR with the template filled in, CI green.
+  The owner (a data engineer, not a web developer) does not review code: each PR opens with **Decide / Risk / Merge
+  if CI is green** in plain words, details folded away. The owner squash-merges; never merge, never push to `main`.
+  Reference the issue (`Closes #N`). Verification: CI, golden files, the Database job, `/code-review` on risky PRs,
+  and a parity report (old app vs new on the same inputs) before go-live.
 - **Behaviour changes need the owner's OK.** Ports keep behaviour; golden files stay byte-identical. A changed
   bureau file is stated in the PR with the reason. Gaps found in the reference behaviour become `known-gap` issues
   (and an `xfail` test), not silent fixes.
