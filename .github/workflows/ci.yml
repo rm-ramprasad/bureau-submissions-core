@@ -17,7 +17,7 @@ jobs:
     name: Lint, types, layer rules
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.9.5"
@@ -35,7 +35,7 @@ jobs:
     name: Unit and regression tests (coverage gate)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.9.5"
@@ -71,7 +71,7 @@ jobs:
       BSC_MSSQL_URL: "mssql+pyodbc://sa:Ci-only-Passw0rd!@localhost:1433/bsc?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
       BSC_POSTGRES_URL: "postgresql+psycopg://postgres:ci-only@localhost:5432/bsc"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.9.5"
@@ -110,7 +110,7 @@ jobs:
     name: Secret scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
@@ -121,7 +121,7 @@ jobs:
     name: Dependency audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.9.5"
