@@ -11,7 +11,9 @@ translations), so nothing after validation changes. This is the reference app's 
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy import Connection, Engine, delete, func, insert, select
 
@@ -88,14 +90,62 @@ def snapshot_result(engine: Engine, snapshot_id: int) -> ValidationSummary:
     )
 
 
+class StreamedRows:
+    """A snapshot entity's rows read from the app database a chunk at a time, each time it is iterated (the core reads
+    it twice: the contract check, then the load). The whole snapshot is never held in memory (1 lakh records: about
+    1 GB as Python objects)."""
+
+    CHUNK = 5000
+
+    def __init__(self, engine: Engine, table: Any, snapshot_id: int) -> None:
+        self.engine, self.table, self.snapshot_id = engine, table, snapshot_id
+        self.cols = [c for c in table.c if c.name != "snapshot_id"]
+
+    def __iter__(self) -> Iterator[dict[str, Any]]:
+        with self.engine.connect() as conn:
+            result = conn.execution_options(stream_results=True, yield_per=self.CHUNK).execute(
+                select(*self.cols).where(self.table.c.snapshot_id == self.snapshot_id).order_by(self.table.c.row_id)
+            )
+            for chunk in result.partitions(self.CHUNK):
+                for r in chunk:
+                    yield dict(r._mapping)
+
+
+def stream_batch(engine: Engine, snapshot_id: int) -> CanonicalBatch:
+    """The snapshot as the core's CanonicalBatch, its rows streamed from the database (see StreamedRows)."""
+    with engine.connect() as conn:
+        head = conn.execute(select(extract_snapshot).where(extract_snapshot.c.snapshot_id == snapshot_id)).one()
+        present = {
+            entity
+            for entity, t in ENTITY_TABLES.items()
+            if conn.execute(select(t.c.row_id).where(t.c.snapshot_id == snapshot_id).limit(1)).first()
+        }
+        exceptions = {}
+        for key, t in (("adjustments", snapshot_adjustment), ("effects", snapshot_adjustment_effect)):
+            cols = [c for c in t.c if c.name != "snapshot_id"]
+            order = t.c.effect_id if "effect_id" in t.c else t.c.adjustment_id
+            rows = conn.execute(select(*cols).where(t.c.snapshot_id == snapshot_id).order_by(order)).all()
+            if rows:
+                exceptions[key] = [dict(r._mapping) for r in rows]
+    # re-iterable row sources: the core reads them as it reads lists
+    entities = {e: StreamedRows(engine, ENTITY_TABLES[e], snapshot_id) for e in ENTITY_TABLES if e in present}
+    return CanonicalBatch(
+        head.submission_type,
+        head.as_of_date,
+        head.canonical_version,
+        entities,  # type: ignore[arg-type]
+        {"tenant_id": head.tenant_id, "snapshot_id": snapshot_id, "mapping_version": head.mapping_version},
+        exceptions,
+    )
+
+
 def core_result(engine: Engine, snapshots: SnapshotRepository, snapshot_id: int, rules: list[Rule]) -> CoreResult:
     """The core's result for the snapshot, from the app database's inputs (nothing is written)."""
     snap = snapshots.get(snapshot_id)
     parameters = load_parameters(engine, snap.tenant_id, snap.submission_type)
     with engine.connect() as conn:
-        batch = capture_batch(conn, snapshot_id)
         reference = {name: [dict(r._mapping) for r in conn.execute(select(t))] for name, t in REFERENCE_TABLES.items()}
-    return core_validate(batch, rules, parameters, reference)
+    return core_validate(stream_batch(engine, snapshot_id), rules, parameters, reference)
 
 
 def validate_snapshot(

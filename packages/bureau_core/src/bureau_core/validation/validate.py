@@ -12,7 +12,11 @@ This is the one core module that uses SQLAlchemy, with SQLite only (no server, n
 
 from __future__ import annotations
 
+import os
 import re
+import shutil
+import tempfile
+from collections.abc import Iterable, Iterator
 from datetime import datetime
 from decimal import Decimal
 
@@ -148,17 +152,35 @@ def finding_value(scale: int | None, value: str | None) -> str | None:
     return str(Decimal(value).quantize(Decimal(1).scaleb(-scale)))
 
 
-def load_database(batch: CanonicalBatch, reference: dict[str, list[dict]] | None = None) -> Engine:
-    """A private in-memory SQLite holding the batch as snapshot SNAPSHOT_ID, with its exceptions and the reference
-    data (`reference`: table -> rows, each table given replaces the packaged one). The caller disposes of it.
-    Refuses a batch that breaks the contract (check_batch problems that are not data findings)."""
+CHUNK = 5000  # rows inserted per statement: the batch is never copied whole
+ON_DISK_FROM = 20_000  # rows: a batch this large is validated in a temporary file, not in memory
+
+
+def _chunks(rows: Iterable[dict]) -> Iterator[list[dict]]:
+    chunk: list[dict] = []
+    for r in rows:
+        chunk.append(r)
+        if len(chunk) >= CHUNK:
+            yield chunk
+            chunk = []
+    if chunk:
+        yield chunk
+
+
+def load_database(
+    batch: CanonicalBatch, reference: dict[str, list[dict]] | None = None, path: str | None = None
+) -> Engine:
+    """A private SQLite holding the batch as snapshot SNAPSHOT_ID, with its exceptions and the reference data
+    (`reference`: table -> rows, each table given replaces the packaged one): in memory, or in the file `path`. The
+    caller disposes of it. Refuses a batch that breaks the contract (check_batch problems that are not data findings).
+    The batch's rows may be lists or any re-iterable source (read twice: the contract check, then the load)."""
     structural = [p for p in check_batch(batch) if p.kind not in ("CODE", "LENGTH")]  # data problems: rules report
     if structural:
         raise BatchContractError("; ".join(f"{p.entity}#{p.row_id} {p.column}: {p.message}" for p in structural[:20]))
     unknown = set(reference or {}) - set(REFERENCE_TABLES)
     if unknown:
         raise ValueError(f"unknown reference tables {sorted(unknown)}")
-    engine = sqlite_engine()
+    engine = sqlite_engine(path)
     metadata.create_all(engine)
     with engine.begin() as conn:
         conn.execute(
@@ -184,8 +206,8 @@ def load_database(batch: CanonicalBatch, reference: dict[str, list[dict]] | None
             ],
         )
         for entity, rows in batch.entities.items():
-            if rows:
-                conn.execute(insert(ENTITY_TABLES[entity]), [{**r, "snapshot_id": SNAPSHOT_ID} for r in rows])
+            for chunk in _chunks(rows):
+                conn.execute(insert(ENTITY_TABLES[entity]), [{**r, "snapshot_id": SNAPSHOT_ID} for r in chunk])
         adjustments = batch.exceptions.get("adjustments") or []
         if adjustments:  # the frozen copy refers to its request's adjustment (foreign key)
             conn.execute(
@@ -221,7 +243,9 @@ def validate(
     submission_type = batch.submission_type
     rules = list(builtin_rules(submission_type)) if rules is None else rules
     parameters = defaults(submission_type) if parameters is None else parameters
-    engine = load_database(batch, reference)
+    size = sum(len(rows) if isinstance(rows, list) else ON_DISK_FROM for rows in batch.entities.values())
+    workdir = tempfile.mkdtemp(prefix="bsc-validate-") if size >= ON_DISK_FROM else None
+    engine = load_database(batch, reference, os.path.join(workdir, "batch.db") if workdir else None)
     try:
         with engine.begin() as conn:
             run_validation(
@@ -236,6 +260,8 @@ def validate(
             result = read_result(conn, SNAPSHOT_ID)
     finally:
         engine.dispose()
+        if workdir:
+            shutil.rmtree(workdir, ignore_errors=True)
     scales = {r.rule_id: value_scale(r) for r in rules}
     for x in result.findings:
         x["value"] = finding_value(scales.get(x["rule_id"]), x["value"])

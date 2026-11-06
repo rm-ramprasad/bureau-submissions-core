@@ -11,6 +11,7 @@ import io
 import re
 from dataclasses import dataclass, field
 from decimal import ROUND_DOWN, Decimal
+from typing import Any
 
 from bureau_core.bureau import BureauProfile
 from bureau_core.data import SnapshotData
@@ -104,6 +105,33 @@ def add_sheets(content: bytes, sheets: dict[str, list[list[str]]]) -> bytes:
             ws.append([str(v) if v is not None else "" for v in r])
         for cell in ws[1] if ws.max_row else []:
             cell.font = Font(bold=True)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def new_workbook(sheets: dict[str, list[list[Any]]]) -> bytes:
+    """A new workbook of these sheets (name -> rows of text), header rows bold. Written row by row (write-only), so
+    memory stays small however many rows a sheet has."""
+    from openpyxl import Workbook
+    from openpyxl.cell import WriteOnlyCell
+    from openpyxl.styles import Font
+
+    wb = Workbook(write_only=True)
+    bold = Font(bold=True)
+    for name, rows in sheets.items():
+        ws = wb.create_sheet(name[:31])
+        for i, r in enumerate(rows):
+            values = [str(v) if v is not None else "" for v in r]
+            if i == 0:
+                cells = []
+                for v in values:
+                    c = WriteOnlyCell(ws, value=v)
+                    c.font = bold
+                    cells.append(c)
+                ws.append(cells)
+            else:
+                ws.append(values)
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()

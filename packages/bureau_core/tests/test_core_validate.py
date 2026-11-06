@@ -47,3 +47,29 @@ def test_validate_refuses_a_broken_batch():
     batch = CanonicalBatch("CONSUMER", AS_OF, "0.0", {"account": [{"row_id": 1, "nonsense": "x"}]})
     with pytest.raises(BatchContractError):
         validate(batch)
+
+
+def test_the_finding_index_gives_the_same_reasons_in_the_same_order() -> None:
+    """The indexed lookup (1 lakh records) matches scanning every finding with `applies`, order included."""
+    from types import SimpleNamespace
+
+    from hypothesis import given, settings
+    from hypothesis import strategies as st
+
+    from bureau_core.validation.cascades import FindingIndex, applies
+
+    keys = st.one_of(st.none(), st.sampled_from(["A1", "A2", "A3"]))
+    parties = st.one_of(st.none(), st.sampled_from(["P1", "P2"]))
+    finding = st.builds(
+        SimpleNamespace, rule_id=st.sampled_from(["R1", "R2", "R3", "R4"]), account_key=keys, party_key=parties
+    )
+
+    @settings(max_examples=300, deadline=None)
+    @given(st.lists(finding, max_size=12))
+    def same(findings):
+        index = FindingIndex(findings)
+        for a in ("A1", "A2", "A3"):
+            for p in ("P1", "P2"):
+                assert index.reasons(a, p) == [f.rule_id for f in findings if applies(f, a, p)]
+
+    same()
