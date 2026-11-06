@@ -7,7 +7,7 @@ from it. The worker only orchestrates; it never knows about views, rules or file
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from sqlalchemy import Engine
 
@@ -33,7 +33,14 @@ class FileGenerationUnavailable(Exception):
 
 class SubmissionPipeline(Protocol):
     def build_snapshot(
-        self, services: Services, tenant: Tenant, request: SubmissionRequest, owner: str
+        self,
+        services: Services,
+        tenant: Tenant,
+        request: SubmissionRequest,
+        owner: str,
+        *,
+        load_id: int | None = None,
+        adjustments: Any = None,
     ) -> tuple[int, ValidationResult]:
         """Extract and validate. Must create the snapshot keyed by the request's batch (SnapshotExistsError
         if another worker already did) and leave it VALIDATED."""

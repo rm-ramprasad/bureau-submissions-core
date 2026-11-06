@@ -17,7 +17,7 @@ from bureau_core.formats.tudf.engine import FileStats
 from canonical.snapshot import Snapshot
 from canonical.staging.loads import loaded_workbook
 from canonical.tenants import Tenant
-from sources.extract import run_extract
+from sources.extract import Adjustments, run_extract
 from sources.views import compile_views
 
 # (services, request, snapshot, bureau, created) -> (file content, stats)
@@ -29,8 +29,19 @@ class ViewsPipeline:
         self.write_file = write_file
 
     def build_snapshot(
-        self, services: Services, tenant: Tenant, request: SubmissionRequest, owner: str
+        self,
+        services: Services,
+        tenant: Tenant,
+        request: SubmissionRequest,
+        owner: str,
+        *,
+        load_id: int | None = None,
+        adjustments: Adjustments | None = None,
     ) -> tuple[int, ValidationSummary]:
+        """`load_id` / `adjustments` default to the request's upload and its own exclusions and overrides (the parity
+        check passes an old request's upload and frozen adjustments)."""
+        if load_id is None:
+            load_id = loaded_workbook(services.app_engine, request.batch_id, request.submission_type)
         extract = run_extract(
             tenant=tenant,
             compiled=compile_views(services.app_engine, request.submission_type),
@@ -41,8 +52,8 @@ class ViewsPipeline:
             snapshots=services.snapshots,
             owner=owner,
             batch_id=request.batch_id,
-            load_id=loaded_workbook(services.app_engine, request.batch_id, request.submission_type),
-            adjustments=SqlAdjustments(services.app_engine),
+            load_id=load_id,
+            adjustments=adjustments or SqlAdjustments(services.app_engine),
         )
         rules = load_rule_set(services.app_engine, tenant.tenant_id, request.submission_type)
         result = validate_snapshot(services.app_engine, services.snapshots, extract.snapshot_id, rules)

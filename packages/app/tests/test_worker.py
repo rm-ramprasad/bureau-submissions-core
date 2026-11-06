@@ -40,7 +40,7 @@ class GoldenPipeline:
         self.builds = 0
         self.files = ViewsPipeline(write_file=None)
 
-    def build_snapshot(self, services, tenant, request, owner):
+    def build_snapshot(self, services, tenant, request, owner, **_):
         self.builds += 1
         batch, _ = golden(f"{str(request.submission_type).lower()}_nbfc_001")
         sid = load_snapshot(
