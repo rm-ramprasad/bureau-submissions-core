@@ -15,6 +15,7 @@ from app.api.common import (
     last_month_end,
     message,
     options,
+    selected_tenant,
     svc,
 )
 from app.enums import (
@@ -98,7 +99,10 @@ def meta():
     """Choices the pages need: NBFCs, submission types, bureaus, cycles, stages, periods, outcomes, fields."""
     s = svc()
     offered = enabled_types() if not s.tenant else available_types(s.engine)
-    dates = ReportingCycle.dates(date.today())  # as-of dates a request may use, newest first
+    from app.configstore.settings import enabled_cycles
+
+    on = set(enabled_cycles(s.engine, s.tenant or selected_tenant()))  # the Admin page's choice (all by default)
+    dates = [d for d in ReportingCycle.dates(date.today()) if ReportingCycle.for_date(d) in on]  # newest first
     return jsonify(
         tenant=s.tenant,
         tenants=[
@@ -108,7 +112,7 @@ def meta():
         ],
         submission_types=type_list(offered),
         bureaus=options(BureauCode),
-        cycles=[{"value": c.value, "label": CYCLE_LABELS[c]} for c in ReportingCycle if c.manual],
+        cycles=[{"value": c.value, "label": CYCLE_LABELS[c]} for c in ReportingCycle if c.manual and c in on],
         stages=options(Stage),
         periods=options(Period),
         statuses=options(BatchStatus),

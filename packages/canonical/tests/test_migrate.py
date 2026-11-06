@@ -24,6 +24,7 @@ MIGRATIONS = [
     "006_generate_once",
     "007_reconciliation",
     "008_config_versions",
+    "009_client_settings",
 ]
 
 

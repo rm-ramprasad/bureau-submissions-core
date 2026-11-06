@@ -69,6 +69,10 @@ def create_request():
             "The as-of date must be a reporting date: the 9th (W1), 16th (W2), 23rd (W3) or the last day of a month "
             "(or choose a DL, DC, AH or RR cycle)."
         )
+    from app.configstore.settings import enabled_cycles
+
+    if cycle is not None and cycle not in enabled_cycles(s.engine, tenant.tenant_id):
+        fail(f"The {cycle} cycle is switched off for this NBFC (Admin page).")
     try:
         offered = available_types(s.engine)  # one look at the views, not one per type
         not_enabled = [t for t in types if t not in SubmissionType or SubmissionType(t) not in offered]
