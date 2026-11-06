@@ -2,14 +2,70 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import date, timedelta
 from enum import StrEnum
+from typing import ClassVar
 
 
-class SubmissionType(StrEnum):
-    CONSUMER = "CONSUMER"
-    COMMERCIAL = "COMMERCIAL"
-    NESL = "NESL"
+class _SubmissionTypes(type):
+    """Iterating the class lists the registered types in their descriptor order (consumer first)."""
+
+    def __iter__(cls) -> Iterator[SubmissionType]:
+        from bureau_core.types import registered_names
+
+        return iter([SubmissionType(n) for n in registered_names()])
+
+    def __contains__(cls, value: object) -> bool:
+        from bureau_core.types import registered_names
+
+        return str(value) in registered_names()
+
+
+class SubmissionType(str, metaclass=_SubmissionTypes):
+    """A submission type: one of the type folders (bureau_core/types/<type>/type.yaml), not a fixed list (step 5).
+
+    Behaves like the string it is (stored and exchanged as text); `SubmissionType("X")` raises ValueError for a type
+    without a folder. CONSUMER and COMMERCIAL are kept as names for the two types the product ships.
+    """
+
+    __slots__ = ()
+    CONSUMER: ClassVar[SubmissionType]
+    COMMERCIAL: ClassVar[SubmissionType]
+
+    def __new__(cls, value: object) -> SubmissionType:
+        if isinstance(value, SubmissionType):
+            return value
+        from bureau_core.types import registered_names
+
+        text = str(value)
+        if text not in registered_names():
+            raise ValueError(f"{text!r} is not a valid SubmissionType (known: {', '.join(registered_names())})")
+        return _interned(text)
+
+    @property
+    def value(self) -> str:
+        return str.__str__(self)
+
+    def __str__(self) -> str:
+        return str.__str__(self)
+
+    def __repr__(self) -> str:
+        return f"SubmissionType({str.__repr__(self)})"
+
+
+_INSTANCES: dict[str, SubmissionType] = {}
+
+
+def _interned(text: str) -> SubmissionType:
+    """One object per type, so `is` comparisons keep working as they did with the enum."""
+    if text not in _INSTANCES:
+        _INSTANCES[text] = str.__new__(SubmissionType, text)
+    return _INSTANCES[text]
+
+
+SubmissionType.CONSUMER = _interned("CONSUMER")
+SubmissionType.COMMERCIAL = _interned("COMMERCIAL")
 
 
 class Outcome(StrEnum):

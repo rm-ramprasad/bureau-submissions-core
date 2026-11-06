@@ -17,6 +17,7 @@ from app.enums import Outcome, SubmissionType
 from app.pipeline import enabled_types
 from app.validation import custom
 from app.validation import settings as rules
+from bureau_core.types import descriptor
 from bureau_core.validation.parameters import ParameterError, builtin_parameters
 from canonical.db import utcnow
 from clientconfig.document import SCHEMA_VERSION, ConfigDocumentError, changes, dumps, settings_only, validate
@@ -203,8 +204,8 @@ def import_document(engine: Engine, tenant_id: str, raw: object, user: str, reas
             continue
         upd = replace(cur, **{k: p[k] for k in ("member_id", "member_short_name", "header_segment_tag",
                                                "file_name_pattern", "is_active")})  # fmt: skip
-        if upd.submission_type is SubmissionType.CONSUMER and not upd.header_segment_tag:
-            problems.append(f"bureau profile {p['bureau_code']}/CONSUMER: header tag is required")
+        if descriptor(upd.submission_type).header_tag_required and not upd.header_segment_tag:
+            problems.append(f"bureau profile {p['bureau_code']}/{p['submission_type']}: header tag is required")
         try:
             upd.file_name(utcnow(), utcnow().date())
         except Exception as exc:

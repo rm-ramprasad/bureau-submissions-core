@@ -18,8 +18,8 @@ document.addEventListener("alpine:init", () => {
 
     key(p) { return `${p.submission_type}/${p.bureau_code}`; },
     canEdit() { return !!this.$store.app.user?.is_admin; },
-    types() {                                                       // Consumer first
-      const order = ["CONSUMER", "COMMERCIAL", "NESL"];
+    types() {                                                       // in the registry's order (consumer first)
+      const order = (this.$store.app.meta?.submission_types || []).map((t) => t.value);
       return [...new Set((this.data?.profiles || []).map((p) => p.submission_type))]
         .sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
     },

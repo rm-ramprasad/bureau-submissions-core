@@ -57,8 +57,8 @@ def test_profile_for_unknown_tenant_rejected(bureau_repo):
 
 def test_get_missing_profile(bureau_repo):
     seed(bureau_repo, [NBFC1])
-    with pytest.raises(BureauProfileNotFoundError):
-        bureau_repo.get(NBFC1, B.CIBIL, T.NESL)
+    with pytest.raises(ValueError):
+        bureau_repo.get(NBFC1, B.CIBIL, "NESL")  # no such type
     with pytest.raises(BureauProfileNotFoundError):
         bureau_repo.get(NBFC2, B.CIBIL, T.CONSUMER)
 

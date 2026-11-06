@@ -50,7 +50,7 @@ def _dashboard_type() -> SubmissionType:
         chosen = SubmissionType(raw) if raw else None
     except ValueError:
         fail("Unknown submission type")
-    return chosen if chosen in offered else (offered[0] if offered else SubmissionType.CONSUMER)
+    return chosen if chosen in offered else (offered[0] if offered else enabled_types()[0])
 
 
 @bp.get("/dashboard")

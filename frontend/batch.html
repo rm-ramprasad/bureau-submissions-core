@@ -422,7 +422,7 @@
                   <td class="num" x-text="r.accepted_records ?? ''"></td>
                   <td class="num" x-text="r.rejected_records ?? ''"></td>
                   <td>
-                    <a href="#" x-show="r.status === 'SUCCEEDED' && r.has_file" @click.prevent="download(r, 'file')" x-text="r.submission_type === 'CONSUMER' ? 'TUDF' : 'Bureau file'"></a>
+                    <a href="#" x-show="r.status === 'SUCCEEDED' && r.has_file" @click.prevent="download(r, 'file')" x-text="F.type(r.submission_type).file_label || 'Bureau file'"></a>
                     <span x-show="r.status === 'SUCCEEDED' && r.has_file"> (<a :href="`tudf.html?request=${r.request_id}&name=${encodeURIComponent(r.output_file_name || '')}`">view</a>)</span>
                     <span x-show="r.status === 'SUCCEEDED' && r.has_excel"> · <a href="#" @click.prevent="download(r, 'excel')">Bureau Excel</a></span>
                     <span x-show="(r.status === 'SUCCEEDED' || r.status === 'FAILED') && r.has_review"><span x-show="r.status === 'SUCCEEDED'"> · </span><a href="#" @click.prevent="download(r, 'review')">Review Excel</a></span>

@@ -92,7 +92,9 @@ def test_repeated_selections_collapse(requests_repo):
         (dict(run_mode=M.VALIDATE, submission_types=[T.CONSUMER], bureau_codes=[B.CIBIL]), "bureau-independent"),
         (dict(run_mode=M.VALIDATE, submission_types=[T.CONSUMER], snapshot_id=1), "generate"),
         (
-            dict(run_mode=M.GENERATE, submission_types=[T.CONSUMER, T.NESL], bureau_codes=[B.CIBIL], snapshot_id=1),
+            dict(
+                run_mode=M.GENERATE, submission_types=[T.CONSUMER, T.COMMERCIAL], bureau_codes=[B.CIBIL], snapshot_id=1
+            ),
             "exactly one",
         ),
         (dict(run_mode=M.VALIDATE, submission_types=[T.CONSUMER], as_of_date=date(2026, 10, 22)), "future"),

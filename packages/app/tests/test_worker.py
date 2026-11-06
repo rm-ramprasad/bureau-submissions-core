@@ -55,9 +55,9 @@ class GoldenPipeline:
     def generate_file(self, services, tenant, request, snapshot, bureau):
         if request.submission_type == "CONSUMER":
             return self.files.generate_file(services, tenant, request, snapshot, bureau)
-        from app.types.commercial.pipeline import PIPELINE
+        from app.pipeline import get_pipeline
 
-        return PIPELINE.generate_file(services, tenant, request, snapshot, bureau)
+        return get_pipeline("COMMERCIAL").generate_file(services, tenant, request, snapshot, bureau)
 
 
 @pytest.fixture

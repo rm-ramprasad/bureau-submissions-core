@@ -61,6 +61,34 @@ def session_end():
     return message("Signed out.")
 
 
+def type_list(offered: list[SubmissionType]) -> list[dict]:
+    """The registered types for the pages (descriptor order): wording and flags from each type.yaml."""
+    from bureau_core.types import descriptor
+
+    out = []
+    for t in SubmissionType:
+        d = descriptor(t)
+        out.append(
+            {
+                "value": t.value,
+                "label": d.label,
+                "enabled": t in offered,
+                "engine": d.engine,
+                "file_label": d.file_label,
+                "record_noun": d.record_noun,
+                "header_tag_required": d.header_tag_required,
+            }
+        )
+    return out
+
+
+@bp.get("/types")
+def types():
+    """The registered submission types (enabled: the client can run it, i.e. its source views exist)."""
+    s = svc()
+    return jsonify(types=type_list(enabled_types() if not s.tenant else available_types(s.engine)))
+
+
 @bp.get("/meta")
 def meta():
     """Choices the pages need: NBFCs, submission types, bureaus, cycles, stages, periods, outcomes, fields."""
@@ -74,9 +102,7 @@ def meta():
             for t in s.tenants.list(active_only=False)
             if not s.tenant or t.tenant_id == s.tenant
         ],
-        submission_types=[
-            {"value": t.value, "label": t.value.title(), "enabled": t in offered} for t in SubmissionType
-        ],
+        submission_types=type_list(offered),
         bureaus=options(BureauCode),
         cycles=[{"value": c.value, "label": CYCLE_LABELS[c]} for c in ReportingCycle if c.manual],
         stages=options(Stage),

@@ -8,7 +8,7 @@ import pytest
 from bureau_core.checks.identifiers import id_number_problem
 from bureau_core.validation import parameters as P
 from bureau_core.validation.python_rules import PYTHON_RULES
-from bureau_core.validation.rules import RuleDefinitionError, builtin_pack, builtin_rules
+from bureau_core.validation.rules import builtin_pack, builtin_rules
 
 
 def test_pack_declares_the_parameters_with_typed_defaults():
@@ -66,7 +66,7 @@ def test_pack_loads_with_generated_rules():
 
 
 def test_no_builtin_pack_for_other_types():
-    with pytest.raises(RuleDefinitionError):
+    with pytest.raises(ValueError, match="not a valid SubmissionType"):  # no type folder (step 5: the registry)
         builtin_rules("NESL")
 
 

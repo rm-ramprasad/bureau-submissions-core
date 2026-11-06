@@ -13,12 +13,12 @@ from app.bureaus.repository import BureauRepository
 from app.enums import BureauCode as B
 from app.enums import SubmissionType as T
 from bureau_core.bureau import BureauProfile
+from bureau_core.types import descriptor
 
 log = logging.getLogger(__name__)
 
-UCRF_FILE_NAME = "{member_id}-{created:%d%m%Y}-{created:%H%M%S}.txt"
-# Commercial 4.3: Commercial-<DL/W1/W2/W3/ME...>-<date reported>-<internal reference>
-COMMERCIAL_FILE_NAME = "Commercial-{cycle}-{as_of:%d%m%Y}-{member_id}-{created:%H%M%S}.txt"
+UCRF_FILE_NAME = descriptor(T.CONSUMER).default_file_name
+COMMERCIAL_FILE_NAME = descriptor(T.COMMERCIAL).default_file_name
 
 # bureau -> (display name, member-id prefix, header segment tag)
 PLACEHOLDERS = {
@@ -30,28 +30,28 @@ PLACEHOLDERS = {
 
 
 def placeholder_profiles(tenant_id: str, tenant_no: int, short_name: str) -> list[BureauProfile]:
-    """Consumer and commercial profiles for one tenant; member IDs like CIB0000017 / CIBC000017 (10 chars: TL.01,
-    commercial HD.2). Commercial files have no header segment tag."""
-    consumer = [
-        BureauProfile(
-            tenant_id, bureau, T.CONSUMER, name, f"{prefix}{tenant_no:07d}", short_name[:16], tag, UCRF_FILE_NAME
-        )
-        for bureau, (name, prefix, tag) in PLACEHOLDERS.items()
-    ]
-    commercial = [
-        BureauProfile(
-            tenant_id,
-            bureau,
-            T.COMMERCIAL,
-            f"{name} Commercial",
-            f"{prefix}C{tenant_no:06d}",
-            short_name[:16],
-            "",
-            COMMERCIAL_FILE_NAME,
-        )
-        for bureau, (name, prefix, _) in PLACEHOLDERS.items()
-    ]
-    return consumer + commercial
+    """One profile per bureau and registered type. Consumer (the first type) keeps member IDs like CIB0000017; every
+    other type gets a letter after the prefix, e.g. CIBC000017 for commercial (10 chars: TL.01, commercial HD.2).
+    Types without a required header tag get none; names and file-name formats come from the type's descriptor."""
+    out = []
+    for st in T:
+        d = descriptor(st)
+        for bureau, (name, prefix, tag) in PLACEHOLDERS.items():
+            first = st is T.CONSUMER
+            member = f"{prefix}{tenant_no:07d}" if first else f"{prefix}{str(st)[0]}{tenant_no:06d}"
+            out.append(
+                BureauProfile(
+                    tenant_id,
+                    bureau,
+                    st,
+                    name if first else f"{name} {d.label}",
+                    member,
+                    short_name[:16],
+                    tag if d.header_tag_required else "",
+                    d.default_file_name,
+                )
+            )
+    return out
 
 
 def seed(repo: BureauRepository, tenant_ids: list[str]) -> int:

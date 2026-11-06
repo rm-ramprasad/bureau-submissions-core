@@ -1,50 +1,44 @@
-"""Pipelines per submission type and their registry: each app.types.<type> package with a pipeline module
-(`PIPELINE`) is one, for a type the core defines (bureau_core.types)."""
+"""Pipelines per submission type and their registry: every registered type (bureau_core.types, one folder with a
+type.yaml each) runs the standard views pipeline with the generic file writer (app.pipeline.files), which picks the
+file engine from the type's descriptor. No per-type code (step 5)."""
 
 from __future__ import annotations
-
-import importlib
-from pathlib import Path
 
 from sqlalchemy import Engine
 
 from app.enums import SubmissionType
 from app.pipeline.base import FileGenerationUnavailable, Services, SubmissionPipeline
-from bureau_core.types import type_definitions
-
-APP_TYPES = Path(__file__).resolve().parent.parent / "types"  # the app's side of each core type
 
 
-def _discover() -> dict[SubmissionType, SubmissionPipeline]:
-    found, defs = {}, type_definitions()
-    for st in SubmissionType:  # enum order: consumer first in lists and schedules
-        d = defs.get(st)
-        if d and (APP_TYPES / d.folder.name / "pipeline.py").exists():
-            found[st] = importlib.import_module(f"app.types.{d.folder.name}.pipeline").PIPELINE
-    return found
+def _pipeline() -> SubmissionPipeline:
+    from app.pipeline.files import write_file
+    from app.pipeline.views import ViewsPipeline
 
-
-REGISTRY: dict[SubmissionType, SubmissionPipeline] = _discover()
+    return ViewsPipeline(write_file)
 
 
 def get_pipeline(submission_type: SubmissionType | str) -> SubmissionPipeline | None:
-    return REGISTRY.get(SubmissionType(submission_type))
+    """The type's pipeline, or None for a name that is not a registered type."""
+    try:
+        SubmissionType(submission_type)
+    except ValueError:
+        return None
+    return _pipeline()
 
 
 def enabled_types() -> list[SubmissionType]:
-    """Submission types the product supports (a pipeline exists)."""
-    return list(REGISTRY)
+    """Submission types the product supports: the registered type folders, in descriptor order."""
+    return list(SubmissionType)
 
 
 def available_types(engine: Engine) -> list[SubmissionType]:
-    """Types the client can run: a pipeline exists and the type's source views do (automn.vw_<type>_*)."""
+    """Types the client can run: registered, and the type's source views exist (automn.vw_<type>_*)."""
     from sources.views import has_views
 
-    return [t for t in REGISTRY if has_views(engine, t)]
+    return [t for t in SubmissionType if has_views(engine, t)]
 
 
 __all__ = [
-    "REGISTRY",
     "FileGenerationUnavailable",
     "Services",
     "SubmissionPipeline",
