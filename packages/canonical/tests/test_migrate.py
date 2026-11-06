@@ -22,6 +22,7 @@ MIGRATIONS = [
     "004_ref_code_labels",
     "005_new_input_workbooks",
     "006_generate_once",
+    "007_reconciliation",
 ]
 
 

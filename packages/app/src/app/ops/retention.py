@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import Engine, delete, select
 
-from app import audit
+from app import audit, reconciliation
 from app.enums import SnapshotStatus
 from app.ports.files import FileStore
 from app.requests import RequestRepository
@@ -51,6 +51,9 @@ def purge(
         if dry_run:
             continue
         purge_rows(engine, snap.snapshot_id)
+        reconciliation.remove_mismatches(  # cell values: personal data; the counts stay for trends
+            engine, [g.request_id for g in requests.generations([snap.snapshot_id])]
+        )
         with engine.begin() as conn:
             for t in (validation_finding, record_outcome):
                 conn.execute(delete(t).where(t.c.snapshot_id == snap.snapshot_id))

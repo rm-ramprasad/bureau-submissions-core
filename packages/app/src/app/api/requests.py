@@ -250,6 +250,24 @@ def cancel(request_id: int):
     return _row_action(request_id, "cancel")
 
 
+@bp.get("/requests/<int:request_id>/reconciliation")
+def reconciliation_of(request_id: int):
+    """A generated consumer file's reconciliation (bureau Excel vs TUDF), as stored (issue #39)."""
+    from app import reconciliation
+
+    s = svc()
+    try:
+        req = s.requests.get(request_id)
+    except RequestNotFoundError:
+        fail("Request not found", 404)
+    if s.tenant and req.tenant_id != s.tenant:
+        fail("Request not found", 404)
+    stored = reconciliation.load(s.engine, request_id)
+    if stored is None:
+        fail("No reconciliation for this request (only generated consumer files have one)", 404)
+    return jsonify(stored)
+
+
 @bp.get("/requests/<int:request_id>/<kind>")
 def download(request_id: int, kind: str):
     """Audit the download, then hand out a short-lived link ({"url": ...}). A locally stored file (development)
