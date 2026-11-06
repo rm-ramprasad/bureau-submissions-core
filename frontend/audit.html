@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Audit · Open Terrace Analytics</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="app.css">
+  <script defer src="config.js"></script>
+  <script defer src="vendor/oidc-client-ts.min.js"></script>
+  <script defer src="js/core.js"></script>
+  <script defer src="js/audit.js"></script>
+  <script defer src="vendor/alpine.min.js"></script>
+</head>
+<body data-nav="audit" data-crumb="Audit">
+<main class="content" x-data="auditPage">
+  <div class="page-head">
+    <div>
+      <h1>Audit trail</h1>
+      <p class="subtitle">Who did what<span x-show="$store.app.tenant" x-text="' for ' + $store.app.tenant"></span>.
+        Latest 200 matching events.</p>
+    </div>
+  </div>
+  <form class="panel row scope" @submit.prevent="load()">
+    <div><label for="action">Action</label>
+      <select id="action" x-model="flt.action"><option value="">All</option>
+        <template x-for="a in data?.actions || []" :key="a"><option :value="a" x-text="a" :selected="a === flt.action"></option></template></select></div>
+    <div><label for="actor">User</label>
+      <select id="actor" x-model="flt.actor"><option value="">All</option>
+        <template x-for="a in data?.actors || []" :key="a"><option :value="a" x-text="a" :selected="a === flt.actor"></option></template></select></div>
+    <div><label for="target">Request / target</label><input type="text" id="target" x-model="flt.target" size="24"></div>
+    <div><button type="submit" class="secondary">Filter</button>
+      <a href="#" x-show="flt.action || flt.actor || flt.target" @click.prevent="flt = { action: '', actor: '', target: '' }; load()">Clear</a></div>
+  </form>
+  <div class="panel flush">
+    <div class="table-wrap"><table>
+      <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
+      <tbody>
+        <template x-for="e in data?.events || []" :key="e.event_id">
+          <tr><td class="nowrap" x-text="F.dt(e.occurred_at)"></td><td x-text="e.actor"></td><td class="mono" x-text="e.action"></td>
+            <td class="mono"><a href="#" x-show="e.target" @click.prevent="flt.target = e.target; load()" x-text="e.target"></a></td>
+            <td class="mono muted" x-text="e.details || ''"></td></tr>
+        </template>
+        <tr x-show="data && !data.events.length"><td colspan="6" class="muted">No events yet.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</main>
+</body>
+</html>

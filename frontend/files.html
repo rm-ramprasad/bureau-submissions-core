@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Submitted files · Open Terrace Analytics</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="app.css">
+  <script defer src="config.js"></script>
+  <script defer src="vendor/oidc-client-ts.min.js"></script>
+  <script defer src="js/core.js"></script>
+  <script defer src="js/files.js"></script>
+  <script defer src="vendor/alpine.min.js"></script>
+</head>
+<body data-nav="files" data-crumb="Submitted files">
+<main class="content" x-data="filesPage">
+  <div class="page-head">
+    <div>
+      <h1>Submitted files</h1>
+      <p class="subtitle">A record of every bureau file generated <span x-text="$store.app.tenant ? 'for ' + $store.app.tenant : 'across all NBFCs'"></span>,
+        newest first. Stored in <span class="mono" x-text="data?.location"></span>.</p>
+    </div>
+  </div>
+  <form class="panel row scope" @submit.prevent="page = 1; load()">
+    <div><label for="bureau">Bureau</label>
+      <select id="bureau" x-model="bureau"><option value="">All</option>
+        <template x-for="b in $store.app.meta?.bureaus || []" :key="b.value">
+          <option :value="b.value" x-text="F.title(b.value)" :selected="b.value === bureau"></option></template></select></div>
+    <div><label for="period">Generated</label>
+      <select id="period" x-model="period">
+        <template x-for="p in $store.app.meta?.periods || []" :key="p.value">
+          <option :value="p.value" x-text="p.label" :selected="p.value === period"></option></template></select></div>
+    <div><button type="submit" class="secondary">Filter</button></div>
+  </form>
+  <div class="panel flush">
+    <div class="panel-head"><h2 x-text="(data?.total ?? '…') + ' file(s)'"></h2>
+      <span class="muted" x-show="data?.pages > 1" x-text="`page ${data?.page} of ${data?.pages}`"></span></div>
+    <div class="table-wrap" x-show="data?.files.length"><table>
+      <thead><tr><th>Generated</th><th>Bureau</th><th>File</th><th>As of</th><th class="num">Records written</th>
+        <th class="num">Rejected</th><th class="num">Excluded</th><th class="num">Overridden</th><th>Download</th></tr></thead>
+      <tbody>
+        <template x-for="f in data?.files || []" :key="f.request_id">
+          <tr><td><span x-text="F.dt(f.finished_at)"></span><div class="hint" x-text="f.requested_by || ''"></div></td>
+            <td x-text="F.title(f.bureau_code)"></td>
+            <td class="mono"><a :href="'batch.html?id=' + f.batch_id" x-text="f.output_file_name"></a>
+              <span class="info-pop" x-show="f.output_location" tabindex="0" aria-label="Where this file is stored">ⓘ
+                <span class="pop"><span class="pop-title">Stored at</span><code x-text="f.output_location"></code>
+                  <button type="button" class="small secondary" @click.stop="App.copy(f.output_location)">Copy</button></span></span></td>
+            <td x-text="F.d(f.as_of_date)"></td>
+            <td class="num" x-text="F.num(f.accepted_records)"></td><td class="num" x-text="f.rejected_records || 0"></td>
+            <td class="num" x-text="f.excluded_accounts || 0"></td><td class="num" x-text="f.overridden_accounts || 0"></td>
+            <td>
+              <template x-if="f.has_file"><span>
+                <a href="#" @click.prevent="download(f, 'file')" x-text="f.submission_type === 'CONSUMER' ? 'TUDF' : 'Bureau file'"></a>
+                (<a :href="`tudf.html?request=${f.request_id}&name=${encodeURIComponent(f.output_file_name || '')}`">view</a>)
+                <span x-show="f.has_excel"> · <a href="#" @click.prevent="download(f, 'excel')">Bureau Excel</a></span>
+                <span x-show="f.has_review"> · <a href="#" @click.prevent="download(f, 'review')">Review Excel</a></span>
+                <span x-show="f.has_exceptions"> · <a href="#" @click.prevent="download(f, 'exceptions')">Exceptions</a></span></span></template>
+              <span class="badge b-PURGED" x-show="!f.has_file">Purged</span>
+            </td></tr>
+        </template>
+      </tbody>
+    </table></div>
+    <div class="panel-body muted" x-show="data && !data.files.length">No files generated<span x-show="period !== 'all'"> in this period</span>.</div>
+  </div>
+  <div class="pager" x-show="data?.pages > 1">
+    <a href="#" x-show="page > 1" @click.prevent="page--; load()">Previous</a>
+    <span class="muted" x-text="`Page ${page} of ${data?.pages}`"></span>
+    <a href="#" x-show="page < data?.pages" @click.prevent="page++; load()">Next</a>
+  </div>
+</main>
+</body>
+</html>

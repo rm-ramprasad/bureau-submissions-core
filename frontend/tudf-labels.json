@@ -1,0 +1,3007 @@
+{
+ "CONSUMER": {
+  "kind": "tudf",
+  "generated_from": "bureau_core/types/consumer/layout.yaml, codes.yaml, excel_layout.yaml",
+  "layout": "UCRF-CONSUMER-3.74",
+  "encoding": {
+   "segment_tag_style": "plain",
+   "record_separator": "",
+   "record_end": "ES02**",
+   "trailer": "TRLR"
+  },
+  "header": {
+   "length": 146,
+   "fields": [
+    {
+     "name": "Segment tag",
+     "width": 4
+    },
+    {
+     "name": "Version",
+     "width": 2
+    },
+    {
+     "name": "Member id",
+     "width": 30
+    },
+    {
+     "name": "Member short name",
+     "width": 16
+    },
+    {
+     "name": "Cycle",
+     "width": 2
+    },
+    {
+     "name": "Date reported",
+     "width": 8
+    },
+    {
+     "name": "Filler",
+     "width": 30
+    },
+    {
+     "name": "Filler",
+     "width": 1
+    },
+    {
+     "name": "Filler",
+     "width": 5
+    },
+    {
+     "name": "Filler",
+     "width": 48
+    }
+   ]
+  },
+  "segments": {
+   "PN": {
+    "name": "Name",
+    "seq_length": 3,
+    "max": null,
+    "fields": {
+     "01": {
+      "name": "Full name (part 1)",
+      "codes": {},
+      "excel": [
+       "Consumer Name"
+      ]
+     },
+     "02": {
+      "name": "Full name (part 2)",
+      "codes": {},
+      "excel": [
+       "Consumer Name"
+      ]
+     },
+     "03": {
+      "name": "Full name (part 3)",
+      "codes": {},
+      "excel": [
+       "Consumer Name"
+      ]
+     },
+     "04": {
+      "name": "Full name (part 4)",
+      "codes": {},
+      "excel": [
+       "Consumer Name"
+      ]
+     },
+     "05": {
+      "name": "Full name (part 5)",
+      "codes": {},
+      "excel": [
+       "Consumer Name"
+      ]
+     },
+     "07": {
+      "name": "Birth date",
+      "codes": {},
+      "excel": [
+       "Date of Birth"
+      ]
+     },
+     "08": {
+      "name": "Gender",
+      "codes": {
+       "1": "FEMALE",
+       "2": "MALE",
+       "3": "TRANSGENDER"
+      },
+      "excel": [
+       "Gender"
+      ]
+     }
+    }
+   },
+   "ID": {
+    "name": "Identification",
+    "seq_length": 3,
+    "max": 8,
+    "fields": {
+     "01": {
+      "name": "Id type",
+      "codes": {
+       "01": "PAN",
+       "02": "PASSPORT",
+       "03": "VOTER ID",
+       "04": "DRIVING LICENCE",
+       "05": "RATION CARD",
+       "06": "AADHAAR",
+       "07": "ADDITIONAL ID 1",
+       "08": "ADDITIONAL ID 2",
+       "09": "CKYC",
+       "10": "G RAM G"
+      },
+      "excel": []
+     },
+     "02": {
+      "name": "Id number",
+      "codes": {},
+      "excel": [
+       "Income Tax ID Number (the ID whose ID01 = 01)",
+       "Passport Number (the ID whose ID01 = 02)",
+       "Voter ID Number (the ID whose ID01 = 03)",
+       "Driving License Number (the ID whose ID01 = 04)",
+       "Ration Card Number (the ID whose ID01 = 05)",
+       "Universal ID Number (the ID whose ID01 = 06)",
+       "Additional ID #1 (the ID whose ID01 = ADDITIONAL_ID_1)",
+       "Additional ID #2 (the ID whose ID01 = ADDITIONAL_ID_2)",
+       "CKYC (the ID whose ID01 = 09)",
+       "G RAM G (the ID whose ID01 = 10)"
+      ]
+     },
+     "03": {
+      "name": "Issue date",
+      "codes": {},
+      "excel": [
+       "Passport Issue Date (the ID whose ID01 = 02)",
+       "Driving License Issue Date (the ID whose ID01 = 04)"
+      ]
+     },
+     "04": {
+      "name": "Expiry date",
+      "codes": {},
+      "excel": [
+       "Passport Expiry Date (the ID whose ID01 = 02)",
+       "Driving License Expiry Date (the ID whose ID01 = 04)"
+      ]
+     }
+    }
+   },
+   "PT": {
+    "name": "Telephone",
+    "seq_length": 3,
+    "max": 10,
+    "fields": {
+     "01": {
+      "name": "Phone number",
+      "codes": {},
+      "excel": [
+       "Telephone No.Mobile (the PT whose PT03 = 01)",
+       "Telephone No.Residence (the PT whose PT03 = 02)",
+       "Telephone No.Office (the PT whose PT03 = 03)",
+       "Telephone No.Other (the PT whose PT03 = 00)"
+      ]
+     },
+     "02": {
+      "name": "Extension",
+      "codes": {},
+      "excel": [
+       "Extension Office (the PT whose PT03 = 03)",
+       "Extension Other (the PT whose PT03 = 00)"
+      ]
+     },
+     "03": {
+      "name": "Phone type",
+      "codes": {
+       "00": "NOT CLASSIFIED",
+       "01": "MOBILE",
+       "02": "HOME",
+       "03": "OFFICE"
+      },
+      "excel": []
+     }
+    }
+   },
+   "EC": {
+    "name": "E-mail",
+    "seq_length": 3,
+    "max": 10,
+    "fields": {
+     "01": {
+      "name": "Email",
+      "codes": {},
+      "excel": [
+       "Email ID 1 (filled slot 1)",
+       "Email ID 2 (filled slot 2)"
+      ]
+     }
+    }
+   },
+   "PA": {
+    "name": "Address",
+    "seq_length": 3,
+    "max": 5,
+    "fields": {
+     "01": {
+      "name": "Address line 1 or Address line 2 or Address line 3 or Address line 4 or Address line 5 (part 1)",
+      "codes": {},
+      "excel": [
+       "Address Line 1 (filled slot 1)",
+       "Address Line 2 (filled slot 2)"
+      ]
+     },
+     "02": {
+      "name": "Address line 1 or Address line 2 or Address line 3 or Address line 4 or Address line 5 (part 2)",
+      "codes": {},
+      "excel": [
+       "Address Line 1 (filled slot 1)",
+       "Address Line 2 (filled slot 2)"
+      ]
+     },
+     "03": {
+      "name": "Address line 1 or Address line 2 or Address line 3 or Address line 4 or Address line 5 (part 3)",
+      "codes": {},
+      "excel": [
+       "Address Line 1 (filled slot 1)",
+       "Address Line 2 (filled slot 2)"
+      ]
+     },
+     "04": {
+      "name": "Address line 1 or Address line 2 or Address line 3 or Address line 4 or Address line 5 (part 4)",
+      "codes": {},
+      "excel": [
+       "Address Line 1 (filled slot 1)",
+       "Address Line 2 (filled slot 2)"
+      ]
+     },
+     "05": {
+      "name": "Address line 1 or Address line 2 or Address line 3 or Address line 4 or Address line 5 (part 5)",
+      "codes": {},
+      "excel": [
+       "Address Line 1 (filled slot 1)",
+       "Address Line 2 (filled slot 2)"
+      ]
+     },
+     "06": {
+      "name": "State code",
+      "codes": {
+       "01": "JAMMU KASHMIR",
+       "02": "HIMACHAL PRADESH",
+       "03": "PUNJAB",
+       "04": "CHANDIGARH",
+       "05": "UTTARAKHAND",
+       "06": "HARYANA",
+       "07": "DELHI",
+       "08": "RAJASTHAN",
+       "09": "UTTAR PRADESH",
+       "10": "BIHAR",
+       "11": "SIKKIM",
+       "12": "ARUNACHAL PRADESH",
+       "13": "NAGALAND",
+       "14": "MANIPUR",
+       "15": "MIZORAM",
+       "16": "TRIPURA",
+       "17": "MEGHALAYA",
+       "18": "ASSAM",
+       "19": "WEST BENGAL",
+       "20": "JHARKHAND",
+       "21": "ODISHA",
+       "22": "CHHATTISGARH",
+       "23": "MADHYA PRADESH",
+       "24": "GUJARAT",
+       "25": "DADRA NAGAR HAVELI DAMAN DIU",
+       "27": "MAHARASHTRA",
+       "28": "ANDHRA PRADESH",
+       "29": "KARNATAKA",
+       "30": "GOA",
+       "31": "LAKSHADWEEP",
+       "32": "KERALA",
+       "33": "TAMIL NADU",
+       "34": "PUDUCHERRY",
+       "35": "ANDAMAN NICOBAR ISLANDS",
+       "36": "TELANGANA",
+       "37": "LADAKH",
+       "77": "FOREIGN",
+       "99": "APO"
+      },
+      "excel": [
+       "State Code 1 (filled slot 1)",
+       "State Code 2 (filled slot 2)"
+      ]
+     },
+     "07": {
+      "name": "Pin code",
+      "codes": {},
+      "excel": [
+       "PIN Code 1 (filled slot 1)",
+       "PIN Code 2 (filled slot 2)"
+      ]
+     },
+     "08": {
+      "name": "Address category",
+      "codes": {
+       "01": "PERMANENT",
+       "02": "RESIDENCE",
+       "03": "OFFICE",
+       "04": "NOT CATEGORIZED",
+       "05": "MORTGAGE PROPERTY"
+      },
+      "excel": [
+       "Address Category 1 (filled slot 1)",
+       "Address Category 2 (filled slot 2)"
+      ]
+     },
+     "09": {
+      "name": "Residence code",
+      "codes": {
+       "01": "OWNED",
+       "02": "RENTED"
+      },
+      "excel": [
+       "Residence Code 1 (filled slot 1)",
+       "Residence Code 2 (filled slot 2)"
+      ]
+     }
+    }
+   },
+   "TL": {
+    "name": "Account",
+    "seq_length": 4,
+    "max": null,
+    "fields": {
+     "01": {
+      "name": "Member id",
+      "codes": {},
+      "excel": [
+       "Current/New Member Code"
+      ]
+     },
+     "02": {
+      "name": "Member short name",
+      "codes": {},
+      "excel": [
+       "Current/New Member Short Name"
+      ]
+     },
+     "03": {
+      "name": "Account number",
+      "codes": {},
+      "excel": [
+       "Curr/New Account No"
+      ]
+     },
+     "04": {
+      "name": "Account type",
+      "codes": {
+       "00": "OTHER",
+       "01": "AUTO LOAN",
+       "02": "HOUSING LOAN",
+       "03": "PROPERTY LOAN",
+       "04": "LOAN AGAINST SHARES SECURITIES",
+       "05": "PERSONAL LOAN",
+       "06": "CONSUMER LOAN",
+       "07": "GOLD LOAN",
+       "08": "EDUCATION LOAN",
+       "09": "LOAN TO PROFESSIONAL",
+       "10": "CREDIT CARD",
+       "11": "LEASING",
+       "12": "OVERDRAFT",
+       "13": "TWO WHEELER LOAN",
+       "14": "NON FUNDED CREDIT FACILITY",
+       "15": "LOAN AGAINST BANK DEPOSITS",
+       "16": "FLEET CARD",
+       "17": "COMMERCIAL VEHICLE LOAN",
+       "18": "TELCO WIRELESS",
+       "19": "TELCO BROADBAND",
+       "20": "TELCO LANDLINE",
+       "21": "SELLER FINANCING",
+       "23": "GECL LOAN SECURED",
+       "24": "GECL LOAN UNSECURED",
+       "25": "WORKING CAPITAL LOAN",
+       "26": "COMMERCIAL EQUIPMENT LOAN",
+       "27": "AGRICULTURE LOAN",
+       "28": "OVERDRAFT AGAINST FD",
+       "29": "OVERDRAFT AGAINST SHARES SECURITIES",
+       "30": "OVERDRAFT AGAINST COLLATERAL",
+       "31": "SECURED CREDIT CARD",
+       "32": "USED CAR LOAN",
+       "33": "CONSTRUCTION EQUIPMENT LOAN",
+       "34": "TRACTOR LOAN",
+       "35": "CORPORATE CREDIT CARD",
+       "36": "KISAN CREDIT CARD",
+       "37": "LOAN ON CREDIT CARD",
+       "38": "PMJDY OVERDRAFT",
+       "39": "MUDRA LOAN / MUDRA TERM LOAN / MUDRA WORKING CAPITAL",
+       "40": "MICROFINANCE BUSINESS LOAN",
+       "41": "MICROFINANCE PERSONAL LOAN",
+       "42": "MICROFINANCE HOUSING LOAN",
+       "43": "MICROFINANCE OTHERS",
+       "44": "PMAY CLSS",
+       "45": "P2P PERSONAL LOAN",
+       "46": "P2P AUTO LOAN",
+       "47": "P2P EDUCATION LOAN",
+       "50": "BUSINESS LOAN SECURED",
+       "51": "BUSINESS LOAN GENERAL",
+       "52": "BUSINESS LOAN PS SMALL BUSINESS",
+       "53": "BUSINESS LOAN PS AGRICULTURE",
+       "54": "BUSINESS LOAN PS OTHERS",
+       "55": "BUSINESS NON FUNDED GENERAL",
+       "56": "BUSINESS NON FUNDED PS SMALL BUSINESS",
+       "57": "BUSINESS NON FUNDED PS AGRICULTURE",
+       "58": "BUSINESS NON FUNDED PS OTHERS",
+       "59": "BUSINESS LOAN AGAINST BANK DEPOSITS",
+       "61": "BUSINESS LOAN UNSECURED",
+       "69": "SHORT TERM PERSONAL LOAN",
+       "70": "PRIORITY SECTOR GOLD LOAN",
+       "71": "TEMPORARY OVERDRAFT"
+      },
+      "excel": [
+       "Account Type"
+      ]
+     },
+     "05": {
+      "name": "Ownership indicator",
+      "codes": {
+       "1": "INDIVIDUAL",
+       "2": "AUTHORISED USER",
+       "3": "GUARANTOR",
+       "4": "JOINT",
+       "5": "DECEASED"
+      },
+      "excel": [
+       "Ownership Indicator"
+      ]
+     },
+     "08": {
+      "name": "Date opened",
+      "codes": {},
+      "excel": [
+       "Date Opened/Disbursed"
+      ]
+     },
+     "09": {
+      "name": "Date last payment",
+      "codes": {},
+      "excel": [
+       "Date of Last Payment"
+      ]
+     },
+     "10": {
+      "name": "Date closed",
+      "codes": {},
+      "excel": [
+       "Date Closed"
+      ]
+     },
+     "11": {
+      "name": "Date reported",
+      "codes": {},
+      "excel": [
+       "Date Reported"
+      ]
+     },
+     "12": {
+      "name": "High credit amount",
+      "codes": {},
+      "excel": [
+       "High Credit/Sanctioned Amt"
+      ]
+     },
+     "13": {
+      "name": "Current balance",
+      "codes": {},
+      "excel": [
+       "Current  Balance"
+      ]
+     },
+     "14": {
+      "name": "Amount overdue",
+      "codes": {},
+      "excel": [
+       "Amt Overdue"
+      ]
+     },
+     "15": {
+      "name": "Days past due",
+      "codes": {},
+      "excel": [
+       "No of Days Past Due"
+      ]
+     },
+     "16": {
+      "name": "Old member code",
+      "codes": {},
+      "excel": [
+       "Old Mbr Code"
+      ]
+     },
+     "17": {
+      "name": "Old member short name",
+      "codes": {},
+      "excel": [
+       "Old Mbr Short Name"
+      ]
+     },
+     "18": {
+      "name": "Old account number",
+      "codes": {},
+      "excel": [
+       "Old Acc No"
+      ]
+     },
+     "19": {
+      "name": "Old account type",
+      "codes": {
+       "00": "OTHER",
+       "01": "AUTO LOAN",
+       "02": "HOUSING LOAN",
+       "03": "PROPERTY LOAN",
+       "04": "LOAN AGAINST SHARES SECURITIES",
+       "05": "PERSONAL LOAN",
+       "06": "CONSUMER LOAN",
+       "07": "GOLD LOAN",
+       "08": "EDUCATION LOAN",
+       "09": "LOAN TO PROFESSIONAL",
+       "10": "CREDIT CARD",
+       "11": "LEASING",
+       "12": "OVERDRAFT",
+       "13": "TWO WHEELER LOAN",
+       "14": "NON FUNDED CREDIT FACILITY",
+       "15": "LOAN AGAINST BANK DEPOSITS",
+       "16": "FLEET CARD",
+       "17": "COMMERCIAL VEHICLE LOAN",
+       "18": "TELCO WIRELESS",
+       "19": "TELCO BROADBAND",
+       "20": "TELCO LANDLINE",
+       "21": "SELLER FINANCING",
+       "23": "GECL LOAN SECURED",
+       "24": "GECL LOAN UNSECURED",
+       "25": "WORKING CAPITAL LOAN",
+       "26": "COMMERCIAL EQUIPMENT LOAN",
+       "27": "AGRICULTURE LOAN",
+       "28": "OVERDRAFT AGAINST FD",
+       "29": "OVERDRAFT AGAINST SHARES SECURITIES",
+       "30": "OVERDRAFT AGAINST COLLATERAL",
+       "31": "SECURED CREDIT CARD",
+       "32": "USED CAR LOAN",
+       "33": "CONSTRUCTION EQUIPMENT LOAN",
+       "34": "TRACTOR LOAN",
+       "35": "CORPORATE CREDIT CARD",
+       "36": "KISAN CREDIT CARD",
+       "37": "LOAN ON CREDIT CARD",
+       "38": "PMJDY OVERDRAFT",
+       "39": "MUDRA LOAN / MUDRA TERM LOAN / MUDRA WORKING CAPITAL",
+       "40": "MICROFINANCE BUSINESS LOAN",
+       "41": "MICROFINANCE PERSONAL LOAN",
+       "42": "MICROFINANCE HOUSING LOAN",
+       "43": "MICROFINANCE OTHERS",
+       "44": "PMAY CLSS",
+       "45": "P2P PERSONAL LOAN",
+       "46": "P2P AUTO LOAN",
+       "47": "P2P EDUCATION LOAN",
+       "50": "BUSINESS LOAN SECURED",
+       "51": "BUSINESS LOAN GENERAL",
+       "52": "BUSINESS LOAN PS SMALL BUSINESS",
+       "53": "BUSINESS LOAN PS AGRICULTURE",
+       "54": "BUSINESS LOAN PS OTHERS",
+       "55": "BUSINESS NON FUNDED GENERAL",
+       "56": "BUSINESS NON FUNDED PS SMALL BUSINESS",
+       "57": "BUSINESS NON FUNDED PS AGRICULTURE",
+       "58": "BUSINESS NON FUNDED PS OTHERS",
+       "59": "BUSINESS LOAN AGAINST BANK DEPOSITS",
+       "61": "BUSINESS LOAN UNSECURED",
+       "69": "SHORT TERM PERSONAL LOAN",
+       "70": "PRIORITY SECTOR GOLD LOAN",
+       "71": "TEMPORARY OVERDRAFT"
+      },
+      "excel": [
+       "Old Acc Type"
+      ]
+     },
+     "20": {
+      "name": "Old ownership indicator",
+      "codes": {
+       "1": "INDIVIDUAL",
+       "2": "AUTHORISED USER",
+       "3": "GUARANTOR",
+       "4": "JOINT",
+       "5": "DECEASED"
+      },
+      "excel": [
+       "Old Ownership Indicator"
+      ]
+     },
+     "21": {
+      "name": "Suit filed status",
+      "codes": {
+       "00": "NO SUIT FILED",
+       "01": "SUIT FILED / TRIAL IN PROGRESS / DECREE ISSUED / DECREE EXECUTION / NCLT SUIT FILED",
+       "02": "WILFUL DEFAULT",
+       "03": "SUIT FILED WILFUL DEFAULT"
+      },
+      "excel": [
+       "Suit Filed / Wilful Default"
+      ]
+     },
+     "22": {
+      "name": "Credit facility status",
+      "codes": {
+       "00": "RESTRUCTURED LOAN",
+       "01": "RESTRUCTURED LOAN GOVT MANDATED",
+       "02": "WRITTEN OFF",
+       "03": "SETTLED",
+       "04": "POST WO SETTLED",
+       "05": "ACCOUNT SOLD",
+       "06": "WRITTEN OFF AND ACCOUNT SOLD",
+       "07": "ACCOUNT PURCHASED",
+       "08": "ACCOUNT PURCHASED AND WRITTEN OFF",
+       "09": "ACCOUNT PURCHASED AND SETTLED",
+       "10": "ACCOUNT PURCHASED AND RESTRUCTURED",
+       "11": "RESTRUCTURED DUE TO NATURAL CALAMITY",
+       "12": "RESTRUCTURED DUE TO COVID 19",
+       "13": "POST WRITE OFF CLOSED",
+       "14": "RESTRUCTURED CLOSED",
+       "15": "AUCTIONED SETTLED",
+       "16": "REPOSSESSED SETTLED",
+       "17": "GUARANTEE INVOKED",
+       "99": "CLEAR STATUS"
+      },
+      "excel": [
+       "Credit Facility Status"
+      ]
+     },
+     "26": {
+      "name": "Asset classification",
+      "codes": {
+       "01": "STANDARD",
+       "02": "SUBSTANDARD",
+       "03": "DOUBTFUL / DOUBTFUL 1 / DOUBTFUL 2 / DOUBTFUL 3",
+       "04": "LOSS",
+       "05": "SPECIAL MENTION ACCOUNT / SMA 0 / SMA 1 / SMA 2"
+      },
+      "excel": [
+       "Asset Classification"
+      ]
+     },
+     "34": {
+      "name": "Collateral value",
+      "codes": {},
+      "excel": [
+       "Value of Collateral"
+      ]
+     },
+     "35": {
+      "name": "Collateral type",
+      "codes": {
+       "00": "NONE",
+       "01": "PROPERTY",
+       "02": "GOLD",
+       "03": "SHARES",
+       "04": "SAVINGS ACCOUNT FD",
+       "05": "MULTIPLE SECURITIES",
+       "06": "OTHERS"
+      },
+      "excel": [
+       "Type of Collateral"
+      ]
+     },
+     "36": {
+      "name": "Credit limit",
+      "codes": {},
+      "excel": [
+       "Credit Limit"
+      ]
+     },
+     "37": {
+      "name": "Cash limit",
+      "codes": {},
+      "excel": [
+       "Cash Limit"
+      ]
+     },
+     "38": {
+      "name": "Rate of interest",
+      "codes": {},
+      "excel": [
+       "Rate of Interest"
+      ]
+     },
+     "39": {
+      "name": "Repayment tenure",
+      "codes": {},
+      "excel": [
+       "RepaymentTenure"
+      ]
+     },
+     "40": {
+      "name": "Emi amount",
+      "codes": {},
+      "excel": [
+       "EMI Amount"
+      ]
+     },
+     "41": {
+      "name": "Written off total",
+      "codes": {},
+      "excel": [
+       "Written- off Amount (Total)"
+      ]
+     },
+     "42": {
+      "name": "Written off principal",
+      "codes": {},
+      "excel": [
+       "Written- off Principal Amount"
+      ]
+     },
+     "43": {
+      "name": "Settlement amount",
+      "codes": {},
+      "excel": [
+       "Settlement Amt"
+      ]
+     },
+     "44": {
+      "name": "Payment frequency",
+      "codes": {
+       "01": "WEEKLY",
+       "02": "FORTNIGHTLY",
+       "03": "MONTHLY",
+       "04": "QUARTERLY",
+       "05": "BULLET",
+       "06": "DAILY",
+       "07": "HALF YEARLY",
+       "08": "YEARLY",
+       "09": "ON DEMAND"
+      },
+      "excel": [
+       "Payment Frequency"
+      ]
+     },
+     "45": {
+      "name": "Actual payment amount",
+      "codes": {},
+      "excel": [
+       "Actual Payment Amt"
+      ]
+     },
+     "46": {
+      "name": "Occupation",
+      "codes": {
+       "01": "SALARIED",
+       "02": "SELF EMPLOYED PROFESSIONAL",
+       "03": "SELF EMPLOYED",
+       "04": "OTHERS"
+      },
+      "excel": [
+       "Occupation Code"
+      ]
+     },
+     "47": {
+      "name": "Income",
+      "codes": {},
+      "excel": [
+       "Income"
+      ]
+     },
+     "48": {
+      "name": "Income basis",
+      "codes": {
+       "G": "GROSS",
+       "N": "NET"
+      },
+      "excel": [
+       "Net/Gross Income Indicator"
+      ]
+     },
+     "49": {
+      "name": "Income period",
+      "codes": {
+       "A": "ANNUAL",
+       "M": "MONTHLY"
+      },
+      "excel": [
+       "Monthly/Annual Income Indicator"
+      ]
+     }
+    }
+   },
+   "TH": {
+    "name": "Account history",
+    "seq_length": 3,
+    "max": 47,
+    "fields": {
+     "01": {
+      "name": "History month",
+      "codes": {},
+      "excel": []
+     },
+     "02": {
+      "name": "Days past due or Asset classification",
+      "codes": {},
+      "excel": []
+     },
+     "03": {
+      "name": "Amount overdue",
+      "codes": {},
+      "excel": []
+     },
+     "04": {
+      "name": "High credit amount",
+      "codes": {},
+      "excel": []
+     },
+     "05": {
+      "name": "Credit limit",
+      "codes": {},
+      "excel": []
+     },
+     "06": {
+      "name": "Cash limit",
+      "codes": {},
+      "excel": []
+     },
+     "07": {
+      "name": "Current balance",
+      "codes": {},
+      "excel": []
+     },
+     "08": {
+      "name": "Date last payment",
+      "codes": {},
+      "excel": []
+     },
+     "09": {
+      "name": "Actual payment amount",
+      "codes": {},
+      "excel": []
+     }
+    }
+   },
+   "ES": {
+    "name": "End of record",
+    "seq_length": 0,
+    "max": 1,
+    "fields": {}
+   }
+  }
+ },
+ "COMMERCIAL": {
+  "kind": "delimited",
+  "generated_from": "bureau_core/types/commercial/layout.yaml, codes.yaml",
+  "layout": "CUCRF-3.10",
+  "encoding": {
+   "delimiter": "|",
+   "line_end": "\r\n",
+   "trailing_delimiter": true
+  },
+  "structure": {
+   "header": "HD",
+   "group": "BS",
+   "group_children": [
+    "AS",
+    "RS"
+   ],
+   "record": "CR",
+   "record_children": [
+    "GS",
+    "SS",
+    "CD"
+   ],
+   "trailer": "TS"
+  },
+  "segments": {
+   "HD": {
+    "name": "Header",
+    "fields_count": 7,
+    "fields": {
+     "2": {
+      "name": "Member ID",
+      "codes": {}
+     },
+     "3": {
+      "name": "Previous member ID (after a merger)",
+      "codes": {}
+     },
+     "4": {
+      "name": "Date of creation & certification",
+      "codes": {}
+     },
+     "5": {
+      "name": "Reporting / cycle date",
+      "codes": {}
+     },
+     "6": {
+      "name": "Reporting cycle (DL W1 W2 W3 ME ...)",
+      "codes": {}
+     },
+     "7": {
+      "name": "Filler",
+      "codes": {}
+     }
+    }
+   },
+   "BS": {
+    "name": "Borrower",
+    "fields_count": 27,
+    "fields": {
+     "2": {
+      "name": "Member branch code",
+      "codes": {}
+     },
+     "3": {
+      "name": "Previous member branch code",
+      "codes": {}
+     },
+     "4": {
+      "name": "Borrower's name",
+      "codes": {}
+     },
+     "5": {
+      "name": "Borrower short name",
+      "codes": {}
+     },
+     "6": {
+      "name": "Company registration number",
+      "codes": {}
+     },
+     "7": {
+      "name": "Date of incorporation",
+      "codes": {}
+     },
+     "8": {
+      "name": "PAN",
+      "codes": {}
+     },
+     "9": {
+      "name": "CIN",
+      "codes": {}
+     },
+     "10": {
+      "name": "TIN",
+      "codes": {}
+     },
+     "11": {
+      "name": "Service tax number",
+      "codes": {}
+     },
+     "12": {
+      "name": "Udyam registration number",
+      "codes": {}
+     },
+     "13": {
+      "name": "Legal constitution",
+      "codes": {
+       "11": "PRIVATE LIMITED",
+       "12": "PUBLIC LIMITED",
+       "20": "STATUTORY BODY",
+       "30": "PROPRIETORSHIP",
+       "40": "PARTNERSHIP",
+       "50": "TRUST",
+       "55": "HUF",
+       "60": "COOPERATIVE SOCIETY",
+       "70": "ASSOCIATION OF PERSONS",
+       "80": "GOVERNMENT",
+       "85": "SELF HELP GROUP",
+       "90": "INDIVIDUAL"
+      }
+     },
+     "14": {
+      "name": "Business category",
+      "codes": {
+       "03": "MICRO",
+       "04": "SMALL",
+       "05": "MEDIUM",
+       "06": "LARGE",
+       "07": "OTHERS",
+       "08": "RETAIL",
+       "09": "AGRI"
+      }
+     },
+     "15": {
+      "name": "Business / industry type",
+      "codes": {
+       "01": "MANUFACTURING",
+       "02": "DISTRIBUTION",
+       "03": "WHOLESALE",
+       "04": "TRADING",
+       "05": "BROKING",
+       "06": "SERVICE PROVIDER",
+       "07": "IMPORTING",
+       "08": "EXPORTING",
+       "09": "AGRICULTURE",
+       "10": "DEALERS",
+       "11": "OTHERS"
+      }
+     },
+     "16": {
+      "name": "Class of activity 1",
+      "codes": {}
+     },
+     "17": {
+      "name": "Activity class 2",
+      "codes": {}
+     },
+     "18": {
+      "name": "Activity class 3",
+      "codes": {}
+     },
+     "19": {
+      "name": "HSN",
+      "codes": {}
+     },
+     "20": {
+      "name": "Sales figure",
+      "codes": {}
+     },
+     "21": {
+      "name": "Financial year",
+      "codes": {}
+     },
+     "22": {
+      "name": "Number of employees",
+      "codes": {}
+     },
+     "23": {
+      "name": "Credit rating",
+      "codes": {}
+     },
+     "24": {
+      "name": "Assessment agency / authority",
+      "codes": {
+       "01": "CARE",
+       "02": "CRISIL",
+       "03": "ICRA",
+       "05": "ACUITE",
+       "06": "INDIA RATINGS",
+       "07": "OTHERS",
+       "08": "ACER",
+       "09": "BRICKWORK",
+       "10": "INFOMERICS"
+      }
+     },
+     "25": {
+      "name": "Credit rating as on",
+      "codes": {}
+     },
+     "26": {
+      "name": "Credit rating expiry date",
+      "codes": {}
+     },
+     "27": {
+      "name": "CKYC",
+      "codes": {}
+     }
+    }
+   },
+   "AS": {
+    "name": "Address",
+    "fields_count": 17,
+    "fields": {
+     "2": {
+      "name": "Location type",
+      "codes": {
+       "01": "REGISTERED OFFICE",
+       "02": "BRANCH OFFICE",
+       "03": "WAREHOUSE",
+       "04": "PLANT FACTORY",
+       "05": "OTHERS",
+       "06": "MORTGAGE PROPERTY"
+      }
+     },
+     "3": {
+      "name": "Filler",
+      "codes": {}
+     },
+     "4": {
+      "name": "Address line 1",
+      "codes": {}
+     },
+     "5": {
+      "name": "Address line 2",
+      "codes": {}
+     },
+     "6": {
+      "name": "Address line 3",
+      "codes": {}
+     },
+     "7": {
+      "name": "City / town",
+      "codes": {}
+     },
+     "8": {
+      "name": "District",
+      "codes": {}
+     },
+     "9": {
+      "name": "State / union territory",
+      "codes": {
+       "01": "ANDAMAN NICOBAR ISLANDS",
+       "02": "ANDHRA PRADESH",
+       "03": "ARUNACHAL PRADESH",
+       "04": "ASSAM",
+       "05": "BIHAR",
+       "06": "CHANDIGARH",
+       "07": "CHHATTISGARH",
+       "08": "DADRA NAGAR HAVELI DAMAN DIU",
+       "10": "GOA",
+       "11": "GUJARAT",
+       "12": "HARYANA",
+       "13": "HIMACHAL PRADESH",
+       "14": "JAMMU KASHMIR",
+       "15": "JHARKHAND",
+       "16": "KARNATAKA",
+       "17": "KERALA",
+       "18": "LAKSHADWEEP",
+       "19": "MADHYA PRADESH",
+       "20": "MAHARASHTRA",
+       "21": "MANIPUR",
+       "22": "MEGHALAYA",
+       "23": "MIZORAM",
+       "24": "NAGALAND",
+       "25": "DELHI",
+       "26": "ODISHA",
+       "27": "PUDUCHERRY",
+       "28": "PUNJAB",
+       "29": "RAJASTHAN",
+       "30": "SIKKIM",
+       "31": "TAMIL NADU",
+       "32": "TRIPURA",
+       "33": "UTTAR PRADESH",
+       "34": "UTTARAKHAND",
+       "35": "WEST BENGAL",
+       "36": "TELANGANA",
+       "37": "LADAKH",
+       "77": "FOREIGN",
+       "99": "APO"
+      }
+     },
+     "10": {
+      "name": "PIN code (6 digits in India)",
+      "codes": {}
+     },
+     "11": {
+      "name": "Country",
+      "codes": {
+       "001": "AFGHANISTAN",
+       "002": "ALBANIA",
+       "003": "ALGERIA",
+       "004": "ANDORRA",
+       "005": "ANGOLA",
+       "006": "ANTIGUA AND BARBUDA",
+       "007": "ARGENTINA",
+       "008": "ARMENIA",
+       "009": "AUSTRALIA",
+       "010": "AUSTRIA",
+       "011": "AZERBAIJAN",
+       "012": "BAHAMAS",
+       "013": "BAHRAIN",
+       "014": "BANGLADESH",
+       "015": "BARBADOS",
+       "016": "BELARUS",
+       "017": "BELGIUM",
+       "018": "BELIZE",
+       "019": "BENIN",
+       "020": "BHUTAN",
+       "021": "BOLIVIA",
+       "022": "BOSNIA AND HERZEGOVINA",
+       "023": "BOTSWANA",
+       "024": "BRAZIL",
+       "025": "BRUNEI DARUSSALAM",
+       "026": "BULGARIA",
+       "027": "BURKINA FASO",
+       "028": "BURUNDI",
+       "029": "CAMBODIA",
+       "030": "CAMEROON",
+       "031": "CANADA",
+       "032": "CAPE VERDE",
+       "033": "CENTRAL AFRICAN REPUBLIC",
+       "034": "CHAD",
+       "035": "CHILE",
+       "036": "CHINA",
+       "037": "COLOMBIA",
+       "038": "COMOROS",
+       "039": "CONGO",
+       "040": "COSTA RICA",
+       "041": "COTE D IVOIRE",
+       "042": "CROATIA",
+       "043": "CUBA",
+       "044": "CYPRUS",
+       "045": "CZECH REPUBLIC",
+       "046": "DEMOCRATIC PEOPLE S REPUBLIC OF KOREA",
+       "047": "DEMOCRATIC REPUBLIC OF THE CONGO",
+       "048": "DENMARK",
+       "049": "DJIBOUTI",
+       "050": "DOMINICA",
+       "051": "DOMINICAN REPUBLIC",
+       "052": "EAST TIMOR",
+       "053": "ECUADOR",
+       "054": "EGYPT",
+       "055": "EL SALVADOR",
+       "056": "EQUATORIAL GUINEA",
+       "057": "ERITREA",
+       "058": "ESTONIA",
+       "059": "ETHIOPIA",
+       "060": "FIJI",
+       "061": "FINLAND",
+       "062": "FRANCE",
+       "063": "GABON",
+       "064": "GAMBIA",
+       "065": "GEORGIA",
+       "066": "GERMANY",
+       "067": "GHANA",
+       "068": "GREECE",
+       "069": "GRENADA",
+       "070": "GUATEMALA",
+       "071": "GUINEA",
+       "072": "GUINEA BISSAU",
+       "073": "GUYANA",
+       "074": "HAITI",
+       "075": "HONDURAS",
+       "076": "HONG KONG",
+       "077": "HUNGARY",
+       "078": "ICELAND",
+       "079": "INDIA",
+       "080": "INDONESIA",
+       "081": "IRAN ISLAMIC REPUBLIC OF",
+       "082": "IRAQ",
+       "083": "IRELAND",
+       "084": "ISRAEL",
+       "085": "ITALY",
+       "086": "JAMAICA",
+       "087": "JAPAN",
+       "088": "JORDAN",
+       "089": "KAZAKHSTAN",
+       "090": "KENYA",
+       "091": "KIRIBATI",
+       "092": "KUWAIT",
+       "093": "KYRGYZSTAN",
+       "094": "LAO PEOPLE S DEMOCRATIC REPUBLIC",
+       "095": "LATVIA",
+       "096": "LEBANON",
+       "097": "LESOTHO",
+       "098": "LIBERIA",
+       "099": "LIBYAN ARAB JAMAHIRIYA",
+       "100": "LIECHTENSTEIN",
+       "101": "LITHUANIA",
+       "102": "LUXEMBOURG",
+       "103": "MADAGASCAR",
+       "104": "MALAWI",
+       "105": "MALAYSIA",
+       "106": "MALDIVES",
+       "107": "MALI",
+       "108": "MALTA",
+       "109": "MARSHALL ISLANDS",
+       "110": "MAURITANIA",
+       "111": "MAURITIUS",
+       "112": "MEXICO",
+       "113": "MICRONESIA FEDERATED STATES OF",
+       "114": "MONACO",
+       "115": "MONGOLIA",
+       "116": "MOROCCO",
+       "117": "MOZAMBIQUE",
+       "118": "MYANMAR",
+       "119": "NAMIBIA",
+       "120": "NAURU",
+       "121": "NEPAL",
+       "122": "NETHERLANDS",
+       "123": "NEW ZEALAND",
+       "124": "NICARAGUA",
+       "125": "NIGER",
+       "126": "NIGERIA",
+       "127": "NORWAY",
+       "128": "OMAN",
+       "129": "PAKISTAN",
+       "130": "PALAU",
+       "131": "PALESTINIAN AUTHORITY",
+       "132": "PANAMA",
+       "133": "PAPUA NEW GUINEA",
+       "134": "PARAGUAY",
+       "135": "PERU",
+       "136": "PHILIPPINES",
+       "137": "POLAND",
+       "138": "PORTUGAL",
+       "139": "QATAR",
+       "140": "REPUBLIC OF KOREA",
+       "141": "REPUBLIC OF MOLDOVA",
+       "142": "ROMANIA",
+       "143": "RUSSIAN FEDERATION",
+       "144": "RWANDA",
+       "145": "SAINT KITTS AND NEVIS",
+       "146": "SAINT LUCIA",
+       "147": "SAINT VINCENT AND THE GRENADINES",
+       "148": "SAMOA",
+       "149": "SAN MARINO",
+       "150": "SAO TOME AND PRINCIPE",
+       "151": "SAUDI ARABIA",
+       "152": "SENEGAL",
+       "153": "SERBIA AND MONTENEGRO",
+       "154": "SEYCHELLES",
+       "155": "SIERRA LEONE",
+       "156": "SINGAPORE",
+       "157": "SLOVAKIA",
+       "158": "SLOVENIA",
+       "159": "SOLOMON ISLANDS",
+       "160": "SOMALIA",
+       "161": "SOUTH AFRICA",
+       "162": "SPAIN",
+       "163": "SRI LANKA",
+       "164": "SUDAN",
+       "165": "SURINAME",
+       "166": "SWAZILAND",
+       "167": "SWEDEN",
+       "168": "SWITZERLAND",
+       "169": "SYRIAN ARAB REPUBLIC",
+       "170": "TAIWAN",
+       "171": "TAJIKISTAN",
+       "172": "TFYR MACEDONIA",
+       "173": "THAILAND",
+       "174": "TOGO",
+       "175": "TONGA",
+       "176": "TRINIDAD AND TOBAGO",
+       "177": "TUNISIA",
+       "178": "TURKEY",
+       "179": "TURKMENISTAN",
+       "180": "TUVALU",
+       "181": "UGANDA",
+       "182": "UKRAINE",
+       "183": "UNITED ARAB EMIRATES",
+       "184": "UNITED KINGDOM",
+       "185": "UNITED REPUBLIC OF TANZANIA",
+       "186": "UNITED STATES OF AMERICA",
+       "187": "URUGUAY",
+       "188": "UZBEKISTAN",
+       "189": "VANUATU",
+       "190": "VENEZUELA",
+       "191": "VIETNAM",
+       "192": "WESTERN SAHARA",
+       "193": "YEMEN",
+       "194": "ZAMBIA",
+       "195": "ZIMBABWE"
+      }
+     },
+     "12": {
+      "name": "Mobile number(s)",
+      "codes": {}
+     },
+     "13": {
+      "name": "Telephone area code (held in the number)",
+      "codes": {}
+     },
+     "14": {
+      "name": "Telephone number(s)",
+      "codes": {}
+     },
+     "15": {
+      "name": "Filler",
+      "codes": {}
+     },
+     "16": {
+      "name": "E-mail: read from the registered office",
+      "codes": {}
+     },
+     "17": {
+      "name": "Filler",
+      "codes": {}
+     }
+    }
+   },
+   "RS": {
+    "name": "Relationship",
+    "fields_count": 39,
+    "fields": {
+     "2": {
+      "name": "Filler",
+      "codes": {}
+     },
+     "3": {
+      "name": "Related type",
+      "codes": {
+       "1": "INDIAN ENTITY",
+       "2": "INDIAN INDIVIDUAL",
+       "3": "FOREIGN ENTITY",
+       "4": "FOREIGN INDIVIDUAL"
+      }
+     },
+     "4": {
+      "name": "Relationship",
+      "codes": {
+       "10": "SHAREHOLDER",
+       "11": "HOLDING COMPANY",
+       "12": "SUBSIDIARY COMPANY",
+       "20": "PROPRIETOR",
+       "30": "PARTNER",
+       "40": "TRUSTEE",
+       "51": "PROMOTER DIRECTOR",
+       "52": "NOMINEE DIRECTOR",
+       "53": "INDEPENDENT DIRECTOR",
+       "54": "FORMER DIRECTOR",
+       "55": "SHG MEMBER",
+       "56": "OTHER DIRECTOR",
+       "60": "OTHERS",
+       "70": "KARTA"
+      }
+     },
+     "5": {
+      "name": "Entity name",
+      "codes": {}
+     },
+     "6": {
+      "name": "Business category",
+      "codes": {
+       "03": "MICRO",
+       "04": "SMALL",
+       "05": "MEDIUM",
+       "06": "LARGE",
+       "07": "OTHERS",
+       "08": "RETAIL",
+       "09": "AGRI"
+      }
+     },
+     "7": {
+      "name": "Industry type",
+      "codes": {
+       "01": "MANUFACTURING",
+       "02": "DISTRIBUTION",
+       "03": "WHOLESALE",
+       "04": "TRADING",
+       "05": "BROKING",
+       "06": "SERVICE PROVIDER",
+       "07": "IMPORTING",
+       "08": "EXPORTING",
+       "09": "AGRICULTURE",
+       "10": "DEALERS",
+       "11": "OTHERS"
+      }
+     },
+     "8": {
+      "name": "Prefix",
+      "codes": {}
+     },
+     "9": {
+      "name": "Full name",
+      "codes": {}
+     },
+     "10": {
+      "name": "Gender",
+      "codes": {
+       "01": "MALE",
+       "02": "FEMALE",
+       "03": "TRANSGENDER"
+      }
+     },
+     "11": {
+      "name": "Company registration",
+      "codes": {}
+     },
+     "12": {
+      "name": "Incorporation date",
+      "codes": {}
+     },
+     "13": {
+      "name": "DOB",
+      "codes": {}
+     },
+     "14": {
+      "name": "PAN",
+      "codes": {}
+     },
+     "15": {
+      "name": "Voter ID",
+      "codes": {}
+     },
+     "16": {
+      "name": "Passport number",
+      "codes": {}
+     },
+     "17": {
+      "name": "Driving licence",
+      "codes": {}
+     },
+     "18": {
+      "name": "UID",
+      "codes": {}
+     },
+     "19": {
+      "name": "Ration card",
+      "codes": {}
+     },
+     "20": {
+      "name": "CIN",
+      "codes": {}
+     },
+     "21": {
+      "name": "DIN",
+      "codes": {}
+     },
+     "22": {
+      "name": "TIN",
+      "codes": {}
+     },
+     "23": {
+      "name": "Service tax",
+      "codes": {}
+     },
+     "24": {
+      "name": "CKYC",
+      "codes": {}
+     },
+     "25": {
+      "name": "Percentage of control (99.99 -> 9999)",
+      "codes": {}
+     },
+     "26": {
+      "name": "Address line 1",
+      "codes": {}
+     },
+     "27": {
+      "name": "Address line 2",
+      "codes": {}
+     },
+     "28": {
+      "name": "Address line 3",
+      "codes": {}
+     },
+     "29": {
+      "name": "City / town",
+      "codes": {}
+     },
+     "30": {
+      "name": "District",
+      "codes": {}
+     },
+     "31": {
+      "name": "State",
+      "codes": {
+       "01": "ANDAMAN NICOBAR ISLANDS",
+       "02": "ANDHRA PRADESH",
+       "03": "ARUNACHAL PRADESH",
+       "04": "ASSAM",
+       "05": "BIHAR",
+       "06": "CHANDIGARH",
+       "07": "CHHATTISGARH",
+       "08": "DADRA NAGAR HAVELI DAMAN DIU",
+       "10": "GOA",
+       "11": "GUJARAT",
+       "12": "HARYANA",
+       "13": "HIMACHAL PRADESH",
+       "14": "JAMMU KASHMIR",
+       "15": "JHARKHAND",
+       "16": "KARNATAKA",
+       "17": "KERALA",
+       "18": "LAKSHADWEEP",
+       "19": "MADHYA PRADESH",
+       "20": "MAHARASHTRA",
+       "21": "MANIPUR",
+       "22": "MEGHALAYA",
+       "23": "MIZORAM",
+       "24": "NAGALAND",
+       "25": "DELHI",
+       "26": "ODISHA",
+       "27": "PUDUCHERRY",
+       "28": "PUNJAB",
+       "29": "RAJASTHAN",
+       "30": "SIKKIM",
+       "31": "TAMIL NADU",
+       "32": "TRIPURA",
+       "33": "UTTAR PRADESH",
+       "34": "UTTARAKHAND",
+       "35": "WEST BENGAL",
+       "36": "TELANGANA",
+       "37": "LADAKH",
+       "77": "FOREIGN",
+       "99": "APO"
+      }
+     },
+     "32": {
+      "name": "Pin code",
+      "codes": {}
+     },
+     "33": {
+      "name": "Country",
+      "codes": {
+       "001": "AFGHANISTAN",
+       "002": "ALBANIA",
+       "003": "ALGERIA",
+       "004": "ANDORRA",
+       "005": "ANGOLA",
+       "006": "ANTIGUA AND BARBUDA",
+       "007": "ARGENTINA",
+       "008": "ARMENIA",
+       "009": "AUSTRALIA",
+       "010": "AUSTRIA",
+       "011": "AZERBAIJAN",
+       "012": "BAHAMAS",
+       "013": "BAHRAIN",
+       "014": "BANGLADESH",
+       "015": "BARBADOS",
+       "016": "BELARUS",
+       "017": "BELGIUM",
+       "018": "BELIZE",
+       "019": "BENIN",
+       "020": "BHUTAN",
+       "021": "BOLIVIA",
+       "022": "BOSNIA AND HERZEGOVINA",
+       "023": "BOTSWANA",
+       "024": "BRAZIL",
+       "025": "BRUNEI DARUSSALAM",
+       "026": "BULGARIA",
+       "027": "BURKINA FASO",
+       "028": "BURUNDI",
+       "029": "CAMBODIA",
+       "030": "CAMEROON",
+       "031": "CANADA",
+       "032": "CAPE VERDE",
+       "033": "CENTRAL AFRICAN REPUBLIC",
+       "034": "CHAD",
+       "035": "CHILE",
+       "036": "CHINA",
+       "037": "COLOMBIA",
+       "038": "COMOROS",
+       "039": "CONGO",
+       "040": "COSTA RICA",
+       "041": "COTE D IVOIRE",
+       "042": "CROATIA",
+       "043": "CUBA",
+       "044": "CYPRUS",
+       "045": "CZECH REPUBLIC",
+       "046": "DEMOCRATIC PEOPLE S REPUBLIC OF KOREA",
+       "047": "DEMOCRATIC REPUBLIC OF THE CONGO",
+       "048": "DENMARK",
+       "049": "DJIBOUTI",
+       "050": "DOMINICA",
+       "051": "DOMINICAN REPUBLIC",
+       "052": "EAST TIMOR",
+       "053": "ECUADOR",
+       "054": "EGYPT",
+       "055": "EL SALVADOR",
+       "056": "EQUATORIAL GUINEA",
+       "057": "ERITREA",
+       "058": "ESTONIA",
+       "059": "ETHIOPIA",
+       "060": "FIJI",
+       "061": "FINLAND",
+       "062": "FRANCE",
+       "063": "GABON",
+       "064": "GAMBIA",
+       "065": "GEORGIA",
+       "066": "GERMANY",
+       "067": "GHANA",
+       "068": "GREECE",
+       "069": "GRENADA",
+       "070": "GUATEMALA",
+       "071": "GUINEA",
+       "072": "GUINEA BISSAU",
+       "073": "GUYANA",
+       "074": "HAITI",
+       "075": "HONDURAS",
+       "076": "HONG KONG",
+       "077": "HUNGARY",
+       "078": "ICELAND",
+       "079": "INDIA",
+       "080": "INDONESIA",
+       "081": "IRAN ISLAMIC REPUBLIC OF",
+       "082": "IRAQ",
+       "083": "IRELAND",
+       "084": "ISRAEL",
+       "085": "ITALY",
+       "086": "JAMAICA",
+       "087": "JAPAN",
+       "088": "JORDAN",
+       "089": "KAZAKHSTAN",
+       "090": "KENYA",
+       "091": "KIRIBATI",
+       "092": "KUWAIT",
+       "093": "KYRGYZSTAN",
+       "094": "LAO PEOPLE S DEMOCRATIC REPUBLIC",
+       "095": "LATVIA",
+       "096": "LEBANON",
+       "097": "LESOTHO",
+       "098": "LIBERIA",
+       "099": "LIBYAN ARAB JAMAHIRIYA",
+       "100": "LIECHTENSTEIN",
+       "101": "LITHUANIA",
+       "102": "LUXEMBOURG",
+       "103": "MADAGASCAR",
+       "104": "MALAWI",
+       "105": "MALAYSIA",
+       "106": "MALDIVES",
+       "107": "MALI",
+       "108": "MALTA",
+       "109": "MARSHALL ISLANDS",
+       "110": "MAURITANIA",
+       "111": "MAURITIUS",
+       "112": "MEXICO",
+       "113": "MICRONESIA FEDERATED STATES OF",
+       "114": "MONACO",
+       "115": "MONGOLIA",
+       "116": "MOROCCO",
+       "117": "MOZAMBIQUE",
+       "118": "MYANMAR",
+       "119": "NAMIBIA",
+       "120": "NAURU",
+       "121": "NEPAL",
+       "122": "NETHERLANDS",
+       "123": "NEW ZEALAND",
+       "124": "NICARAGUA",
+       "125": "NIGER",
+       "126": "NIGERIA",
+       "127": "NORWAY",
+       "128": "OMAN",
+       "129": "PAKISTAN",
+       "130": "PALAU",
+       "131": "PALESTINIAN AUTHORITY",
+       "132": "PANAMA",
+       "133": "PAPUA NEW GUINEA",
+       "134": "PARAGUAY",
+       "135": "PERU",
+       "136": "PHILIPPINES",
+       "137": "POLAND",
+       "138": "PORTUGAL",
+       "139": "QATAR",
+       "140": "REPUBLIC OF KOREA",
+       "141": "REPUBLIC OF MOLDOVA",
+       "142": "ROMANIA",
+       "143": "RUSSIAN FEDERATION",
+       "144": "RWANDA",
+       "145": "SAINT KITTS AND NEVIS",
+       "146": "SAINT LUCIA",
+       "147": "SAINT VINCENT AND THE GRENADINES",
+       "148": "SAMOA",
+       "149": "SAN MARINO",
+       "150": "SAO TOME AND PRINCIPE",
+       "151": "SAUDI ARABIA",
+       "152": "SENEGAL",
+       "153": "SERBIA AND MONTENEGRO",
+       "154": "SEYCHELLES",
+       "155": "SIERRA LEONE",
+       "156": "SINGAPORE",
+       "157": "SLOVAKIA",
+       "158": "SLOVENIA",
+       "159": "SOLOMON ISLANDS",
+       "160": "SOMALIA",
+       "161": "SOUTH AFRICA",
+       "162": "SPAIN",
+       "163": "SRI LANKA",
+       "164": "SUDAN",
+       "165": "SURINAME",
+       "166": "SWAZILAND",
+       "167": "SWEDEN",
+       "168": "SWITZERLAND",
+       "169": "SYRIAN ARAB REPUBLIC",
+       "170": "TAIWAN",
+       "171": "TAJIKISTAN",
+       "172": "TFYR MACEDONIA",
+       "173": "THAILAND",
+       "174": "TOGO",
+       "175": "TONGA",
+       "176": "TRINIDAD AND TOBAGO",
+       "177": "TUNISIA",
+       "178": "TURKEY",
+       "179": "TURKMENISTAN",
+       "180": "TUVALU",
+       "181": "UGANDA",
+       "182": "UKRAINE",
+       "183": "UNITED ARAB EMIRATES",
+       "184": "UNITED KINGDOM",
+       "185": "UNITED REPUBLIC OF TANZANIA",
+       "186": "UNITED STATES OF AMERICA",
+       "187": "URUGUAY",
+       "188": "UZBEKISTAN",
+       "189": "VANUATU",
+       "190": "VENEZUELA",
+       "191": "VIETNAM",
+       "192": "WESTERN SAHARA",
+       "193": "YEMEN",
+       "194": "ZAMBIA",
+       "195": "ZIMBABWE"
+      }
+     },
+     "34": {
+      "name": "Mobile number(s)",
+      "codes": {}
+     },
+     "35": {
+      "name": "Telephone number(s)",
+      "codes": {}
+     },
+     "36": {
+      "name": "Telephone area code",
+      "codes": {}
+     },
+     "37": {
+      "name": "Fax number(s)",
+      "codes": {}
+     },
+     "38": {
+      "name": "Fax area code",
+      "codes": {}
+     },
+     "39": {
+      "name": "Udyam registration number",
+      "codes": {}
+     }
+    }
+   },
+   "CR": {
+    "name": "Credit facility",
+    "fields_count": 45,
+    "fields": {
+     "2": {
+      "name": "Account number",
+      "codes": {}
+     },
+     "3": {
+      "name": "Previous account number",
+      "codes": {}
+     },
+     "4": {
+      "name": "Sanction date",
+      "codes": {}
+     },
+     "5": {
+      "name": "Sanctioned / notional amount",
+      "codes": {}
+     },
+     "6": {
+      "name": "Currency code",
+      "codes": {
+       "ADF": "ADF",
+       "ADP": "ADP",
+       "AED": "AED",
+       "AFA": "AFA",
+       "ALL": "ALL",
+       "ANG": "ANG",
+       "AON": "AON",
+       "ARA": "ARA",
+       "ARS": "ARS",
+       "ATS": "ATS",
+       "AUD": "AUD",
+       "AWG": "AWG",
+       "BBD": "BBD",
+       "BDT": "BDT",
+       "BEF": "BEF",
+       "BGL": "BGL",
+       "BHD": "BHD",
+       "BIF": "BIF",
+       "BMD": "BMD",
+       "BND": "BND",
+       "BOB": "BOB",
+       "BRC": "BRC",
+       "BRL": "BRL",
+       "BSD": "BSD",
+       "BTN": "BTN",
+       "BWP": "BWP",
+       "BZD": "BZD",
+       "CAD": "CAD",
+       "CHF": "CHF",
+       "CLP": "CLP",
+       "CNY": "CNY",
+       "COP": "COP",
+       "CRC": "CRC",
+       "CSK": "CSK",
+       "CUP": "CUP",
+       "CVE": "CVE",
+       "CVP": "CVP",
+       "DEM": "DEM",
+       "DJF": "DJF",
+       "DKK": "DKK",
+       "DOP": "DOP",
+       "DZD": "DZD",
+       "ECS": "ECS",
+       "EEK": "EEK",
+       "EGP": "EGP",
+       "ESP": "ESP",
+       "ETB": "ETB",
+       "EUR": "EUR",
+       "FIM": "FIM",
+       "FJD": "FJD",
+       "FKP": "FKP",
+       "FRF": "FRF",
+       "GBP": "GBP",
+       "GHC": "GHC",
+       "GIP": "GIP",
+       "GMD": "GMD",
+       "GNF": "GNF",
+       "GRD": "GRD",
+       "GTQ": "GTQ",
+       "GWP": "GWP",
+       "GYD": "GYD",
+       "HKD": "HKD",
+       "HNL": "HNL",
+       "HRK": "HRK",
+       "HTG": "HTG",
+       "HUF": "HUF",
+       "IDR": "IDR",
+       "IEP": "IEP",
+       "ILS": "ILS",
+       "INR": "INR",
+       "IQD": "IQD",
+       "IRR": "IRR",
+       "ISK": "ISK",
+       "ITL": "ITL",
+       "JMD": "JMD",
+       "JOD": "JOD",
+       "JPY": "JPY",
+       "KES": "KES",
+       "KHR": "KHR",
+       "KMF": "KMF",
+       "KPW": "KPW",
+       "KRW": "KRW",
+       "KWD": "KWD",
+       "KYD": "KYD",
+       "KZT": "KZT",
+       "LAK": "LAK",
+       "LBP": "LBP",
+       "LKR": "LKR",
+       "LRD": "LRD",
+       "LSL": "LSL",
+       "LTL": "LTL",
+       "LUF": "LUF",
+       "LVL": "LVL",
+       "LYD": "LYD",
+       "MAD": "MAD",
+       "MGF": "MGF",
+       "MMK": "MMK",
+       "MNT": "MNT",
+       "MOP": "MOP",
+       "MRO": "MRO",
+       "MTL": "MTL",
+       "MUR": "MUR",
+       "MVR": "MVR",
+       "MWK": "MWK",
+       "MXP": "MXP",
+       "MYR": "MYR",
+       "MZM": "MZM",
+       "NAD": "NAD",
+       "NGN": "NGN",
+       "NIO": "NIO",
+       "NLG": "NLG",
+       "NOK": "NOK",
+       "NPR": "NPR",
+       "NZD": "NZD",
+       "OMR": "OMR",
+       "PAB": "PAB",
+       "PEN": "PEN",
+       "PGK": "PGK",
+       "PHP": "PHP",
+       "PKR": "PKR",
+       "PLZ": "PLZ",
+       "PTE": "PTE",
+       "PYG": "PYG",
+       "QAR": "QAR",
+       "ROL": "ROL",
+       "RUB": "RUB",
+       "SAR": "SAR",
+       "SBD": "SBD",
+       "SCR": "SCR",
+       "SDD": "SDD",
+       "SDP": "SDP",
+       "SEK": "SEK",
+       "SGD": "SGD",
+       "SHP": "SHP",
+       "SIT": "SIT",
+       "SKK": "SKK",
+       "SLL": "SLL",
+       "SOS": "SOS",
+       "SRG": "SRG",
+       "STD": "STD",
+       "SVC": "SVC",
+       "SYP": "SYP",
+       "SZL": "SZL",
+       "THB": "THB",
+       "TND": "TND",
+       "TOP": "TOP",
+       "TRL": "TRL",
+       "TTD": "TTD",
+       "TWD": "TWD",
+       "TZS": "TZS",
+       "UAG": "UAG",
+       "UAK": "UAK",
+       "UGS": "UGS",
+       "USD": "USD",
+       "UYP": "UYP",
+       "VEB": "VEB",
+       "VND": "VND",
+       "VUV": "VUV",
+       "WST": "WST",
+       "XAF": "XAF",
+       "XAG": "XAG",
+       "XAU": "XAU",
+       "XOF": "XOF",
+       "XPD": "XPD",
+       "XPT": "XPT",
+       "YUN": "YUN",
+       "ZAR": "ZAR",
+       "ZMK": "ZMK",
+       "ZWD": "ZWD"
+      }
+     },
+     "7": {
+      "name": "Credit type",
+      "codes": {
+       "0100": "CASH CREDIT",
+       "0200": "OVERDRAFT",
+       "0300": "DEMAND LOAN",
+       "0310": "LOAN ON CREDIT CARD",
+       "0410": "MEDIUM TERM LOAN",
+       "0420": "LONG TERM LOAN",
+       "0500": "PACKING CREDIT",
+       "0610": "EXPORT BILLS PURCHASED",
+       "0620": "EXPORT BILLS DISCOUNTED",
+       "0630": "EXPORT BILLS ADVANCED",
+       "0640": "EXPORT INCENTIVE ADVANCE",
+       "0710": "INLAND BILLS PURCHASED",
+       "0720": "INLAND BILLS DISCOUNTED",
+       "0800": "IMPORT BILLS ADVANCE",
+       "0900": "FOREIGN CHEQUES PURCHASED",
+       "1000": "LEASING",
+       "1100": "HIRE PURCHASE",
+       "2000": "BANK GUARANTEE",
+       "2100": "DEFERRED PAYMENT GUARANTEE",
+       "3000": "LETTER OF CREDIT",
+       "3100": "CORPORATE CREDIT CARD",
+       "4000": "COMMERCIAL VEHICLE LOAN",
+       "4100": "COMMERCIAL EQUIPMENT LOAN / CONSTRUCTION EQUIPMENT LOAN",
+       "5000": "BUSINESS LOAN UNSECURED",
+       "5100": "SHORT TERM LOAN",
+       "5200": "FUND BASED AGGREGATE",
+       "5300": "NON FUND BASED AGGREGATE",
+       "5400": "FUND NON FUND INTERCHANGE",
+       "5500": "DERIVATIVES",
+       "5600": "FOREX FORWARD CONTRACT",
+       "5700": "INTEREST RATE SWAP",
+       "5800": "CURRENCY OPTION",
+       "5900": "COMPLEX RATE DERIVATIVE",
+       "6000": "COMPLEX CURRENCY DERIVATIVE",
+       "6100": "PAST PERFORMANCE IMPORTS",
+       "6200": "PAST PERFORMANCE EXPORTS",
+       "9000": "SUIT FILED AGGREGATE",
+       "9001": "AUTO LOAN",
+       "9002": "PROPERTY LOAN",
+       "9003": "GOLD LOAN",
+       "9004": "LOAN AGAINST SHARES SECURITIES",
+       "9005": "HEALTHCARE FINANCE",
+       "9006": "INFRASTRUCTURE FINANCE",
+       "9007": "FACTORING WITH RECOURSE",
+       "9008": "COMMERCIAL PAPER",
+       "9009": "NON CONVERTIBLE DEBENTURE",
+       "9010": "UNHEDGED FX EXPOSURE",
+       "9011": "PAYMENT ACCOUNT",
+       "9012": "CURRENT LOAN",
+       "9013": "ARC SECURED LOAN",
+       "9014": "ARC UNSECURED LOAN",
+       "9020": "SELLER FINANCING",
+       "9021": "GECL LOAN SECURED / GECL LOAN UNSECURED",
+       "9022": "MUDRA TERM LOAN",
+       "9023": "MUDRA WORKING CAPITAL",
+       "9024": "TEMPORARY OVERDRAFT",
+       "9026": "FACTORING WITHOUT RECOURSE",
+       "9027": "OVERDRAFT AGAINST FD",
+       "9028": "OVERDRAFT AGAINST SHARES SECURITIES",
+       "9029": "OVERDRAFT AGAINST COLLATERAL",
+       "9030": "MERCHANT ACQUIRING",
+       "9031": "GOVT SPONSORED LOAN",
+       "9032": "WORKING CAPITAL LOAN",
+       "9033": "THREE WHEELER LOAN",
+       "9036": "RESTRUCTURING CONVERTED EXPOSURE",
+       "9999": "OTHER"
+      }
+     },
+     "8": {
+      "name": "Tenure (months, max 999)",
+      "codes": {}
+     },
+     "9": {
+      "name": "Repayment frequency",
+      "codes": {
+       "01": "MONTHLY",
+       "02": "QUARTERLY",
+       "03": "HALF YEARLY",
+       "04": "YEARLY",
+       "05": "ON DEMAND",
+       "06": "BULLET",
+       "07": "ROLLING",
+       "08": "OTHERS / WEEKLY / FORTNIGHTLY / DAILY"
+      }
+     },
+     "10": {
+      "name": "Drawing power",
+      "codes": {}
+     },
+     "11": {
+      "name": "Balance (leading '-' when in credit)",
+      "codes": {}
+     },
+     "12": {
+      "name": "Notional amount restructured",
+      "codes": {}
+     },
+     "13": {
+      "name": "Expiry / maturity date",
+      "codes": {}
+     },
+     "14": {
+      "name": "Loan renewal date",
+      "codes": {}
+     },
+     "15": {
+      "name": "DPD as 1nnn, or the asset class",
+      "codes": {
+       "0001": "STANDARD",
+       "0002": "SUBSTANDARD",
+       "0004": "LOSS",
+       "0006": "SMA 0",
+       "0007": "SMA 1",
+       "0008": "SMA 2",
+       "0009": "DOUBTFUL 1",
+       "0010": "DOUBTFUL 2",
+       "0011": "DOUBTFUL 3",
+       "0012": "NPA",
+       "0013": "ARC LOAN"
+      }
+     },
+     "16": {
+      "name": "Asset classification date",
+      "codes": {}
+     },
+     "17": {
+      "name": "Amount overdue (0 when none)",
+      "codes": {}
+     },
+     "18": {
+      "name": "Overdue 1-30 days",
+      "codes": {}
+     },
+     "19": {
+      "name": "31-60",
+      "codes": {}
+     },
+     "20": {
+      "name": "61-90",
+      "codes": {}
+     },
+     "21": {
+      "name": "91-180",
+      "codes": {}
+     },
+     "22": {
+      "name": "Above 180",
+      "codes": {}
+     },
+     "23": {
+      "name": "High credit",
+      "codes": {}
+     },
+     "24": {
+      "name": "Instalment amount",
+      "codes": {}
+     },
+     "25": {
+      "name": "Last repaid amount",
+      "codes": {}
+     },
+     "26": {
+      "name": "Account status: special status, else",
+      "codes": {
+       "03": "SETTLED",
+       "04": "RESTRUCTURED LOAN",
+       "05": "WRITTEN OFF",
+       "06": "POST WO SETTLED",
+       "07": "INVOKED",
+       "08": "DEVOLVED",
+       "09": "RESTRUCTURED DUE TO NATURAL CALAMITY",
+       "10": "SOLD TO ARC",
+       "11": "PURCHASED FROM BANK",
+       "12": "RESTRUCTURED CLOSED",
+       "13": "RESTRUCTURED LOAN GOVT MANDATED",
+       "14": "ACCOUNT SOLD",
+       "15": "WRITTEN OFF AND ACCOUNT SOLD",
+       "16": "ACCOUNT PURCHASED",
+       "17": "ACCOUNT PURCHASED AND WRITTEN OFF",
+       "18": "ACCOUNT PURCHASED AND SETTLED",
+       "19": "ACCOUNT PURCHASED AND RESTRUCTURED",
+       "20": "RESTRUCTURED DUE TO COVID 19",
+       "21": "POST WRITE OFF CLOSED",
+       "22": "AUCTIONED SETTLED",
+       "23": "REPOSSESSED SETTLED",
+       "24": "GUARANTEE INVOKED"
+      }
+     },
+     "27": {
+      "name": "Account status date",
+      "codes": {}
+     },
+     "28": {
+      "name": "Written off amount",
+      "codes": {}
+     },
+     "29": {
+      "name": "Settled amount",
+      "codes": {}
+     },
+     "30": {
+      "name": "Major reason for restructuring",
+      "codes": {
+       "01": "NON PERFORMANCE",
+       "02": "NATURAL CALAMITY",
+       "03": "COVID 19",
+       "99": "OTHERS"
+      }
+     },
+     "31": {
+      "name": "Contracts classified as NPA",
+      "codes": {}
+     },
+     "32": {
+      "name": "Asset based security coverage",
+      "codes": {
+       "01": "FULL",
+       "02": "PARTIAL",
+       "03": "NIL"
+      }
+     },
+     "33": {
+      "name": "Guarantee coverage",
+      "codes": {
+       "01": "FULL",
+       "02": "PARTIAL",
+       "03": "NIL"
+      }
+     },
+     "34": {
+      "name": "Bank remark code",
+      "codes": {}
+     },
+     "35": {
+      "name": "Wilful default status (0 / 1)",
+      "codes": {}
+     },
+     "36": {
+      "name": "Date classified as wilful default",
+      "codes": {}
+     },
+     "37": {
+      "name": "Suit filed status",
+      "codes": {
+       "00": "NO SUIT FILED / WILFUL DEFAULT",
+       "01": "SUIT FILED / SUIT FILED WILFUL DEFAULT",
+       "02": "TRIAL IN PROGRESS",
+       "03": "DECREE ISSUED",
+       "04": "DECREE EXECUTION",
+       "05": "NCLT SUIT FILED"
+      }
+     },
+     "38": {
+      "name": "Suit reference number",
+      "codes": {}
+     },
+     "39": {
+      "name": "Suit amount",
+      "codes": {}
+     },
+     "40": {
+      "name": "Date of suit",
+      "codes": {}
+     },
+     "41": {
+      "name": "Dispute ID (corrections only)",
+      "codes": {}
+     },
+     "42": {
+      "name": "Transaction type: 01 normal submission",
+      "codes": {}
+     },
+     "43": {
+      "name": "Other banks / FIs",
+      "codes": {}
+     },
+     "44": {
+      "name": "UFCE amount",
+      "codes": {}
+     },
+     "45": {
+      "name": "UFCE date",
+      "codes": {}
+     }
+    }
+   },
+   "GS": {
+    "name": "Guarantor",
+    "fields_count": 38,
+    "fields": {
+     "2": {
+      "name": "Filler",
+      "codes": {}
+     },
+     "3": {
+      "name": "Guarantor type",
+      "codes": {
+       "1": "INDIAN ENTITY",
+       "2": "INDIAN INDIVIDUAL",
+       "3": "FOREIGN ENTITY",
+       "4": "FOREIGN INDIVIDUAL"
+      }
+     },
+     "4": {
+      "name": "Business category",
+      "codes": {
+       "03": "MICRO",
+       "04": "SMALL",
+       "05": "MEDIUM",
+       "06": "LARGE",
+       "07": "OTHERS",
+       "08": "RETAIL",
+       "09": "AGRI"
+      }
+     },
+     "5": {
+      "name": "Industry type",
+      "codes": {
+       "01": "MANUFACTURING",
+       "02": "DISTRIBUTION",
+       "03": "WHOLESALE",
+       "04": "TRADING",
+       "05": "BROKING",
+       "06": "SERVICE PROVIDER",
+       "07": "IMPORTING",
+       "08": "EXPORTING",
+       "09": "AGRICULTURE",
+       "10": "DEALERS",
+       "11": "OTHERS"
+      }
+     },
+     "6": {
+      "name": "Entity name",
+      "codes": {}
+     },
+     "7": {
+      "name": "Prefix",
+      "codes": {}
+     },
+     "8": {
+      "name": "Full name",
+      "codes": {}
+     },
+     "9": {
+      "name": "Gender",
+      "codes": {
+       "01": "MALE",
+       "02": "FEMALE",
+       "03": "TRANSGENDER"
+      }
+     },
+     "10": {
+      "name": "Company registration",
+      "codes": {}
+     },
+     "11": {
+      "name": "Incorporation date",
+      "codes": {}
+     },
+     "12": {
+      "name": "DOB",
+      "codes": {}
+     },
+     "13": {
+      "name": "PAN",
+      "codes": {}
+     },
+     "14": {
+      "name": "Voter ID",
+      "codes": {}
+     },
+     "15": {
+      "name": "Passport number",
+      "codes": {}
+     },
+     "16": {
+      "name": "Driving licence",
+      "codes": {}
+     },
+     "17": {
+      "name": "UID",
+      "codes": {}
+     },
+     "18": {
+      "name": "Ration card",
+      "codes": {}
+     },
+     "19": {
+      "name": "CIN",
+      "codes": {}
+     },
+     "20": {
+      "name": "DIN",
+      "codes": {}
+     },
+     "21": {
+      "name": "TIN",
+      "codes": {}
+     },
+     "22": {
+      "name": "Service tax",
+      "codes": {}
+     },
+     "23": {
+      "name": "CKYC",
+      "codes": {}
+     },
+     "24": {
+      "name": "Address line 1",
+      "codes": {}
+     },
+     "25": {
+      "name": "Address line 2",
+      "codes": {}
+     },
+     "26": {
+      "name": "Address line 3",
+      "codes": {}
+     },
+     "27": {
+      "name": "City / town",
+      "codes": {}
+     },
+     "28": {
+      "name": "District",
+      "codes": {}
+     },
+     "29": {
+      "name": "State",
+      "codes": {
+       "01": "ANDAMAN NICOBAR ISLANDS",
+       "02": "ANDHRA PRADESH",
+       "03": "ARUNACHAL PRADESH",
+       "04": "ASSAM",
+       "05": "BIHAR",
+       "06": "CHANDIGARH",
+       "07": "CHHATTISGARH",
+       "08": "DADRA NAGAR HAVELI DAMAN DIU",
+       "10": "GOA",
+       "11": "GUJARAT",
+       "12": "HARYANA",
+       "13": "HIMACHAL PRADESH",
+       "14": "JAMMU KASHMIR",
+       "15": "JHARKHAND",
+       "16": "KARNATAKA",
+       "17": "KERALA",
+       "18": "LAKSHADWEEP",
+       "19": "MADHYA PRADESH",
+       "20": "MAHARASHTRA",
+       "21": "MANIPUR",
+       "22": "MEGHALAYA",
+       "23": "MIZORAM",
+       "24": "NAGALAND",
+       "25": "DELHI",
+       "26": "ODISHA",
+       "27": "PUDUCHERRY",
+       "28": "PUNJAB",
+       "29": "RAJASTHAN",
+       "30": "SIKKIM",
+       "31": "TAMIL NADU",
+       "32": "TRIPURA",
+       "33": "UTTAR PRADESH",
+       "34": "UTTARAKHAND",
+       "35": "WEST BENGAL",
+       "36": "TELANGANA",
+       "37": "LADAKH",
+       "77": "FOREIGN",
+       "99": "APO"
+      }
+     },
+     "30": {
+      "name": "Pin code",
+      "codes": {}
+     },
+     "31": {
+      "name": "Country",
+      "codes": {
+       "001": "AFGHANISTAN",
+       "002": "ALBANIA",
+       "003": "ALGERIA",
+       "004": "ANDORRA",
+       "005": "ANGOLA",
+       "006": "ANTIGUA AND BARBUDA",
+       "007": "ARGENTINA",
+       "008": "ARMENIA",
+       "009": "AUSTRALIA",
+       "010": "AUSTRIA",
+       "011": "AZERBAIJAN",
+       "012": "BAHAMAS",
+       "013": "BAHRAIN",
+       "014": "BANGLADESH",
+       "015": "BARBADOS",
+       "016": "BELARUS",
+       "017": "BELGIUM",
+       "018": "BELIZE",
+       "019": "BENIN",
+       "020": "BHUTAN",
+       "021": "BOLIVIA",
+       "022": "BOSNIA AND HERZEGOVINA",
+       "023": "BOTSWANA",
+       "024": "BRAZIL",
+       "025": "BRUNEI DARUSSALAM",
+       "026": "BULGARIA",
+       "027": "BURKINA FASO",
+       "028": "BURUNDI",
+       "029": "CAMBODIA",
+       "030": "CAMEROON",
+       "031": "CANADA",
+       "032": "CAPE VERDE",
+       "033": "CENTRAL AFRICAN REPUBLIC",
+       "034": "CHAD",
+       "035": "CHILE",
+       "036": "CHINA",
+       "037": "COLOMBIA",
+       "038": "COMOROS",
+       "039": "CONGO",
+       "040": "COSTA RICA",
+       "041": "COTE D IVOIRE",
+       "042": "CROATIA",
+       "043": "CUBA",
+       "044": "CYPRUS",
+       "045": "CZECH REPUBLIC",
+       "046": "DEMOCRATIC PEOPLE S REPUBLIC OF KOREA",
+       "047": "DEMOCRATIC REPUBLIC OF THE CONGO",
+       "048": "DENMARK",
+       "049": "DJIBOUTI",
+       "050": "DOMINICA",
+       "051": "DOMINICAN REPUBLIC",
+       "052": "EAST TIMOR",
+       "053": "ECUADOR",
+       "054": "EGYPT",
+       "055": "EL SALVADOR",
+       "056": "EQUATORIAL GUINEA",
+       "057": "ERITREA",
+       "058": "ESTONIA",
+       "059": "ETHIOPIA",
+       "060": "FIJI",
+       "061": "FINLAND",
+       "062": "FRANCE",
+       "063": "GABON",
+       "064": "GAMBIA",
+       "065": "GEORGIA",
+       "066": "GERMANY",
+       "067": "GHANA",
+       "068": "GREECE",
+       "069": "GRENADA",
+       "070": "GUATEMALA",
+       "071": "GUINEA",
+       "072": "GUINEA BISSAU",
+       "073": "GUYANA",
+       "074": "HAITI",
+       "075": "HONDURAS",
+       "076": "HONG KONG",
+       "077": "HUNGARY",
+       "078": "ICELAND",
+       "079": "INDIA",
+       "080": "INDONESIA",
+       "081": "IRAN ISLAMIC REPUBLIC OF",
+       "082": "IRAQ",
+       "083": "IRELAND",
+       "084": "ISRAEL",
+       "085": "ITALY",
+       "086": "JAMAICA",
+       "087": "JAPAN",
+       "088": "JORDAN",
+       "089": "KAZAKHSTAN",
+       "090": "KENYA",
+       "091": "KIRIBATI",
+       "092": "KUWAIT",
+       "093": "KYRGYZSTAN",
+       "094": "LAO PEOPLE S DEMOCRATIC REPUBLIC",
+       "095": "LATVIA",
+       "096": "LEBANON",
+       "097": "LESOTHO",
+       "098": "LIBERIA",
+       "099": "LIBYAN ARAB JAMAHIRIYA",
+       "100": "LIECHTENSTEIN",
+       "101": "LITHUANIA",
+       "102": "LUXEMBOURG",
+       "103": "MADAGASCAR",
+       "104": "MALAWI",
+       "105": "MALAYSIA",
+       "106": "MALDIVES",
+       "107": "MALI",
+       "108": "MALTA",
+       "109": "MARSHALL ISLANDS",
+       "110": "MAURITANIA",
+       "111": "MAURITIUS",
+       "112": "MEXICO",
+       "113": "MICRONESIA FEDERATED STATES OF",
+       "114": "MONACO",
+       "115": "MONGOLIA",
+       "116": "MOROCCO",
+       "117": "MOZAMBIQUE",
+       "118": "MYANMAR",
+       "119": "NAMIBIA",
+       "120": "NAURU",
+       "121": "NEPAL",
+       "122": "NETHERLANDS",
+       "123": "NEW ZEALAND",
+       "124": "NICARAGUA",
+       "125": "NIGER",
+       "126": "NIGERIA",
+       "127": "NORWAY",
+       "128": "OMAN",
+       "129": "PAKISTAN",
+       "130": "PALAU",
+       "131": "PALESTINIAN AUTHORITY",
+       "132": "PANAMA",
+       "133": "PAPUA NEW GUINEA",
+       "134": "PARAGUAY",
+       "135": "PERU",
+       "136": "PHILIPPINES",
+       "137": "POLAND",
+       "138": "PORTUGAL",
+       "139": "QATAR",
+       "140": "REPUBLIC OF KOREA",
+       "141": "REPUBLIC OF MOLDOVA",
+       "142": "ROMANIA",
+       "143": "RUSSIAN FEDERATION",
+       "144": "RWANDA",
+       "145": "SAINT KITTS AND NEVIS",
+       "146": "SAINT LUCIA",
+       "147": "SAINT VINCENT AND THE GRENADINES",
+       "148": "SAMOA",
+       "149": "SAN MARINO",
+       "150": "SAO TOME AND PRINCIPE",
+       "151": "SAUDI ARABIA",
+       "152": "SENEGAL",
+       "153": "SERBIA AND MONTENEGRO",
+       "154": "SEYCHELLES",
+       "155": "SIERRA LEONE",
+       "156": "SINGAPORE",
+       "157": "SLOVAKIA",
+       "158": "SLOVENIA",
+       "159": "SOLOMON ISLANDS",
+       "160": "SOMALIA",
+       "161": "SOUTH AFRICA",
+       "162": "SPAIN",
+       "163": "SRI LANKA",
+       "164": "SUDAN",
+       "165": "SURINAME",
+       "166": "SWAZILAND",
+       "167": "SWEDEN",
+       "168": "SWITZERLAND",
+       "169": "SYRIAN ARAB REPUBLIC",
+       "170": "TAIWAN",
+       "171": "TAJIKISTAN",
+       "172": "TFYR MACEDONIA",
+       "173": "THAILAND",
+       "174": "TOGO",
+       "175": "TONGA",
+       "176": "TRINIDAD AND TOBAGO",
+       "177": "TUNISIA",
+       "178": "TURKEY",
+       "179": "TURKMENISTAN",
+       "180": "TUVALU",
+       "181": "UGANDA",
+       "182": "UKRAINE",
+       "183": "UNITED ARAB EMIRATES",
+       "184": "UNITED KINGDOM",
+       "185": "UNITED REPUBLIC OF TANZANIA",
+       "186": "UNITED STATES OF AMERICA",
+       "187": "URUGUAY",
+       "188": "UZBEKISTAN",
+       "189": "VANUATU",
+       "190": "VENEZUELA",
+       "191": "VIETNAM",
+       "192": "WESTERN SAHARA",
+       "193": "YEMEN",
+       "194": "ZAMBIA",
+       "195": "ZIMBABWE"
+      }
+     },
+     "32": {
+      "name": "Mobile number(s)",
+      "codes": {}
+     },
+     "33": {
+      "name": "Telephone area code",
+      "codes": {}
+     },
+     "34": {
+      "name": "Telephone number(s)",
+      "codes": {}
+     },
+     "35": {
+      "name": "Fax area code",
+      "codes": {}
+     },
+     "36": {
+      "name": "Fax number(s)",
+      "codes": {}
+     },
+     "37": {
+      "name": "Guarantee invocation date",
+      "codes": {}
+     },
+     "38": {
+      "name": "Udyam registration number",
+      "codes": {}
+     }
+    }
+   },
+   "SS": {
+    "name": "Security",
+    "fields_count": 7,
+    "fields": {
+     "2": {
+      "name": "Value of security",
+      "codes": {}
+     },
+     "3": {
+      "name": "Currency type",
+      "codes": {
+       "ADF": "ADF",
+       "ADP": "ADP",
+       "AED": "AED",
+       "AFA": "AFA",
+       "ALL": "ALL",
+       "ANG": "ANG",
+       "AON": "AON",
+       "ARA": "ARA",
+       "ARS": "ARS",
+       "ATS": "ATS",
+       "AUD": "AUD",
+       "AWG": "AWG",
+       "BBD": "BBD",
+       "BDT": "BDT",
+       "BEF": "BEF",
+       "BGL": "BGL",
+       "BHD": "BHD",
+       "BIF": "BIF",
+       "BMD": "BMD",
+       "BND": "BND",
+       "BOB": "BOB",
+       "BRC": "BRC",
+       "BRL": "BRL",
+       "BSD": "BSD",
+       "BTN": "BTN",
+       "BWP": "BWP",
+       "BZD": "BZD",
+       "CAD": "CAD",
+       "CHF": "CHF",
+       "CLP": "CLP",
+       "CNY": "CNY",
+       "COP": "COP",
+       "CRC": "CRC",
+       "CSK": "CSK",
+       "CUP": "CUP",
+       "CVE": "CVE",
+       "CVP": "CVP",
+       "DEM": "DEM",
+       "DJF": "DJF",
+       "DKK": "DKK",
+       "DOP": "DOP",
+       "DZD": "DZD",
+       "ECS": "ECS",
+       "EEK": "EEK",
+       "EGP": "EGP",
+       "ESP": "ESP",
+       "ETB": "ETB",
+       "EUR": "EUR",
+       "FIM": "FIM",
+       "FJD": "FJD",
+       "FKP": "FKP",
+       "FRF": "FRF",
+       "GBP": "GBP",
+       "GHC": "GHC",
+       "GIP": "GIP",
+       "GMD": "GMD",
+       "GNF": "GNF",
+       "GRD": "GRD",
+       "GTQ": "GTQ",
+       "GWP": "GWP",
+       "GYD": "GYD",
+       "HKD": "HKD",
+       "HNL": "HNL",
+       "HRK": "HRK",
+       "HTG": "HTG",
+       "HUF": "HUF",
+       "IDR": "IDR",
+       "IEP": "IEP",
+       "ILS": "ILS",
+       "INR": "INR",
+       "IQD": "IQD",
+       "IRR": "IRR",
+       "ISK": "ISK",
+       "ITL": "ITL",
+       "JMD": "JMD",
+       "JOD": "JOD",
+       "JPY": "JPY",
+       "KES": "KES",
+       "KHR": "KHR",
+       "KMF": "KMF",
+       "KPW": "KPW",
+       "KRW": "KRW",
+       "KWD": "KWD",
+       "KYD": "KYD",
+       "KZT": "KZT",
+       "LAK": "LAK",
+       "LBP": "LBP",
+       "LKR": "LKR",
+       "LRD": "LRD",
+       "LSL": "LSL",
+       "LTL": "LTL",
+       "LUF": "LUF",
+       "LVL": "LVL",
+       "LYD": "LYD",
+       "MAD": "MAD",
+       "MGF": "MGF",
+       "MMK": "MMK",
+       "MNT": "MNT",
+       "MOP": "MOP",
+       "MRO": "MRO",
+       "MTL": "MTL",
+       "MUR": "MUR",
+       "MVR": "MVR",
+       "MWK": "MWK",
+       "MXP": "MXP",
+       "MYR": "MYR",
+       "MZM": "MZM",
+       "NAD": "NAD",
+       "NGN": "NGN",
+       "NIO": "NIO",
+       "NLG": "NLG",
+       "NOK": "NOK",
+       "NPR": "NPR",
+       "NZD": "NZD",
+       "OMR": "OMR",
+       "PAB": "PAB",
+       "PEN": "PEN",
+       "PGK": "PGK",
+       "PHP": "PHP",
+       "PKR": "PKR",
+       "PLZ": "PLZ",
+       "PTE": "PTE",
+       "PYG": "PYG",
+       "QAR": "QAR",
+       "ROL": "ROL",
+       "RUB": "RUB",
+       "SAR": "SAR",
+       "SBD": "SBD",
+       "SCR": "SCR",
+       "SDD": "SDD",
+       "SDP": "SDP",
+       "SEK": "SEK",
+       "SGD": "SGD",
+       "SHP": "SHP",
+       "SIT": "SIT",
+       "SKK": "SKK",
+       "SLL": "SLL",
+       "SOS": "SOS",
+       "SRG": "SRG",
+       "STD": "STD",
+       "SVC": "SVC",
+       "SYP": "SYP",
+       "SZL": "SZL",
+       "THB": "THB",
+       "TND": "TND",
+       "TOP": "TOP",
+       "TRL": "TRL",
+       "TTD": "TTD",
+       "TWD": "TWD",
+       "TZS": "TZS",
+       "UAG": "UAG",
+       "UAK": "UAK",
+       "UGS": "UGS",
+       "USD": "USD",
+       "UYP": "UYP",
+       "VEB": "VEB",
+       "VND": "VND",
+       "VUV": "VUV",
+       "WST": "WST",
+       "XAF": "XAF",
+       "XAG": "XAG",
+       "XAU": "XAU",
+       "XOF": "XOF",
+       "XPD": "XPD",
+       "XPT": "XPT",
+       "YUN": "YUN",
+       "ZAR": "ZAR",
+       "ZMK": "ZMK",
+       "ZWD": "ZWD"
+      }
+     },
+     "4": {
+      "name": "Type of security",
+      "codes": {
+       "001": "CASH BULLION DEPOSITS",
+       "002": "SHARES BONDS SECURITIES",
+       "003": "INVENTORY",
+       "004": "ACCOUNTS RECEIVABLE",
+       "005": "OTHER CURRENT ASSETS",
+       "006": "PLANT MACHINERY",
+       "007": "LAND BUILDINGS",
+       "008": "OTHER FIXED ASSETS",
+       "009": "OTHER ASSETS",
+       "010": "CURRENT ASSETS AGGREGATE",
+       "011": "FIXED ASSETS AGGREGATE"
+      }
+     },
+     "5": {
+      "name": "Security classification",
+      "codes": {
+       "01": "PRIMARY FIRST CHARGE",
+       "02": "PRIMARY SECOND CHARGE",
+       "03": "PRIMARY THIRD CHARGE",
+       "04": "PRIMARY PARI PASSU",
+       "21": "COLLATERAL FIRST CHARGE",
+       "22": "COLLATERAL SECOND CHARGE",
+       "23": "COLLATERAL THIRD CHARGE",
+       "24": "COLLATERAL PARI PASSU"
+      }
+     },
+     "6": {
+      "name": "Date of valuation",
+      "codes": {}
+     },
+     "7": {
+      "name": "Filler",
+      "codes": {}
+     }
+    }
+   },
+   "CD": {
+    "name": "Cheque dishonour",
+    "fields_count": 8,
+    "fields": {
+     "2": {
+      "name": "Date of dishonour",
+      "codes": {}
+     },
+     "3": {
+      "name": "Amount",
+      "codes": {}
+     },
+     "4": {
+      "name": "Instrument / cheque number",
+      "codes": {}
+     },
+     "5": {
+      "name": "Number of times dishonoured",
+      "codes": {}
+     },
+     "6": {
+      "name": "Cheque issue date",
+      "codes": {}
+     },
+     "7": {
+      "name": "Reason for dishonour",
+      "codes": {
+       "01": "INSUFFICIENT FUNDS"
+      }
+     },
+     "8": {
+      "name": "Filler",
+      "codes": {}
+     }
+    }
+   },
+   "TS": {
+    "name": "File closure",
+    "fields_count": 4,
+    "fields": {
+     "2": {
+      "name": "Number of borrower segments",
+      "codes": {}
+     },
+     "3": {
+      "name": "Number of credit facility segments",
+      "codes": {}
+     },
+     "4": {
+      "name": "Filler",
+      "codes": {}
+     }
+    }
+   }
+  }
+ }
+}

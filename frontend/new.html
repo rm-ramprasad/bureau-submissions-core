@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Request · Open Terrace Analytics</title>
+  <!-- Old address: a request is now one page from creation to files (batch.html). -->
+  <script>
+    const q = new URLSearchParams(location.search);
+    const id = q.get("batch") || q.get("id");
+    if (id) { q.delete("batch"); q.set("id", id); location.replace("batch.html?" + q); }
+    else location.replace(location.pathname.endsWith("exceptions.html") ? "tracker.html?stage=AWAITING_EXCEPTIONS" : "batch.html");
+  </script>
+</head>
+<body><p><a href="batch.html">Continue</a></p></body>
+</html>
