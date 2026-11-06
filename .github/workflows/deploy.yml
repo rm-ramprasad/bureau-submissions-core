@@ -39,7 +39,7 @@ jobs:
       ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
       ENTRA_CLIENT_ID: ${{ vars.ENTRA_CLIENT_ID }}
     steps:
-      - uses: actions/checkout@v4      # this workflow's scripts only; the code comes from the release
+      - uses: actions/checkout@v7      # this workflow's scripts only; the code comes from the release
       - name: Download the release
         env:
           GH_TOKEN: ${{ github.token }}
