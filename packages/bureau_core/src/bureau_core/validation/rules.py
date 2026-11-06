@@ -68,6 +68,19 @@ class Cascade:
 
 
 @dataclass(frozen=True)
+class ReportHints:
+    """What the submission type's rule pack says about presenting findings (Pack.report_hints)."""
+
+    categories: dict[str, str]  # key -> label, display order
+    custom_category: str  # rules the pack does not know (tenant custom rules)
+    rule_category: dict[str, str]  # built-in rule_id -> category key
+    expected: frozenset[str] = frozenset()  # rules that are the spec's normal handling
+
+    def category(self, rule_id: str) -> str:
+        return self.rule_category.get(rule_id, self.custom_category)
+
+
+@dataclass(frozen=True)
 class Pack:
     name: str  # e.g. UCRF-3.74
     submission_type: SubmissionType
@@ -77,9 +90,7 @@ class Pack:
     custom_category: str  # category of tenant custom rules
     cascade: Cascade
 
-    def report_hints(self):
-        from bureau_core.validation.results import ReportHints
-
+    def report_hints(self) -> ReportHints:
         return ReportHints(
             categories=self.categories,
             custom_category=self.custom_category,

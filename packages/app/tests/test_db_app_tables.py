@@ -1,14 +1,23 @@
-"""The app's tables (requests, bureau profiles, users, audit) agree with migrations 001-006 on SQL Server (marked
+"""The app's tables (requests, bureau profiles, users, audit, validation, adjustments) agree with migrations 001-006 on SQL Server (marked
 `db`; CI job "Database")."""
 
 import os
 
 import pytest
 
+from app.adjustments.tables import snapshot_adjustment, snapshot_adjustment_effect, submission_adjustment
 from app.audit import audit_event
 from app.bureaus.tables import bureau_profile
 from app.requests.tables import submission_request
 from app.users import app_user
+from app.validation.tables import (
+    record_outcome,
+    validation_finding,
+    validation_parameter,
+    validation_policy,
+    validation_rule,
+    validation_summary,
+)
 from canonical.db import make_engine
 from canonical.testing_db import prepare_mssql, schema_drift
 
@@ -21,6 +30,13 @@ def test_app_tables_match_the_migrated_schema():
         pytest.skip("BSC_MSSQL_URL not set")
     engine = make_engine(url)
     prepare_mssql(engine)
-    problems = schema_drift(engine, [submission_request, bureau_profile, app_user, audit_event])
+    problems = schema_drift(
+        engine,
+        [
+            submission_request, bureau_profile, app_user, audit_event,
+            validation_rule, validation_policy, validation_parameter, validation_finding, validation_summary,
+            record_outcome, submission_adjustment, snapshot_adjustment, snapshot_adjustment_effect,
+        ],
+    )  # fmt: skip
     engine.dispose()
     assert not problems, "\n".join(problems)
