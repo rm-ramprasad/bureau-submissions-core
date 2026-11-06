@@ -42,6 +42,12 @@ def _excluded(action: str, key_expr: str) -> str:
     )
 
 
+# Typed NULLs: Postgres types a bare NULL in SELECT DISTINCT as text and refuses it for a numeric column (found by
+# the Database job, 2026-11-06). Valid T-SQL too, so Azure SQL is unaffected.
+_NO_TEXT = "CAST(NULL AS VARCHAR(50))"
+_NO_AMOUNT = "CAST(NULL AS DECIMAL(20, 2))"
+
+
 def freeze_sql() -> str:
     return _FREEZE
 
@@ -53,26 +59,26 @@ def resolve_sql(account_sql: str, holder_sql: str) -> list[str]:
     return [
         # loans excluded by account number
         _EFFECT_INSERT
-        + f"""SELECT DISTINCT x.snapshot_id, x.adjustment_id, 'EXCLUDE', acc.account_key, NULL, NULL,
-       NULL, NULL
+        + f"""SELECT DISTINCT x.snapshot_id, x.adjustment_id, 'EXCLUDE', acc.account_key, {_NO_TEXT}, {_NO_TEXT},
+       {_NO_AMOUNT}, {_NO_AMOUNT}
 FROM automn.snapshot_adjustment x JOIN {account} acc ON acc.account_number = x.account_number
 WHERE x.snapshot_id = :snapshot_id AND x.kind = 'EXCLUDE_ACCOUNT'""",
         # every loan of an excluded customer
         _EFFECT_INSERT
-        + f"""SELECT DISTINCT x.snapshot_id, x.adjustment_id, 'EXCLUDE', h.account_key, NULL, NULL,
-       NULL, NULL
+        + f"""SELECT DISTINCT x.snapshot_id, x.adjustment_id, 'EXCLUDE', h.account_key, {_NO_TEXT}, {_NO_TEXT},
+       {_NO_AMOUNT}, {_NO_AMOUNT}
 FROM automn.snapshot_adjustment x JOIN {holder} h ON h.party_key = x.customer_id
 WHERE x.snapshot_id = :snapshot_id AND x.kind = 'EXCLUDE_CUSTOMER'""",
         # overridden loan fields, with the source value
         _EFFECT_INSERT
-        + f"""SELECT x.snapshot_id, x.adjustment_id, 'OVERRIDE', acc.account_key, NULL, x.field,
+        + f"""SELECT x.snapshot_id, x.adjustment_id, 'OVERRIDE', acc.account_key, {_NO_TEXT}, x.field,
        {old_value}, x.override_value
 FROM automn.snapshot_adjustment x JOIN {account} acc ON acc.account_number = x.account_number
 WHERE x.snapshot_id = :snapshot_id AND x.kind = 'OVERRIDE'""",
         # borrowers of excluded loans who hold no other loan in this extract
         _EFFECT_INSERT
-        + f"""SELECT :snapshot_id, MIN(ex.adjustment_id), 'EXCLUDE_PARTY', NULL, h.party_key, NULL,
-       NULL, NULL
+        + f"""SELECT :snapshot_id, MIN(ex.adjustment_id), 'EXCLUDE_PARTY', {_NO_TEXT}, h.party_key, {_NO_TEXT},
+       {_NO_AMOUNT}, {_NO_AMOUNT}
 FROM {holder} h
 JOIN automn.snapshot_adjustment_effect ex ON ex.snapshot_id = :snapshot_id AND ex.action = 'EXCLUDE'
     AND ex.account_key = h.account_key
