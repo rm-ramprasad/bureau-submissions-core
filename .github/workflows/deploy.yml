@@ -1,6 +1,8 @@
-# Deploy a release to an install (today: rarfincare). Started by hand (Actions > Deploy > Run workflow) with the
-# version; the `rarfincare` environment asks the owner to approve before anything changes. Signs in to Azure with
-# GitHub's OIDC token (a federated credential on a managed identity: no stored secrets, deploy/setup-github-oidc.ps1).
+# Deploy a release to an install (today: rarfincare). Started by hand (Actions > Deploy > Run workflow) from `main`,
+# with the version typed twice. GitHub Free has no approval step for private repositories, so the safeguards are:
+# only people with write access can start it, it runs only from `main`, the version must be confirmed, and Azure
+# trusts only this repository's `main` (a federated credential on a managed identity: no stored secrets,
+# deploy/setup-github-oidc.ps1).
 #
 # Order: Function App code -> wait until it answers -> migrate (records migrations the owner ran in SSMS:
 # `mark_applied`) -> pages (config.json written for this install) -> smoke test (the deployed version, the sign-in
@@ -12,6 +14,9 @@ on:
     inputs:
       version:
         description: "Release to deploy (tag, e.g. v1.4.0)"
+        required: true
+      confirm:
+        description: "Type the version again to confirm"
         required: true
       mark_applied:
         description: "Migrations you ran in SSMS for this release, comma-separated (see the release notes), or empty"
@@ -30,7 +35,7 @@ jobs:
   deploy:
     name: Deploy ${{ inputs.version }} to rarfincare
     runs-on: ubuntu-latest
-    environment: rarfincare            # required reviewer: the owner; holds the install's variables
+    if: github.ref == 'refs/heads/main'  # Azure trusts runs from main only
     env:
       VERSION: ${{ inputs.version }}
       RG: ${{ vars.RESOURCE_GROUP }}
@@ -39,6 +44,11 @@ jobs:
       ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
       ENTRA_CLIENT_ID: ${{ vars.ENTRA_CLIENT_ID }}
     steps:
+      - name: Confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          [ "$CONFIRM" = "$VERSION" ] || { echo "The confirmation ($CONFIRM) does not match the version ($VERSION)" >&2; exit 1; }
       - uses: actions/checkout@v4      # this workflow's scripts only; the code comes from the release
       - name: Download the release
         env:
