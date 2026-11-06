@@ -46,3 +46,6 @@ def current_version_query(tenant_column: ColumnElement[str]) -> ScalarSelect[int
     """Correlated subquery: the tenant's latest version number (stamped on a request when a worker claims it)."""
     t = config_version
     return select(func.max(t.c.version_no)).where(t.c.tenant_id == tenant_column).scalar_subquery()
+
+
+from app.configstore import settings as settings  # noqa: E402  (registers client_setting with the metadata)

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://openterrace.in/schemas/bureau-submissions/client-config/1",
   "title": "Bureau Submissions: one NBFC's configuration",
-  "description": "What the client's administrators may change: bureau profiles, rule policies, rule parameters and form-built custom rules. Product defaults (the rule pack, parameter defaults) are not in here: only the client's overrides.",
+  "description": "What the client's administrators may change: bureau profiles, rule policies, rule parameters and form-built custom rules and the client settings. Product defaults (the rule pack, parameter defaults) are not in here: only the client's overrides.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "tenant_id", "bureau_profiles", "rule_policies", "rule_parameters", "custom_rules"],
@@ -53,6 +53,17 @@
       "type": "object",
       "propertyNames": { "$ref": "#/$defs/submission_type" },
       "additionalProperties": { "type": "array", "items": { "$ref": "#/$defs/custom_rule" } }
+    },
+    "settings": {
+      "description": "the client's settings with no table of their own (absent: keep the current ones)",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reporting_cycles": {
+          "description": "the cycles offered for new requests",
+          "type": "array", "minItems": 1, "items": { "type": "string", "maxLength": 4 }
+        }
+      }
     }
   },
   "$defs": {

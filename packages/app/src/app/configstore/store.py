@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.bureaus import BureauRepository
 from app.configstore import config_version
+from app.configstore import settings as client_settings
 from app.enums import Outcome, SubmissionType
 from app.pipeline import enabled_types
 from app.validation import custom
@@ -83,6 +84,7 @@ def document(engine: Engine, tenant_id: str) -> dict[str, Any]:
         },
         "rule_parameters": params,
         "custom_rules": rules_by_type,
+        "settings": dict(sorted(client_settings.get_all(engine, tenant_id).items())),
     }
 
 
@@ -257,6 +259,17 @@ def import_document(engine: Engine, tenant_id: str, raw: object, user: str, reas
             except ParameterError as exc:
                 problems.append(f"rule parameter {st_name}/{name}: {exc}")
 
+    # client settings (only when the document has them: older exports keep the current ones)
+    new_settings = doc.get("settings")
+    if new_settings is not None and "reporting_cycles" in new_settings:
+        try:
+            new_settings = {
+                **new_settings,
+                "reporting_cycles": client_settings.check_cycles(new_settings["reporting_cycles"]),
+            }
+        except ValueError as exc:
+            problems.append(f"settings: {exc}")
+
     if problems:
         more = f" (and {len(problems) - 10} more)" if len(problems) > 10 else ""
         raise ConfigDocumentError("The configuration was not imported: " + "; ".join(problems[:10]) + more)
@@ -284,4 +297,7 @@ def import_document(engine: Engine, tenant_id: str, raw: object, user: str, reas
             rules.clear_policy(engine, tenant_id, rule_id)
     for rule_id, p in policies.items():
         rules.set_policy(engine, tenant_id, rule_id, is_enabled=p["is_enabled"], outcome=p["outcome"])
+    if new_settings is not None:
+        for name in client_settings.NAMES:
+            client_settings.put(engine, tenant_id, name, new_settings.get(name), user)
     return record(engine, tenant_id, user, "CONFIG_IMPORTED", target=f"from {doc['tenant_id']}", reason=reason)

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin settings · Open Terrace Analytics</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="app.css">
+  <script defer src="vendor/oidc-client-ts.min.js"></script>
+  <script defer src="js/core.js"></script>
+  <script defer src="js/admin.js"></script>
+  <script defer src="vendor/alpine.min.js"></script>
+</head>
+<body data-nav="admin" data-crumb="Admin settings">
+<main class="content" x-data="adminPage">
+  <div class="page-head">
+    <div>
+      <h1>Admin settings</h1>
+      <p class="subtitle">What new requests may use<span x-show="data" x-text="' for ' + (data?.tenant_id || '')"></span>.
+        Switching something off affects new requests only: past requests and files are kept. Every change needs a
+        reason and is kept in the audit trail. Member IDs and file names: <a href="bureaus.html">Bureau profiles</a>.</p>
+    </div>
+  </div>
+
+  <template x-if="data">
+    <div>
+      <div class="panel">
+        <h2>Bureaus per submission type</h2>
+        <p class="muted">Off: the bureau is not offered when generating new files of that type.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Bureau</th><template x-for="t in data.types" :key="t.value"><th x-text="t.label"></th></template></tr></thead>
+          <tbody>
+            <template x-for="b in data.bureaus" :key="b">
+              <tr><td x-text="F.title(b)"></td>
+                <template x-for="t in data.types" :key="t.value">
+                  <td><template x-if="cell(t.value, b)">
+                    <label><input type="checkbox" :checked="cell(t.value, b).is_active" :disabled="!canEdit() || busy"
+                                  @change="switchBureau(cell(t.value, b), $event)">
+                      <span x-text="cell(t.value, b).is_active ? 'On' : 'Off'"></span></label>
+                  </template><span class="muted" x-show="!cell(t.value, b)">—</span></td>
+                </template></tr>
+            </template>
+          </tbody>
+        </table></div>
+      </div>
+
+      <div class="panel">
+        <h2>Reporting cycles</h2>
+        <p class="muted">The cycles new requests may use. W1, W2, W3 and month end follow from the as-of date; DL, DC, AH
+          and RR are chosen on the request.</p>
+        <div class="choices">
+          <template x-for="c in data.cycles" :key="c.value">
+            <label><input type="checkbox" :value="c.value" x-model="cycles" :disabled="!canEdit()">
+              <span x-text="c.label"></span> <span class="muted" x-text="'(' + c.help + ')'"></span></label>
+          </template>
+        </div>
+        <div class="row" x-show="canEdit()">
+          <div><label for="cycles-reason">Reason</label><input type="text" id="cycles-reason" x-model="cyclesReason" size="40"></div>
+          <div><button @click="saveCycles()" :disabled="busy || !cyclesChanged()">Save cycles</button></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Configuration versions</h2>
+        <p class="muted">Every saved change to bureau profiles, rules, parameters, custom rules and these settings makes
+          a new version. A request records the version it ran with. Export saves a version as a file; import replaces
+          the current settings with a file's (checked fully first).</p>
+        <div class="row">
+          <div><button class="secondary" @click="exportVersion()">Export current settings</button></div>
+          <div x-show="canEdit()"><label for="import-file">Import a file</label><input type="file" id="import-file" accept=".json" @change="pick($event)"></div>
+          <div x-show="canEdit() && importDoc"><label for="import-reason">Reason</label><input type="text" id="import-reason" x-model="importReason" size="30"></div>
+          <div x-show="canEdit() && importDoc"><button @click="importFile()" :disabled="busy">Import</button></div>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Version</th><th>When</th><th>Who</th><th>Change</th><th>Reason</th><th>What changed</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="v in versions" :key="v.version_no">
+              <tr><td x-text="v.version_no"></td><td class="nowrap" x-text="F.dt(v.created_at)"></td><td x-text="v.created_by"></td>
+                <td class="mono" x-text="v.action + (v.target ? ' · ' + v.target : '')"></td><td x-text="v.reason || ''"></td>
+                <td class="mono muted" x-text="v.changes.join(', ')"></td>
+                <td><a href="#" @click.prevent="exportVersion(v.version_no)">Export</a></td></tr>
+            </template>
+            <tr x-show="!versions.length"><td colspan="7" class="muted">No versions yet (the first is recorded by the next migrate).</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+  </template>
+</main>
+</body>
+</html>

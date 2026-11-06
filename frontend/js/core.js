@@ -289,6 +289,7 @@ const NAV = [
   ["tudf", "tudf.html", "File viewer", "view"], ["files", "files.html", "Submitted files", "files"],
   ["audit", "audit.html", "Audit", "audit"],
   ["Admin"], ["rules", "rules.html", "Rules & policies", "admin"], ["bureaus", "bureaus.html", "Bureau profiles", "admin"],
+  ["admin", "admin.html", "Admin settings", "admin"],
 ];
 
 // The bell's count: items needing attention plus a slow queue.
