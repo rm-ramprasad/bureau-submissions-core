@@ -1,6 +1,10 @@
-# Deploy a release to an install (today: rarfincare). Started by hand (Actions > Deploy > Run workflow) with the
-# version; the `rarfincare` environment asks the owner to approve before anything changes. Signs in to Azure with
-# GitHub's OIDC token (a federated credential on a managed identity: no stored secrets, deploy/setup-github-oidc.ps1).
+# Deploy a release to this install. This file lives in the client's deployment repository (published there by Open
+# Terrace with each release, from installs/template/ in the source repository); the install's Azure names come from
+# install.json, the identity from the repository's AZURE_* variables (deploy/setup-github-oidc.ps1).
+# Started by hand (Actions > Deploy > Run workflow) from `main`, with the version typed twice. GitHub Free has no approval step for private repositories, so the safeguards are:
+# only people with write access can start it, it runs only from `main`, the version must be confirmed, and Azure
+# trusts only this repository's `main` (a federated credential on a managed identity: no stored secrets,
+# deploy/setup-github-oidc.ps1).
 #
 # Order: Function App code -> wait until it answers -> migrate (records migrations the owner ran in SSMS:
 # `mark_applied`) -> pages (config.json written for this install) -> smoke test (the deployed version, the sign-in
@@ -13,6 +17,9 @@ on:
       version:
         description: "Release to deploy (tag, e.g. v1.4.0)"
         required: true
+      confirm:
+        description: "Type the version again to confirm"
+        required: true
       mark_applied:
         description: "Migrations you ran in SSMS for this release, comma-separated (see the release notes), or empty"
         required: false
@@ -23,23 +30,30 @@ permissions:
   id-token: write                      # the OIDC token for azure/login
 
 concurrency:
-  group: deploy-rarfincare
+  group: deploy
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy ${{ inputs.version }} to rarfincare
+    name: Deploy ${{ inputs.version }}
     runs-on: ubuntu-latest
-    environment: rarfincare            # required reviewer: the owner; holds the install's variables
+    if: github.ref == 'refs/heads/main'  # Azure trusts runs from main only
     env:
       VERSION: ${{ inputs.version }}
-      RG: ${{ vars.RESOURCE_GROUP }}
-      FUNCTION_APP: ${{ vars.FUNCTION_APP }}
-      STATIC_WEB_APP: ${{ vars.STATIC_WEB_APP }}
-      ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
-      ENTRA_CLIENT_ID: ${{ vars.ENTRA_CLIENT_ID }}
     steps:
-      - uses: actions/checkout@v4      # this workflow's scripts only; the code comes from the release
+      - name: Confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          [ "$CONFIRM" = "$VERSION" ] || { echo "The confirmation ($CONFIRM) does not match the version ($VERSION)" >&2; exit 1; }
+      - uses: actions/checkout@v4      # install.json and scripts/; the code comes from the release
+      - name: This install's names (install.json)
+        run: |
+          for k in resource_group:RG function_app:FUNCTION_APP static_web_app:STATIC_WEB_APP \
+                   entra_tenant_id:ENTRA_TENANT_ID entra_client_id:ENTRA_CLIENT_ID; do
+            value=$(jq -er ".${k%%:*}" install.json) || { echo "install.json: ${k%%:*} missing" >&2; exit 1; }
+            echo "${k##*:}=$value" >> "$GITHUB_ENV"
+          done
       - name: Download the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -65,7 +79,7 @@ jobs:
       - name: Migrate (record migrations run in SSMS) and check the deployed version
         env:
           MARK_APPLIED: ${{ inputs.mark_applied }}
-        run: deploy/ci_ops.sh migrate
+        run: scripts/ci_ops.sh migrate
 
       - name: Pages
         run: |

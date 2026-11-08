@@ -1,0 +1,9 @@
+{
+  "client": "rarfincare",
+  "repo": "birarfincare/bureau-submissions-deploy",
+  "resource_group": "rg-bureau-submissions",
+  "function_app": "bsub-func-73vcgqid4kh3c",
+  "static_web_app": "bsub-web-73vcgqid4kh3c",
+  "entra_tenant_id": "4592988e-36ec-47c1-9467-1bebc76d59b2",
+  "entra_client_id": "fd66a8e5-485b-4dbe-818c-12221b749a2d"
+}
