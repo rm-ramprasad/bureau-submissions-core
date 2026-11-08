@@ -30,7 +30,12 @@ access to the deployment repository, and only when the version is typed twice.
 4. In **this** repository: Settings > Secrets and variables > Actions > New repository secret: name
    `INSTALL_TOKEN_<CLIENT>` (e.g. `INSTALL_TOKEN_RARFINCARE`), value the token.
 5. Signed in with `az login` (the client's Azure) and `gh auth login` (an account with admin rights on the deployment
-   repository), review and run `.\deploy\setup-github-oidc.ps1 -Client <client> -Subscription <subscription>`.
+   repository), review the script, then:
+   - `.\deploy\setup-github-oidc.ps1 -Client <client> -Subscription <subscription> -Preview`: changes nothing;
+     prints who you are signed in as, the existing role assignments and every change with its exact command.
+   - The same without `-Preview` to make the changes.
+   Each run writes a log to `deploy\logs\` (accounts, role assignments before and after, each command): keep it
+   for audit. Azure also records the changes in the resource group's Activity log.
 
 ## Each release
 
