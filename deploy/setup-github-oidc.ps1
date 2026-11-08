@@ -62,15 +62,18 @@ try {
     $subId = az account show --query id -o tsv
     $tenantId = az account show --query tenantId -o tsv
     Write-Host "Azure: signed in as $user, subscription $subName ($subId)"
-    Write-Host "GitHub: $(gh api user --jq .login 2>$null)  (needs admin on $Repo)"
+    $ghUser = gh api user --jq .login; Check "gh api user (run gh auth login)"
+    Write-Host "GitHub: signed in as $ghUser (needs admin on $Repo)"
 
     $rg = az group show -n $ResourceGroup --query id -o tsv; Check "az group show"
     $fa = az functionapp show -g $ResourceGroup -n $install.function_app --query id -o tsv; Check "az functionapp show"
     $swa = az staticwebapp show -g $ResourceGroup -n $install.static_web_app --query id -o tsv; Check "az staticwebapp show"
     Write-Host "`n== Role assignments in $ResourceGroup BEFORE" -ForegroundColor Cyan
-    az role assignment list -g $ResourceGroup --include-inherited false -o table
+    az role assignment list -g $ResourceGroup -o table; Check "az role assignment list"
 
-    $existing = az identity show -g $ResourceGroup -n $Identity --query principalId -o tsv 2>$null
+    # a list, not `show`: an identity that does not exist yet is an empty answer, not an error
+    $existing = az identity list -g $ResourceGroup --query "[?name=='$Identity'].principalId" -o tsv
+    Check "az identity list"
     if ($existing) { Write-Host "`nIdentity $Identity exists already: it is reused." }
 
     Change "Create managed identity $Identity in $ResourceGroup" {
@@ -102,7 +105,7 @@ try {
 
     if (-not $Preview) {
         Write-Host "`n== Role assignments in $ResourceGroup AFTER" -ForegroundColor Cyan
-        az role assignment list -g $ResourceGroup --include-inherited false -o table
+        az role assignment list -g $ResourceGroup -o table; Check "az role assignment list"
         Write-Host "`nDone. Role assignments can take a few minutes to apply." -ForegroundColor Green
     } else {
         Write-Host "`nPreview only: nothing was created or changed. Run again without -Preview to do it." -ForegroundColor Green
