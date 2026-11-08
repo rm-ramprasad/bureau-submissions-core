@@ -20,7 +20,7 @@ jobs:
     name: Lint, types, layer rules
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5   # GitHub's Python, not uv's download (timed out 2026-11-08)
         with:
           python-version: "3.14"
@@ -40,7 +40,7 @@ jobs:
     name: Unit and regression tests (coverage gate)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5   # GitHub's Python, not uv's download (timed out 2026-11-08)
         with:
           python-version: "3.14"
@@ -78,7 +78,7 @@ jobs:
       BSC_MSSQL_URL: "mssql+pyodbc://sa:Ci-only-Passw0rd!@localhost:1433/bsc?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
       BSC_POSTGRES_URL: "postgresql+psycopg://postgres:ci-only@localhost:5432/bsc"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5   # GitHub's Python, not uv's download (timed out 2026-11-08)
         with:
           python-version: "3.14"
@@ -119,7 +119,7 @@ jobs:
     name: Secret scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
@@ -130,7 +130,7 @@ jobs:
     name: Dependency audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # GitHub's own Python (its tool cache), not uv's download: that download (a GitHub release file) timed out
       # repeatedly on 2026-11-08 and this job, unlike the others, has no uv cache to fall back on.
       - uses: actions/setup-python@v5
