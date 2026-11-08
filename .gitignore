@@ -33,3 +33,6 @@ cdk.out/
 
 # parity check output: files made from real borrower data (python -m shell_azure.parity)
 parity-output/
+
+# setup logs (audit records: keep them outside git)
+deploy/logs/
