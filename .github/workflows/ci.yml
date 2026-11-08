@@ -12,17 +12,22 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  UV_PYTHON_PREFERENCE: only-system   # the Python from actions/setup-python; uv never downloads one
+
 jobs:
   lint:
     name: Lint, types, layer rules
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5   # GitHub's Python, not uv's download (timed out 2026-11-08)
+        with:
+          python-version: "3.14"
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.9.5"
           enable-cache: true
-      - run: uv python install 3.14
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
@@ -36,11 +41,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5   # GitHub's Python, not uv's download (timed out 2026-11-08)
+        with:
+          python-version: "3.14"
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.9.5"
           enable-cache: true
-      - run: uv python install 3.14
       - run: uv sync --locked
       # Workbook tests skip here (workbooks are local only); db tests run in the Database job.
       - run: uv run pytest -m "not db and not perf" --cov --cov-report=term --cov-report=xml
@@ -72,11 +79,13 @@ jobs:
       BSC_POSTGRES_URL: "postgresql+psycopg://postgres:ci-only@localhost:5432/bsc"
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5   # GitHub's Python, not uv's download (timed out 2026-11-08)
+        with:
+          python-version: "3.14"
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.9.5"
           enable-cache: true
-      - run: uv python install 3.14
       - name: ODBC driver for SQL Server
         run: |
           set -x
