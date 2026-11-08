@@ -7,7 +7,10 @@
 .DESCRIPTION
   Reads the client's install.json (installs/<client>/install.json: their deployment repository and Azure names), then:
   1. A user-assigned managed identity `bsub-github-deploy` in the client's resource group (no app registration).
-  2. A federated credential on it that trusts GitHub's OIDC token from the deployment repository's `main` branch only.
+  2. A federated credential on it that trusts GitHub's OIDC token from the deployment repository's `main` branch only,
+     in the subject format GitHub sends: account and repository with their fixed IDs
+     (repo:<Owner>@<owner id>/<repo>@<repo id>:ref:refs/heads/main), so a repository created later under the same
+     name cannot use it. The IDs are looked up from GitHub.
   3. Its roles, as narrow as the deploy allows:
        Website Contributor on the Function App   (publish code, read the function key for the migrate job)
        Contributor on the Static Web App         (read the deployment token, publish pages)
@@ -64,6 +67,13 @@ try {
     Write-Host "Azure: signed in as $user, subscription $subName ($subId)"
     $ghUser = gh api user --jq .login; Check "gh api user (run gh auth login)"
     Write-Host "GitHub: signed in as $ghUser (needs admin on $Repo)"
+    # The subject as GitHub sends it: owner and repository names as GitHub spells them, each with its fixed ID.
+    $ownerLogin = gh api "repos/$Repo" --jq .owner.login; Check "gh api repos/$Repo (does the repository exist?)"
+    $ownerId = gh api "repos/$Repo" --jq .owner.id
+    $repoName = gh api "repos/$Repo" --jq .name
+    $repoId = gh api "repos/$Repo" --jq .id
+    $subject = "repo:$ownerLogin@$ownerId/$repoName@${repoId}:ref:refs/heads/main"
+    Write-Host "GitHub OIDC subject: $subject"
 
     $rg = az group show -n $ResourceGroup --query id -o tsv; Check "az group show"
     $fa = az functionapp show -g $ResourceGroup -n $install.function_app --query id -o tsv; Check "az functionapp show"
@@ -86,8 +96,8 @@ try {
         $clientId = az identity show -g $ResourceGroup -n $Identity --query clientId -o tsv
     }
 
-    Change "Federated credential github-main: trust GitHub runs from $Repo, branch main only" {
-        az identity federated-credential create -g $ResourceGroup --identity-name $Identity -n github-main --issuer https://token.actions.githubusercontent.com --subject "repo:${Repo}:ref:refs/heads/main" --audiences api://AzureADTokenExchange -o none
+    Change "Federated credential github-main-ids: trust GitHub runs from $Repo, branch main only" {
+        az identity federated-credential create -g $ResourceGroup --identity-name $Identity -n github-main-ids --issuer https://token.actions.githubusercontent.com --subject $subject --audiences api://AzureADTokenExchange -o none
     } | Out-Null
     Change "Role Website Contributor on the Function App $($install.function_app)" {
         az role assignment create --assignee-object-id $principal --assignee-principal-type ServicePrincipal --role "Website Contributor" --scope $fa -o none

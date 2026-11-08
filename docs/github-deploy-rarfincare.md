@@ -35,7 +35,7 @@ rm-ramprasad/bureau-submissions-core                  birarfincare/bureau-submis
 | rarfincare GitHub | Fine-grained token `open-terrace-publish` (lets Open Terrace publish into the repository above only) | Contents + Workflows: read and write; expires after 1 year: **renew before expiry** |
 | Open Terrace GitHub | Actions secret in `rm-ramprasad/bureau-submissions-core` | `INSTALL_TOKEN_RARFINCARE` = the token above |
 | rarfincare Azure | Managed identity (the account GitHub signs in as) | `bsub-github-deploy` in `rg-bureau-submissions`; client ID `9e22ef18-ee10-4ef3-852c-12d87ac9d01d` |
-| rarfincare Azure | Federated credential on it | `github-main`: trusts `repo:birarfincare/bureau-submissions-deploy:ref:refs/heads/main` only |
+| rarfincare Azure | Federated credential on it | `github-main-ids`: trusts `repo:BIRARFinCare@274430261/bureau-submissions-deploy@1450106008:ref:refs/heads/main` only (account and repository with their fixed GitHub IDs) |
 | rarfincare Azure | 3 role assignments | see section 3 |
 | rarfincare GitHub | Actions variables on the deployment repository | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` (`4592988e-…`), `AZURE_SUBSCRIPTION_ID` (`a8519406-…`) |
 | Open Terrace repo | Install record | `installs/rarfincare/install.json`: repository, resource group, Function App, Static Web App, sign-in IDs |
@@ -97,7 +97,7 @@ columns, so older code runs on a newer database: nothing to undo in the database
 | A PR shows no merge button | The `protect-main` rule: a required check is red | Open the PR's **Checks**; if it failed downloading tools (504, timeout), **Re-run failed jobs**; otherwise send the log |
 | Publish: `Secret INSTALL_TOKEN_RARFINCARE is not set` | Secret missing in the Open Terrace repository | Add it (section 2) |
 | Publish: 401 / 403 / `Bad credentials` | Token expired or lacks access to the repository | birarfincare > Settings > Developer settings > Fine-grained tokens: regenerate or fix **Repository access**; update the secret |
-| Deploy: `AADSTS70021` / `No matching federated identity` | Run from another branch, or the repository was renamed | Run from `main`; the repository must be `birarfincare/bureau-submissions-deploy` (or add a federated credential for the new name) |
+| Deploy: `AADSTS700213` / `AADSTS70021` / `No matching federated identity` | The subject GitHub sent (shown in the log as `subject claim`) differs from the federated credential: run from another branch, or a different repository | Run from `main`. Compare the log's `subject claim` with the credential (portal: `bsub-github-deploy` > Federated credentials); add one with exactly that subject if the repository really changed |
 | Deploy: `AuthorizationFailed` | Roles missing or not yet applied | Wait 5 minutes after setup; check section 3 |
 | Deploy: `The confirmation … does not match` | `confirm` differs from `version` | Run again with both the same |
 | Deploy: `Migration … failed` | A new migration was not run in SSMS, or `mark_applied` missed it | Run it in SSMS, deploy again with its name in `mark_applied` |
@@ -106,9 +106,18 @@ columns, so older code runs on a newer database: nothing to undo in the database
 
 The site keeps running the previous version when a deploy fails before the upload; after the upload, roll back.
 
-Lessons from the first setup (2026-11-08): the setup's GitHub step failed until the deployment repository existed under
-exactly the name in `install.json` (it had been created as `bureau-submisisons-core` and was renamed); GitHub's own
-download servers timed out for a morning, which CI now avoids (GitHub's Python, `uv` from PyPI).
+Lessons from the first setup (2026-11-08), all fixed in the scripts since:
+- The setup's GitHub step failed until the deployment repository existed under exactly the name in `install.json` (it
+  had been created as `bureau-submisisons-core` and was renamed).
+- The first Publish got 403: the token had been created before the repository, so it did not include it (edit the
+  token's Repository access).
+- The first Deploy failed at Azure sign-in (`AADSTS700213`): GitHub sends the subject with fixed IDs
+  (`repo:BIRARFinCare@274430261/...@1450106008:...`), the setup had trusted the name-only form. The credential
+  `github-main-ids` was added and the old `github-main` deleted; the setup script now creates the ID form.
+- Creating the release on GitHub's Releases page already makes the release: the Release workflow now fills it in.
+- GitHub's own download servers timed out for a morning, which CI now avoids (GitHub's Python, `uv` from PyPI).
+
+First deploy from GitHub: **v1.0.0 on 2026-11-08**.
 
 ## 7. Maintenance
 
