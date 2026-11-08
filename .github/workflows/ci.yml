@@ -122,9 +122,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # GitHub's own Python (its tool cache), not uv's download: that download (a GitHub release file) timed out
+      # repeatedly on 2026-11-08 and this job, unlike the others, has no uv cache to fall back on.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.9.5"
-      - run: uv python install 3.14
       - run: uv export --locked --no-dev --no-emit-workspace --format requirements-txt -o requirements.txt
       - run: uvx pip-audit -r requirements.txt --strict --no-deps --disable-pip
