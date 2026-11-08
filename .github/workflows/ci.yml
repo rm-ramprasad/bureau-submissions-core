@@ -136,8 +136,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-      - uses: astral-sh/setup-uv@v6
-        with:
-          version: "0.9.5"
+      - name: "uv from PyPI (not a GitHub release download, those timed out on 2026-11-08)"
+        run: python -m pip install --quiet "uv==0.9.5"
       - run: uv export --locked --no-dev --no-emit-workspace --format requirements-txt -o requirements.txt
       - run: uvx pip-audit -r requirements.txt --strict --no-deps --disable-pip
