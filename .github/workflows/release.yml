@@ -1,4 +1,5 @@
-# Release: pushing a version tag (v1.2.3) on main builds the release once, after the same checks as CI, and publishes
+# Release: a version tag (v1.2.3) on main (created with a release on GitHub's Releases page, or pushed) builds the
+# release once, after the same checks as CI, and publishes
 # it as a GitHub Release with its artifacts (deploy/build.sh): function.zip, web.zip, migrations.zip. The notes name
 # any new migration (run it in SSMS before deploying). Deploying is a separate, approved step (deploy.yml).
 name: Release
@@ -63,5 +64,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/function.zip dist/web.zip dist/migrations.zip \
-            --title "$GITHUB_REF_NAME" --notes-file dist/notes.md --generate-notes --verify-tag
+          # The release usually exists already: creating it on GitHub's Releases page is what pushes the tag and
+          # starts this workflow. Then the files and notes are added to it; a tag pushed from git gets a new release.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/function.zip dist/web.zip dist/migrations.zip --clobber
+            body=$(gh release view "$GITHUB_REF_NAME" --json body --jq .body)
+            cp dist/notes.md dist/full-notes.md
+            if [ -n "$body" ]; then printf '\n%s\n' "$body" >> dist/full-notes.md; fi
+            gh release edit "$GITHUB_REF_NAME" --notes-file dist/full-notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" dist/function.zip dist/web.zip dist/migrations.zip \
+              --title "$GITHUB_REF_NAME" --notes-file dist/notes.md --generate-notes --verify-tag
+          fi
