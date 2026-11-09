@@ -22,6 +22,7 @@ import pytest
 from sqlalchemy import Engine, inspect, text
 
 import canonical.master.tables
+import canonical.position
 import canonical.staging.loads
 import canonical.staging.tables  # noqa: F401  (registers all app tables)
 from canonical.db import SCHEMA, make_engine, metadata
@@ -134,3 +135,95 @@ def test_mssql_master_apply_is_stable(mssql_migrated: Engine) -> None:
     again = apply_upload(mssql_migrated, "dbtest", 2, [party], [loan])
     assert (first.parties_added, first.sanctions_added) == (1, 1)
     assert (again.parties_unchanged, again.sanctions_unchanged, again.changes) == (1, 1, 0)
+
+
+def _position_data(engine: Engine) -> None:
+    """One consumer and one commercial LMS row, and two uploads of the same account and date (the newer wins)."""
+    from datetime import datetime
+
+    from sqlalchemy import insert
+
+    from canonical.position import stg_lms_position
+    from canonical.staging.tables import input_load
+    from canonical.testing_db import lms_column as q
+
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM wip.VwConsumerSubmissionAccountSegment"))
+        conn.execute(text("DELETE FROM wip.VwCommercialSubmissionCR"))
+        conn.execute(
+            text(
+                "INSERT INTO wip.VwConsumerSubmissionAccountSegment (AccountNumber, TransactionDate, "
+                "TL_CurrentBalance, TL_AmtOverdue, TL_NoofDaysPastDue, TL_CreditFacilityStatus, TL_DateClosed) "
+                "VALUES ('POS-C1', '2026-10-31', 1000.50, 20.00, 15, NULL, '31102026')"
+            )
+        )
+        conn.execute(
+            text(
+                f"INSERT INTO wip.VwCommercialSubmissionCR (AccountNumber, transactiondate, {q(engine, 'Current Balance')}, "
+                f"RBIODDays, IsAccountClosed, AcClosedDate, {q(engine, 'Overdue Bucket 01 ( 1 – 30 days)')}, "
+                f"{q(engine, 'Account Status')}) "
+                "VALUES ('POS-K1', '2026-10-31', 5000.00, 0, 'Yes', '2026-10-30', 7.00, '01')"
+            )
+        )
+        loads = []
+        for i in range(2):
+            loads.append(
+                conn.execute(
+                    insert(input_load).values(
+                        tenant_id="nbfc_001",
+                        submission_type="LMS",
+                        file_name=f"lms{i}.xlsx",
+                        sha256="0" * 64,
+                        status="LOADED",
+                        loaded_by="test",
+                        loaded_at=datetime(2026, 11, 1, i),
+                    )
+                ).inserted_primary_key[0]
+            )
+        for load, balance in zip(loads, ("100", "1234.50"), strict=True):
+            conn.execute(
+                insert(stg_lms_position).values(
+                    load_id=load,
+                    source_row=2,
+                    account_number="POS-U1",
+                    position_date="31102026",
+                    current_balance=balance,
+                    days_past_due="3",
+                )
+            )
+
+
+@pytest.mark.parametrize("db", ["mssql_migrated", "postgres"])
+def test_account_position_view_keeps_the_contract(db: str, request: pytest.FixtureRequest) -> None:
+    from datetime import date
+    from decimal import Decimal
+
+    from canonical.position import check_view, read_positions
+
+    engine: Engine = request.getfixturevalue(db)
+    _position_data(engine)
+    assert check_view(engine) == []
+    rows = {r["account_number"]: r for r in read_positions(engine, date(2026, 10, 31))}
+    assert sorted(rows) == ["POS-C1", "POS-K1", "POS-U1"]
+    c, k, u = rows["POS-C1"], rows["POS-K1"], rows["POS-U1"]
+    assert (c["current_balance"], c["days_past_due"], c["date_closed"], c["source"]) == (
+        Decimal("1000.50"),
+        15,
+        date(2026, 10, 31),
+        "VIEW",
+    )
+    assert (k["current_balance"], k["overdue_bucket_1"], k["date_closed"], k["credit_facility_status"]) == (
+        Decimal("5000.00"),
+        Decimal("7.00"),
+        date(2026, 10, 30),
+        None,
+    )
+    assert (u["current_balance"], u["days_past_due"], u["source"], u["sanction_number"]) == (
+        Decimal("1234.50"),
+        3,
+        "UPLOAD",
+        "",
+    )
+    assert u["source_load_id"] == max(r["source_load_id"] or 0 for r in rows.values())
+    assert [r["account_number"] for r in read_positions(engine, date(2026, 10, 31), ["POS-U1"])] == ["POS-U1"]
+    assert read_positions(engine, date(2026, 9, 30)) == []
