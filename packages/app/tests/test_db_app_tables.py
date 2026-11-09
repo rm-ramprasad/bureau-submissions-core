@@ -10,6 +10,7 @@ from app.audit import audit_event
 from app.bureaus.tables import bureau_profile
 from app.configstore import config_version
 from app.configstore.settings import client_setting
+from app.outputfiles import out_file, out_submission
 from app.reconciliation import (
     reconciliation_check,
     reconciliation_column,
@@ -41,7 +42,7 @@ def test_app_tables_match_the_migrated_schema():
     problems = schema_drift(
         engine,
         [
-            submission_request, bureau_profile, app_user, audit_event,
+            submission_request, bureau_profile, app_user, audit_event, out_file, out_submission,
             validation_rule, validation_policy, validation_parameter, validation_finding, validation_summary,
             record_outcome, submission_adjustment, snapshot_adjustment, snapshot_adjustment_effect,
             reconciliation_summary, reconciliation_check, reconciliation_column, reconciliation_mismatch,

@@ -36,7 +36,7 @@
       <span class="muted" x-show="data?.pages > 1" x-text="`page ${data?.page} of ${data?.pages}`"></span></div>
     <div class="table-wrap" x-show="data?.files.length"><table>
       <thead><tr><th>Generated</th><th>Bureau</th><th>File</th><th>As of</th><th class="num">Records written</th>
-        <th class="num">Rejected</th><th class="num">Excluded</th><th class="num">Overridden</th><th>Download</th></tr></thead>
+        <th class="num">Rejected</th><th class="num">Excluded</th><th class="num">Overridden</th><th>Download</th><th>Submitted to bureau</th></tr></thead>
       <tbody>
         <template x-for="f in data?.files || []" :key="f.request_id">
           <tr><td><span x-text="F.dt(f.finished_at)"></span><div class="hint" x-text="f.requested_by || ''"></div></td>
@@ -56,6 +56,15 @@
                 <span x-show="f.has_review"> · <a href="#" @click.prevent="download(f, 'review')">Review Excel</a></span>
                 <span x-show="f.has_exceptions"> · <a href="#" @click.prevent="download(f, 'exceptions')">Exceptions</a></span></span></template>
               <span class="badge b-PURGED" x-show="!f.has_file">Purged</span>
+              <div class="hint mono" x-show="f.fingerprint" :title="f.fingerprint?.sha256"
+                x-text="f.fingerprint ? `SHA-256 ${f.fingerprint.sha256.slice(0, 12)}… · ${F.num(f.fingerprint.size_bytes)} bytes` : ''"></div>
+            </td>
+            <td>
+              <template x-if="f.submission"><span>
+                <span class="badge b-SUCCEEDED" x-text="F.title(f.submission.status)"></span>
+                <div class="hint" x-text="`${F.dt(f.submission.submitted_at)} · ${f.submission.submitted_by}`"></div>
+                <div class="hint" x-show="f.submission.ack_reference" x-text="'Ack: ' + f.submission.ack_reference"></div></span></template>
+              <button type="button" class="small secondary" x-show="!f.submission" @click="markSubmitted(f)">Mark as submitted</button>
             </td></tr>
         </template>
       </tbody>

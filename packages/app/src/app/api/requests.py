@@ -6,7 +6,7 @@ from datetime import date
 
 from flask import Response, jsonify
 
-from app import audit
+from app import audit, outputfiles
 from app.adjustments import (
     applied_summary,
 )
@@ -252,6 +252,39 @@ def retry(request_id: int):
 @bp.post("/requests/<int:request_id>/cancel")
 def cancel(request_id: int):
     return _row_action(request_id, "cancel")
+
+
+@bp.post("/requests/<int:request_id>/submitted")
+def mark_submitted(request_id: int):
+    """Mark a generated bureau file as submitted to the bureau (L4), with the bureau's acknowledgement reference if any.
+    Once per file."""
+    s, b = svc(), body()
+    try:
+        req = s.requests.get(request_id)
+    except RequestNotFoundError:
+        fail(f"No request {request_id}", 404)
+    if (s.tenant and req.tenant_id != s.tenant) or req.run_mode is not RunMode.GENERATE:
+        fail(f"No generated file for request {request_id}", 404)
+    if req.status is not RequestStatus.SUCCEEDED or not req.output_file_name:
+        fail(f"Request {request_id} has no generated bureau file to mark (status {req.status.value}).", 409)
+    user = current_user()
+    try:
+        outputfiles.mark_submitted(
+            s.engine, request_id, str(req.bureau_code), user, b.get("ack_reference"), b.get("note")
+        )
+    except outputfiles.AlreadySubmitted as exc:
+        fail(str(exc), 409)
+    audit.record(
+        s.engine,
+        user,
+        "FILE_SUBMITTED",
+        tenant_id=req.tenant_id,
+        target=request_id,
+        batch_id=req.batch_id,
+        file=req.output_file_name,
+        ack_reference=b.get("ack_reference") or "",
+    )
+    return message(f"{req.output_file_name}: marked as submitted.", batch_id=req.batch_id)
 
 
 @bp.get("/requests/<int:request_id>/reconciliation")
