@@ -26,6 +26,7 @@ from sqlalchemy import Connection, Engine, Table, delete, insert, select, update
 from canonical.db import utcnow
 from canonical.master.tables import (
     dm_change_log,
+    dm_cheque_dishonour,
     dm_party,
     dm_party_address,
     dm_party_email,
@@ -60,6 +61,7 @@ SANCTION_FIELDS = _fields(dm_sanction, "sanction_id", "tenant_id", "account_numb
 LIST_FIELDS = {name: _fields(t, "party_id") for name, t in PARTY_LISTS.items()}
 LINK_FIELDS = _fields(dm_sanction_party, "sanction_id", "party_id", "role")
 SECURITY_FIELDS = _fields(dm_security, "sanction_id", "security_ref")
+CHEQUE_FIELDS = _fields(dm_cheque_dishonour, "sanction_id")
 
 
 class UploadConflict(ValueError):
@@ -97,6 +99,7 @@ class SanctionIn:
     values: Mapping[str, Any] = field(default_factory=dict)  # SANCTION_FIELDS
     parties: Sequence[SanctionPartyIn] = ()
     securities: Sequence[SecurityIn] = ()
+    cheques: Sequence[Mapping[str, Any]] = ()  # cheque dishonours (CHEQUE_FIELDS), in order
 
 
 @dataclass
@@ -150,6 +153,7 @@ class _Sanction:
     row: dict[str, Any]
     links: tuple[tuple[Any, ...], ...]  # (customer_id, role, *LINK_FIELDS), sorted
     securities: tuple[tuple[Any, ...], ...]  # (security_ref, *SECURITY_FIELDS), sorted
+    cheques: tuple[tuple[Any, ...], ...]  # CHEQUE_FIELDS, in order
 
 
 def _party(p: PartyIn) -> _Party:
@@ -182,6 +186,7 @@ def _sanction(s: SanctionIn) -> _Sanction:
         _row(s.values, SANCTION_FIELDS, what),
         tuple(sorted(k + v for k, v in links.items())),
         tuple(sorted((r, *v) for r, v in secs.items())),
+        tuple(dict.fromkeys(tuple(_row(c, CHEQUE_FIELDS, f"{what} cheque").values()) for c in s.cheques)),
     )
 
 
@@ -387,6 +392,16 @@ class _Applier:
                 "dm_security",
                 label,
                 seq=False,
+            )
+            self._replace_list(
+                dm_cheque_dishonour,
+                "sanction_id",
+                sanction_ids[k],
+                CHEQUE_FIELDS,
+                s.cheques,
+                "dm_cheque_dishonour",
+                label,
+                seq=True,
             )
 
         if self.log:

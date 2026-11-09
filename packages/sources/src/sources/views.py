@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
@@ -47,6 +47,7 @@ def bind_params(sql: str, values: dict[str, Any]) -> dict[str, Any]:
 class CompiledViews:
     sql: dict[str, str]  # canonical entity -> SELECT over its view (canonical column order)
     version: str  # fingerprint of the view definitions, recorded on each snapshot
+    order: dict[str, str] = field(default_factory=dict)  # entity -> ORDER BY over its SELECT's columns (q.<col>)
 
     def uses(self, name: str) -> bool:
         """True if any entity's SQL uses the parameter :name."""

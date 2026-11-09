@@ -76,6 +76,7 @@ dm_party = Table(
     Column("rating_agency", _code()),
     Column("rating_date", Date),
     Column("rating_expiry_date", Date),
+    Column("party_type", _code()),  # bureau type: INDIAN_INDIVIDUAL, INDIAN_ENTITY, ... (migration 013)
     *_versioned(),
     UniqueConstraint("tenant_id", "customer_id", name="uq_dm_party_customer"),
 )
@@ -104,8 +105,12 @@ dm_party_phone = _party_list(
     Column("phone_number", Unicode(20), nullable=False),
     Column("extension", Unicode(10)),
     Column("phone_type", _code()),
+    Column("area_code", Unicode(10)),  # migration 013
+    Column("priority", Integer),
 )
-dm_party_email = _party_list("dm_party_email", Column("email", Unicode(200), nullable=False))
+dm_party_email = _party_list(
+    "dm_party_email", Column("email", Unicode(200), nullable=False), Column("priority", Integer)
+)
 dm_party_address = _party_list(
     "dm_party_address",
     *(Column(f"address_line_{i}", Unicode(200)) for i in range(1, 6)),
@@ -116,6 +121,7 @@ dm_party_address = _party_list(
     Column("country", _code()),
     Column("address_category", _code()),  # PERMANENT, RESIDENCE, OFFICE, REGISTERED, ...
     Column("residence_code", _code()),
+    Column("priority", Integer),
 )
 
 dm_sanction = Table(
@@ -150,6 +156,12 @@ dm_sanction = Table(
     Column("other_lenders", Unicode(200)),
     Column("dispute_id", Unicode(50)),
     Column("remark", Unicode(500)),
+    Column("suit_filed_status", _code()),  # migration 013
+    Column("suit_reference", Unicode(50)),
+    Column("suit_amount", _AMOUNT),
+    Column("suit_date", Date),
+    Column("collateral_value", _AMOUNT),
+    Column("collateral_type", _code()),
     *_versioned(),
     UniqueConstraint("tenant_id", "account_number", "sanction_number", name="uq_dm_sanction_key"),
 )
@@ -181,6 +193,20 @@ dm_security = Table(
     Column("load_id", _PK, nullable=False),
 )
 
+dm_cheque_dishonour = Table(
+    "dm_cheque_dishonour",
+    metadata,
+    Column("sanction_id", _PK, ForeignKey("automn.dm_sanction.sanction_id"), primary_key=True),
+    Column("seq", Integer, primary_key=True, autoincrement=False),
+    Column("dishonour_date", Date),
+    Column("amount", _AMOUNT),
+    Column("instrument_number", Unicode(50)),
+    Column("dishonour_count", Integer),
+    Column("cheque_issue_date", Date),
+    Column("reason", _code()),
+    Column("load_id", _PK, nullable=False),
+)
+
 dm_change_log = Table(
     "dm_change_log",
     metadata,
@@ -205,5 +231,6 @@ MASTER_TABLES = (
     dm_sanction,
     dm_sanction_party,
     dm_security,
+    dm_cheque_dishonour,
     dm_change_log,
 )
