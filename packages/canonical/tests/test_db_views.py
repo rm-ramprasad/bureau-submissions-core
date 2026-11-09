@@ -109,3 +109,28 @@ def test_mssql_row_counts_still_work_after_the_views(mssql_migrated: Engine) -> 
     with mssql_migrated.begin() as conn:
         changed = conn.execute(text(f"UPDATE {SCHEMA}.tenant SET display_name = display_name WHERE 1 = 0")).rowcount
     assert changed == 0
+
+
+def test_mssql_master_apply_is_stable(mssql_migrated: Engine) -> None:
+    """Applying the same upload twice on SQL Server logs no change (types read back compare equal)."""
+    from datetime import date
+    from decimal import Decimal
+
+    from canonical.master.apply import PartyIn, SanctionIn, SanctionPartyIn, SecurityIn, apply_upload
+
+    party = PartyIn(
+        "DBT1",
+        "INDIVIDUAL",
+        {"full_name": "Test Ünicode", "birth_date": date(1990, 1, 2), "income": Decimal("50000.5")},
+        phones=[{"phone_number": "9000000001"}],
+    )
+    loan = SanctionIn(
+        "DBT-L1",
+        values={"rate_of_interest": Decimal("12.25"), "repayment_tenure": 36},
+        parties=[SanctionPartyIn("DBT1", "BORROWER", {"control_percentage": Decimal("100")})],
+        securities=[SecurityIn("s-b"), SecurityIn("S-A")],
+    )
+    first = apply_upload(mssql_migrated, "dbtest", 1, [party], [loan])
+    again = apply_upload(mssql_migrated, "dbtest", 2, [party], [loan])
+    assert (first.parties_added, first.sanctions_added) == (1, 1)
+    assert (again.parties_unchanged, again.sanctions_unchanged, again.changes) == (1, 1, 0)
