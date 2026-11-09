@@ -20,7 +20,7 @@ from pathlib import Path
 import yaml
 from sqlalchemy import select
 
-from app import reconciliation
+from app import outputfiles, reconciliation
 from app.adjustments.summary import adjustments_csv
 from app.bureaus import BureauProfile
 from app.enums import RecordOutcome
@@ -182,6 +182,21 @@ def _file_summary(content: bytes, name: str, bureau: BureauProfile, snapshot: Sn
     return rows + [[tag, n] for tag, n in tags.items()]
 
 
+def _fingerprint(services, request, snapshot, bureau, kind, name, uri, content, records=None) -> None:
+    """L4: the stored file's fingerprint (SHA-256, size, records), for proving later what was generated."""
+    outputfiles.record_file(
+        services.app_engine,
+        request_id=request.request_id,
+        snapshot_id=snapshot.snapshot_id,
+        bureau_code=str(bureau.bureau_code),
+        kind=kind,
+        file_name=name,
+        file_uri=uri,
+        content=content,
+        record_count=records,
+    )
+
+
 def generate_file_with_review(
     services, tenant, request: SubmissionRequest, snapshot: Snapshot, bureau: BureauProfile, write_file
 ) -> RequestResult:
@@ -212,6 +227,10 @@ def generate_file_with_review(
     )
     file_uri = services.store.put(f"{folder}/{name}", content, "text/plain")  # never overwrites
     review_uri = services.store.put(f"{folder}/{stem}-review.xlsx", review, XLSX)
+    _fingerprint(services, request, snapshot, bureau, outputfiles.BUREAU_FILE, name, file_uri, content, stats.written)
+    _fingerprint(
+        services, request, snapshot, bureau, outputfiles.REVIEW_EXCEL, f"{stem}-review.xlsx", review_uri, review
+    )
     return RequestResult(
         output_file_name=name,
         output_file_path=file_uri,
@@ -264,7 +283,11 @@ def generate_outputs(
         sheets["Conversion warnings"] = [["Warning"]] + [[w] for w in tudf.warnings]
     # The review Excel holds the check sheets only (owner decision 2026-11-06): the rows are in the bureau Excel, and
     # copying them into the review file made the app hold the whole form in memory (over 5 GB at 1 lakh rows).
-    review_uri = services.store.put(f"{folder}/{stem}-review.xlsx", new_workbook(sheets), XLSX)
+    review = new_workbook(sheets)
+    review_uri = services.store.put(f"{folder}/{stem}-review.xlsx", review, XLSX)
+    _fingerprint(
+        services, request, snapshot, bureau, outputfiles.REVIEW_EXCEL, f"{stem}-review.xlsx", review_uri, review
+    )
     if not recon.matched:
         mismatched = reconciliation.mismatch_count(recon)
         raise OutputsNotMatched(
@@ -275,6 +298,28 @@ def generate_outputs(
         )
     excel_uri = services.store.put(f"{folder}/{stem}.xlsx", excel.content, XLSX)  # never overwrites
     tudf_uri = services.store.put(f"{folder}/{tudf_name}", tudf.content, "text/plain")
+    _fingerprint(
+        services,
+        request,
+        snapshot,
+        bureau,
+        outputfiles.BUREAU_EXCEL,
+        f"{stem}.xlsx",
+        excel_uri,
+        excel.content,
+        excel.rows,
+    )
+    _fingerprint(
+        services,
+        request,
+        snapshot,
+        bureau,
+        outputfiles.BUREAU_FILE,
+        tudf_name,
+        tudf_uri,
+        tudf.content,
+        tudf.stats.written,
+    )
     return RequestResult(
         output_file_name=tudf_name,
         output_file_path=tudf_uri,

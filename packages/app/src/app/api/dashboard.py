@@ -7,6 +7,7 @@ from datetime import date, datetime, time, timedelta
 
 from flask import jsonify, request
 
+from app import outputfiles
 from app.api.common import (
     TRACKER_PAGE,
     bp,
@@ -164,10 +165,11 @@ def files():
     rows, total = s.requests.list_files(
         selected_tenant(), bureau, period.start(utcnow()), TRACKER_PAGE, (page - 1) * TRACKER_PAGE
     )
+    audit_of = outputfiles.bureau_files(s.engine, [r.request_id for r in rows])  # L4: fingerprint, submission
     return jsonify(
         total=total,
         page=page,
         pages=max(1, math.ceil(total / TRACKER_PAGE)),
         location=s.store.describe(),
-        files=[row_json(r) for r in rows],
+        files=[{**row_json(r), **audit_of.get(r.request_id, {})} for r in rows],
     )

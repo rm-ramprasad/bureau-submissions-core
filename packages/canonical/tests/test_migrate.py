@@ -26,6 +26,7 @@ MIGRATIONS = [
     "008_config_versions",
     "009_client_settings",
     "010_demographics_master",
+    "011_output_files",
 ]
 
 

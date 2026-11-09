@@ -312,6 +312,40 @@ def test_files_lists_generated_files(api, validated):
     assert api.get("/files", bureau="NOPE")[0] == 400
 
 
+def test_generated_files_carry_their_fingerprint(api, validated, engine):
+    import hashlib
+
+    from app.outputfiles import out_file
+
+    _, files = api.get("/files")
+    for f in files["files"]:
+        fp = f["fingerprint"]
+        content = Path(f["output_location"]).read_bytes()
+        assert fp["sha256"] == hashlib.sha256(content).hexdigest() and fp["size_bytes"] == len(content)
+        assert fp["record_count"] == f["accepted_records"] and "submission" not in f
+    with engine.connect() as conn:
+        kinds = sorted(conn.execute(select(out_file.c.kind)).scalars())
+    assert kinds == ["BUREAU_EXCEL"] * 2 + ["BUREAU_FILE"] * 2 + ["REVIEW_EXCEL"] * 2
+
+
+def test_a_file_is_marked_as_submitted_once(api, validated, engine):
+    _, files = api.get("/files", bureau="CIBIL")
+    rid = files["files"][0]["request_id"]
+    status, data = api.post(f"/requests/{rid}/submitted", ack_reference=" ACK-123 ")
+    assert status == 200 and "marked as submitted" in data["message"]
+    sub = api.get("/files", bureau="CIBIL")[1]["files"][0]["submission"]
+    assert (sub["status"], sub["ack_reference"]) == ("SUBMITTED", "ACK-123") and sub["submitted_by"]
+    assert api.post(f"/requests/{rid}/submitted")[0] == 409
+    assert "submission" not in api.get("/files", bureau="EXPERIAN")[1]["files"][0]
+    assert actions(engine).count("FILE_SUBMITTED") == 1
+
+
+def test_only_generated_files_can_be_marked(api, validated):
+    row, _ = validated
+    assert api.post(f"/requests/{row.request_id}/submitted")[0] == 404  # the validation request
+    assert api.post("/requests/999999/submitted")[0] == 404
+
+
 def test_tracker_lists_requests_with_their_files(api, validated):
     row, _g = validated
 
