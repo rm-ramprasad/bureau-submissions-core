@@ -25,6 +25,7 @@ MIGRATIONS = [
     "007_reconciliation",
     "008_config_versions",
     "009_client_settings",
+    "010_demographics_master",
 ]
 
 
