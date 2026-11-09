@@ -154,7 +154,7 @@ def _position_data(engine: Engine) -> None:
             text(
                 "INSERT INTO wip.VwConsumerSubmissionAccountSegment (AccountNumber, TransactionDate, "
                 "TL_CurrentBalance, TL_AmtOverdue, TL_NoofDaysPastDue, TL_CreditFacilityStatus, TL_DateClosed) "
-                "VALUES ('POS-C1', '2026-10-31', 1000.50, 20.00, 15, NULL, '31-10-2026')"
+                "VALUES ('POS-C1', '2026-10-31', 1000.50, 20.00, 15, NULL, '31102026')"
             )
         )
         conn.execute(
@@ -180,13 +180,13 @@ def _position_data(engine: Engine) -> None:
                     )
                 ).inserted_primary_key[0]
             )
-        for load, balance in zip(loads, ("100", "1,234.50"), strict=True):
+        for load, balance in zip(loads, ("100", "1234.50"), strict=True):
             conn.execute(
                 insert(stg_lms_position).values(
                     load_id=load,
                     source_row=2,
                     account_number="POS-U1",
-                    position_date="31-10-2026",
+                    position_date="31102026",
                     current_balance=balance,
                     days_past_due="3",
                 )
