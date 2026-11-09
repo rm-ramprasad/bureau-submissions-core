@@ -131,6 +131,17 @@ Kept forever in storage (owner, 2026-11-06). Each file also gets a fingerprint (
 with its request, and the request a "submitted" status (who, when, bureau, acknowledgement reference): separate small
 step.
 
+### Retention (owner)
+
+Nothing is deleted in any layer, L1 to L4, including L3 snapshot rows (the one layer that duplicates data: roughly
+15–25 GB a year at today's volume). Deletion is revisited later; the purge code exists, switched off.
+
+### Tables
+
+Proposed DDL per layer, with the layer in each table's prefix (`stg_` L1, `dm_` L2a, `vw_pos_` L2b, `c_` L3, `out_` L4):
+[0002-layers-ddl.sql](0002-layers-ddl.sql). Not a migration: each table becomes a numbered migration in the order of
+work.
+
 ## Source adapters
 
 1. **Configured adapter (the norm):** per client and per kind of data (demographics; account position), the source
