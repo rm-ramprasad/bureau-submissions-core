@@ -68,7 +68,15 @@ def coerce(col: ColumnDef, value: Any) -> Any:
         raise ExtractError(f"cannot convert {value!r} to {col.type} for column {col.name}") from exc
 
 
-def _stream(entity: str, sql: str, params: dict[str, Any], snapshot_id: int, source: Engine, app: Engine) -> int:
+def _ordered(sql: str, order: str) -> str:
+    """The SELECT in its row order (SQL Server allows no ORDER BY inside a derived table, so it goes outside)."""
+    return f"SELECT * FROM (\n{sql}\n) q ORDER BY {order}" if order else sql  # noqa: S608  (SQL built in code)
+
+
+def _stream(
+    entity: str, sql: str, params: dict[str, Any], snapshot_id: int, source: Engine, app: Engine, order: str = ""
+) -> int:
+    sql = _ordered(sql, order)
     table = ENTITY_TABLES[entity]
     cols = MODEL.entities[entity].columns
     count = 0
@@ -87,12 +95,15 @@ def _stream(entity: str, sql: str, params: dict[str, Any], snapshot_id: int, sou
     return count
 
 
-def _insert_select(entity: str, sql: str, params: dict[str, Any], snapshot_id: int, app: Engine) -> int:
+def _insert_select(
+    entity: str, sql: str, params: dict[str, Any], snapshot_id: int, app: Engine, order: str = ""
+) -> int:
     table = ENTITY_TABLES[entity]
     names = [c.name for c in MODEL.entities[entity].columns]
     stmt = (
         f"INSERT INTO {table.fullname} (snapshot_id, {', '.join(names)})\n"
         f"SELECT :snapshot_id, {', '.join('q.' + n for n in names)}\nFROM (\n{sql}\n) q"
+        + (f"\nORDER BY {order}" if order else "")  # row ids follow it
     )
     with app.begin() as conn:
         return conn.execute(text(stmt), {**params, "snapshot_id": snapshot_id}).rowcount
@@ -151,9 +162,11 @@ def run_extract(
                     final = adjustments.final_select(entity, sql, columns)
                     counts[entity] = _insert_select(entity, final, params, snapshot_id, app_engine)
                 elif tenant.extract_strategy is ExtractStrategy.INSERT_SELECT:
-                    counts[entity] = _insert_select(entity, sql, params, snapshot_id, app_engine)
+                    order = compiled.order.get(entity, "")
+                    counts[entity] = _insert_select(entity, sql, params, snapshot_id, app_engine, order)
                 else:
-                    counts[entity] = _stream(entity, sql, params, snapshot_id, source_engine, app_engine)
+                    order = compiled.order.get(entity, "")
+                    counts[entity] = _stream(entity, sql, params, snapshot_id, source_engine, app_engine, order)
             except ExtractError:
                 raise
             except Exception as exc:

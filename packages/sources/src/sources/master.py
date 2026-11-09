@@ -28,6 +28,7 @@ from sqlalchemy import (
     MetaData,
     Select,
     Table,
+    UnaryExpression,
     and_,
     case,
     cast,
@@ -40,6 +41,7 @@ from sqlalchemy import (
     select,
     true,
 )
+from sqlalchemy.sql import operators
 
 from canonical.db import SCHEMA
 from canonical.master.tables import (
@@ -369,9 +371,21 @@ def compile_master(engine: Engine, submission_type: str, *, history: bool = Fals
     selection = SELECTION.get(str(submission_type).upper())
     if selection is None:
         raise MasterError(f"No selection defined for {submission_type} (sources.master.SELECTION)")
-    sql = {
-        entity: str(stmt.compile(dialect=engine.dialect, compile_kwargs={"literal_binds": True}))
-        for entity, stmt in _Builder(selection).statements(history).items()
-    }
+    sql, order = {}, {}
+    for entity, stmt in _Builder(selection).statements(history).items():
+        unordered, order[entity] = _order_outside(stmt)
+        sql[entity] = str(unordered.compile(dialect=engine.dialect, compile_kwargs={"literal_binds": True}))
     fingerprint = hashlib.sha256("\n".join(f"{e}\n{q}" for e, q in sql.items()).encode()).hexdigest()[:16]
-    return CompiledViews(sql, f"master-{fingerprint}")
+    return CompiledViews(sql, f"master-{fingerprint}", order)
+
+
+def _order_outside(stmt: Select[Any]) -> tuple[Select[Any], str]:
+    """The SELECT without its ORDER BY, its sort keys added as columns _o0, _o1, ..., and the ORDER BY over them
+    (SQL Server allows no ORDER BY in the derived table run_extract wraps around each SELECT)."""
+    keys, parts = [], []
+    for i, clause in enumerate(stmt._order_by_clauses):
+        desc = isinstance(clause, UnaryExpression) and clause.modifier is operators.desc_op
+        expr = clause.element if desc and isinstance(clause, UnaryExpression) else clause
+        keys.append(expr.label(f"_o{i}"))
+        parts.append(f"q._o{i}" + (" DESC" if desc else ""))
+    return stmt.order_by(None).add_columns(*keys), ", ".join(parts)

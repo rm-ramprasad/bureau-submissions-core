@@ -242,6 +242,7 @@ def test_master_extract_runs_on_real_databases(db: Engine, strategy: ExtractStra
         result = run_extract(
             tenant=tenant, compiled=compile_master(db, submission_type, history=True), submission_type=submission_type,
             as_of_date=MASTER_DAY, app_engine=db, source_engine=db, snapshots=SnapshotRepository(db), owner="test",
+            batch_id=f"master-{next(_batches)}",
         )  # fmt: skip
         got[submission_type] = result
     c, k = got["CONSUMER"].row_counts, got["COMMERCIAL"].row_counts
