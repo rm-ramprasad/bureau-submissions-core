@@ -173,3 +173,95 @@ def test_an_upload_and_the_lms_rows_become_a_canonical_snapshot(db: Engine) -> N
     for entity in ("account", "party", "account_holder", "party_address", "party_identifier", "party_phone"):
         columns = [c.name for c in ENTITY_TABLES[entity].columns if c.name not in ("row_id", "snapshot_id")]
         assert rows(db, entity, streamed, *columns) == rows(db, entity, snap, *columns), entity
+
+
+# ---------------------------------------------------------------- ADR 0002 PR 4: snapshot from L2a + L2b
+MASTER_DAY = date(2026, 12, 31)
+
+
+def _master_data(engine: Engine) -> None:
+    """Demographics through apply_upload; positions as an LMS upload (vw_pos_upload), on a date no other test uses."""
+    from sqlalchemy import insert
+
+    from canonical.master.apply import PartyIn, SanctionIn, SanctionPartyIn, SecurityIn, apply_upload
+    from canonical.position import stg_lms_position
+    from canonical.staging.tables import input_load
+
+    with engine.begin() as conn:
+        load = conn.execute(
+            insert(input_load).values(
+                tenant_id=TENANT.tenant_id,
+                submission_type="LMS",
+                file_name="lms.xlsx",
+                sha256="0" * 64,
+                status="LOADED",
+                loaded_by="test",
+                loaded_at=datetime(2027, 1, 1),
+            )
+        ).inserted_primary_key[0]
+        rows = [("MST-C1", "31122026", "1000.50"), ("MST-C1", "15112026", "1100.00"), ("MST-C1", "20112026", "1090.00"),
+                ("MST-K1", "31122026", "5000.00")]  # fmt: skip
+        conn.execute(
+            insert(stg_lms_position),
+            [dict(load_id=load, source_row=i + 2, account_number=a, position_date=d, current_balance=b, days_past_due="0")
+             for i, (a, d, b) in enumerate(rows)],
+        )  # fmt: skip
+    people = [
+        PartyIn("MC1", "INDIVIDUAL", {"full_name": "Asha Kumar", "birth_date": date(1985, 8, 15)},
+                identifiers=[{"id_type": "PAN", "id_number": "ABCPK1234F"}], phones=[{"phone_number": "9876543210", "phone_type": "MOBILE", "priority": 1}]),
+        PartyIn("MK1", "ENTITY", {"full_name": "Acme Traders"}),
+        PartyIn("MR1", "INDIVIDUAL", {"full_name": "Ravi Director", "party_type": "INDIAN_INDIVIDUAL"},
+                identifiers=[{"id_type": "DIN", "id_number": "01234567"}],
+                addresses=[{"address_line_1": "1 Road", "state_code": "TAMIL_NADU", "pin_code": "600001", "priority": 1}],
+                phones=[{"phone_number": "2222", "area_code": "044", "phone_type": "OFFICE"}]),
+    ]  # fmt: skip
+    loans = [
+        SanctionIn("MST-C1", values={"account_type": "PERSONAL_LOAN", "suit_filed_status": "NO_SUIT_FILED"},
+                   parties=[SanctionPartyIn("MC1", "BORROWER", {"ownership_indicator": "INDIVIDUAL"})]),
+        SanctionIn("MST-K1", values={"account_type": "TERM_LOAN"},
+                   parties=[SanctionPartyIn("MK1", "BORROWER"), SanctionPartyIn("MR1", "RELATED", {"relationship_type": "PROMOTER_DIRECTOR"}),
+                            SanctionPartyIn("MR1", "GUARANTOR")],
+                   securities=[SecurityIn("S1", {"security_value": Decimal("700.00")})],
+                   cheques=[{"amount": Decimal("10.00"), "dishonour_date": date(2026, 12, 1)}]),
+    ]  # fmt: skip
+    apply_upload(engine, TENANT.tenant_id, load, people, loans)
+
+
+@pytest.mark.parametrize("strategy", [ExtractStrategy.INSERT_SELECT, ExtractStrategy.STREAM])
+def test_master_extract_runs_on_real_databases(db: Engine, strategy: ExtractStrategy) -> None:
+    from canonical.master.tables import dm_party
+    from sources.master import compile_master
+
+    with db.connect() as conn:
+        if conn.execute(select(dm_party.c.party_id).where(dm_party.c.customer_id == "MC1")).first() is None:
+            conn.close()
+            _master_data(db)
+    tenant = replace(TENANT, extract_strategy=strategy)
+    got = {}
+    for submission_type in ("CONSUMER", "COMMERCIAL"):
+        result = run_extract(
+            tenant=tenant, compiled=compile_master(db, submission_type, history=True), submission_type=submission_type,
+            as_of_date=MASTER_DAY, app_engine=db, source_engine=db, snapshots=SnapshotRepository(db), owner="test",
+        )  # fmt: skip
+        got[submission_type] = result
+    c, k = got["CONSUMER"].row_counts, got["COMMERCIAL"].row_counts
+    assert (c["account"], c["party"], c["account_holder"], c["party_identifier"], c["party_phone"]) == (1, 1, 1, 1, 1)
+    assert c["account_history"] == 1  # November: the latest of the two earlier positions
+    assert (k["account"], k["party"], k["relationship"], k["guarantor"], k["security"], k["cheque_dishonour"]) == (
+        1, 1, 1, 1, 1, 1
+    )  # fmt: skip
+    t = ENTITY_TABLES
+    with db.connect() as conn:
+        sid_c, sid_k = got["CONSUMER"].snapshot_id, got["COMMERCIAL"].snapshot_id
+        acc = conn.execute(select(t["account"]).where(t["account"].c.snapshot_id == sid_c)).one()
+        hist = conn.execute(select(t["account_history"]).where(t["account_history"].c.snapshot_id == sid_c)).one()
+        rel = conn.execute(select(t["relationship"]).where(t["relationship"].c.snapshot_id == sid_k)).one()
+    assert (acc.account_key, acc.current_balance, acc.suit_filed_status) == (
+        "MST-C1",
+        Decimal("1000.50"),
+        "NO_SUIT_FILED",
+    )
+    assert (hist.history_month, hist.current_balance) == (date(2026, 11, 20), Decimal("1090.00"))
+    assert (rel.party_key, rel.related_key, rel.din, rel.state_code, rel.telephone, rel.telephone_area_code) == (
+        "MK1", "MR1", "01234567", "TAMIL_NADU", "2222", "044"
+    )  # fmt: skip

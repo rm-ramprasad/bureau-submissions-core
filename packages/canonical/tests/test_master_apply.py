@@ -142,7 +142,14 @@ def test_lists_are_replaced_per_customer(eng) -> None:
         ).all()
     assert [tuple(r) for r in rows] == [(1, "9000000002", 2), (2, "9000000003", 2)]
     assert _log(eng) == [
-        ("dm_party_phone", "C1", LIST_FIELD, "9000000001 |  | ", "9000000002 |  | ; 9000000003 |  | HOME", 2)
+        (
+            "dm_party_phone",
+            "C1",
+            LIST_FIELD,
+            "9000000001 |  |  |  | ",
+            "9000000002 |  |  |  | ; 9000000003 |  | HOME |  | ",
+            2,
+        )
     ]
 
 

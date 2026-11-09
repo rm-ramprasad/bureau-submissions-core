@@ -129,7 +129,7 @@ def run_extract(
             "The views read the uploaded input workbook (:load_id), but this request has no successfully loaded "
             "workbook: upload it on the request before submitting"
         )
-    run = {"as_of_date": as_of_date, "load_id": load_id}
+    run = {"as_of_date": as_of_date, "load_id": load_id, "tenant_id": tenant.tenant_id}  # each SQL binds what it uses
     snapshot_id = snapshots.create(tenant.tenant_id, submission_type, as_of_date, batch_id, compiled.version, owner)
     counts = dict.fromkeys(MODEL.entities, 0)
     try:

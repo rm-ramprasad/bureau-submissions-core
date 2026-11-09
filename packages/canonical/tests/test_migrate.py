@@ -28,6 +28,7 @@ MIGRATIONS = [
     "010_demographics_master",
     "011_output_files",
     "012_lms_position_upload",
+    "013_master_fields",
 ]
 
 
