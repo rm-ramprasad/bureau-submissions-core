@@ -21,6 +21,7 @@ from collections.abc import Iterator
 import pytest
 from sqlalchemy import Engine, inspect, text
 
+import canonical.master.tables
 import canonical.staging.loads
 import canonical.staging.tables  # noqa: F401  (registers all app tables)
 from canonical.db import SCHEMA, make_engine, metadata
