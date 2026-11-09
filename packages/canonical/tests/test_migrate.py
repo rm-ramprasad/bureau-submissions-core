@@ -27,6 +27,7 @@ MIGRATIONS = [
     "009_client_settings",
     "010_demographics_master",
     "011_output_files",
+    "012_lms_position_upload",
 ]
 
 
@@ -78,7 +79,14 @@ def test_after_the_baseline_only_later_migrations_are_pending(tmp_path) -> None:
 @pytest.mark.parametrize("dialect", ["azure", "postgres", "mysql"])
 def test_view_files_run_functions_first(dialect: str) -> None:
     names = [p.name for p in view_files(dialect)]
-    assert names == ["00_functions.sql", "01_reference.sql", "commercial.sql", "consumer.sql", "labels.sql"]
+    assert names == [
+        "00_functions.sql",
+        "01_reference.sql",
+        "commercial.sql",
+        "consumer.sql",
+        "labels.sql",
+        "position.sql",
+    ]
 
 
 def test_unknown_dialects_are_refused(tmp_path) -> None:

@@ -9,6 +9,7 @@ from datetime import datetime
 
 from sqlalchemy import Engine, Table, inspect
 
+import canonical.position
 import canonical.staging.tables  # noqa: F401  (registers all app tables)
 from canonical.db import SCHEMA, metadata
 from canonical.migrate import AZURE_MIGRATIONS, apply_migrations, apply_views, run_batch
