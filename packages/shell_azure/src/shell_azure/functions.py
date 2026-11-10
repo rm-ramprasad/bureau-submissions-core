@@ -41,6 +41,9 @@ def admin(req: func.HttpRequest) -> func.HttpResponse:
         status = 200
     except ValueError as exc:
         result, status = {"error": str(exc)}, 400
+    except Exception as exc:  # the caller (ops.ps1, function key) sees why; the full trace is in the log
+        logging.exception("admin job failed")
+        result, status = {"error": f"{type(exc).__name__}: {str(exc)[:2000]}"}, 500
     return func.HttpResponse(json.dumps(result, default=str), status_code=status, mimetype="application/json")
 
 

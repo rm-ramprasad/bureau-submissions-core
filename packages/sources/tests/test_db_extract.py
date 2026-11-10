@@ -213,7 +213,8 @@ def _master_data(engine: Engine) -> None:
         PartyIn("MR1", "INDIVIDUAL", {"full_name": "Ravi Director", "party_type": "INDIAN_INDIVIDUAL"},
                 identifiers=[{"id_type": "DIN", "id_number": "01234567"}],
                 addresses=[{"address_line_1": "1 Road", "state_code": "TAMIL_NADU", "pin_code": "600001", "priority": 1}],
-                phones=[{"phone_number": "2222", "area_code": "044", "phone_type": "OFFICE"}]),
+                phones=[{"phone_number": "2222", "area_code": "044", "phone_type": "OFFICE"},
+                        {"phone_number": "067-42303999,43137080", "phone_type": "HOME"}]),
     ]  # fmt: skip
     loans = [
         SanctionIn("MST-C1", values={"account_type": "PERSONAL_LOAN", "suit_filed_status": "NO_SUIT_FILED"},

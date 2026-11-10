@@ -102,7 +102,7 @@ dm_party_identifier = _party_list(
 )
 dm_party_phone = _party_list(
     "dm_party_phone",
-    Column("phone_number", Unicode(20), nullable=False),
+    Column("phone_number", Unicode(60), nullable=False),  # 60: migration 014
     Column("extension", Unicode(10)),
     Column("phone_type", _code()),
     Column("area_code", Unicode(10)),  # migration 013
@@ -117,7 +117,7 @@ dm_party_address = _party_list(
     Column("city", Unicode(100)),
     Column("district", Unicode(100)),
     Column("state_code", _code()),
-    Column("pin_code", Unicode(10)),
+    Column("pin_code", Unicode(20)),  # 20: migration 014
     Column("country", _code()),
     Column("address_category", _code()),  # PERMANENT, RESIDENCE, OFFICE, REGISTERED, ...
     Column("residence_code", _code()),
@@ -134,7 +134,7 @@ dm_sanction = Table(
     Column("account_type", _code()),
     Column("date_opened", Date),
     Column("sanctioned_amount", _AMOUNT),
-    Column("currency", Unicode(10)),
+    Column("currency", Unicode(40)),  # 40: migration 014
     Column("rate_of_interest", _RATE),
     Column("repayment_tenure", Integer),
     Column("emi_amount", _AMOUNT),
@@ -188,7 +188,7 @@ dm_security = Table(
     Column("security_type", _code()),
     Column("security_classification", _code()),
     Column("security_value", _AMOUNT),
-    Column("currency", Unicode(10)),
+    Column("currency", Unicode(40)),  # 40: migration 014
     Column("valuation_date", Date),
     Column("load_id", _PK, nullable=False),
 )

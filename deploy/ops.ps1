@@ -30,5 +30,10 @@ try {
     $result = Invoke-RestMethod -Method Post -Uri "https://$FunctionApp.azurewebsites.net/ops/$Job" `
         -Headers @{ "x-functions-key" = $key } -ContentType "application/json" -Body ($body | ConvertTo-Json -Compress)
 }
+catch {
+    $detail = $_.ErrorDetails.Message   # the job's {"error": ...} when it failed
+    if ($detail) { Write-Host $detail -ForegroundColor Red }
+    throw
+}
 finally { $key = $null }
 if ($result.output) { $result.output } else { $result | ConvertTo-Json -Depth 8 }

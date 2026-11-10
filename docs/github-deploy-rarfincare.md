@@ -103,6 +103,8 @@ columns, so older code runs on a newer database: nothing to undo in the database
 | Deploy: `Migration … failed` | A new migration was not run in SSMS, or `mark_applied` missed it | Run it in SSMS, deploy again with its name in `mark_applied` |
 | Deploy: `The Function App runs 'dev', not 'vX'` | The upload did not take effect | Re-run; if it repeats, send the log (fallback: `deploy\deploy.ps1`) |
 | Deploy: `The API did not come up in 5 minutes` | App start failed after the upload | Log Analytics `bsub-log-73vcgqid4kh3c` (AppExceptions); roll back (section 5) |
+| `ops.ps1 <job>`: `(401) Unauthorized` while `ops.ps1 users list` works | The job's path is not in sign-in's excluded paths (section 7) | Add `/ops/<job>` (section 7) |
+| `ops.ps1 <job>`: `(500)` | The job failed; since v1.6.0 the reason is printed in red above the error | Send that line; older versions: Application Insights > Logs, `exceptions` |
 
 The site keeps running the previous version when a deploy fails before the upload; after the upload, roll back.
 
@@ -127,3 +129,14 @@ First deploy from GitHub: **v1.0.0 on 2026-11-08**.
 - **Undo the setup:** delete the identity `bsub-github-deploy` in `rg-bureau-submissions`, remove its three role
   assignments (Access control (IAM) on each resource), delete the secret and the token.
 - **Another client:** see [release.md](release.md), "New client".
+- **Admin jobs and sign-in:** the Function App's sign-in (Easy Auth) lets only the listed `/ops/<job>` paths through;
+  each is still protected by the function key `ops.ps1` sends. As of 2026-11-10: `/ops/migrate`, `/ops/users`,
+  `/ops/recovery`, `/ops/retention`, `/ops/views`, `/ops/master-parity`. **A new admin job needs its path added**
+  (the release notes say so). Check and add (PowerShell; the add keeps the existing paths):
+
+  ```powershell
+  $sub = az account show --subscription RarFinance --query id -o tsv
+  $id  = "/subscriptions/$sub/resourceGroups/rg-bureau-submissions/providers/Microsoft.Web/sites/bsub-func-73vcgqid4kh3c/config/authsettingsV2"
+  az resource show --ids $id --api-version 2022-03-01 --query "properties.globalValidation.excludedPaths"
+  az resource update --ids $id --api-version 2022-03-01 --add properties.globalValidation.excludedPaths /ops/<job>
+  ```
