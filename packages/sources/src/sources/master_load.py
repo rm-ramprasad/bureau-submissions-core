@@ -8,7 +8,8 @@ related parties, securities, cheque dishonours). entities_to_master splits them 
 - a party per party_key (the customer key; rarfincare has no customer ID, so the views' key stays: consumer
   <account>-<row>, commercial the loan account), its lists replaced as a whole;
 - a sanction per account number, with its static fields (the loan system's daily figures are L2b, not stored here);
-- links party + role: consumer holders BORROWER (the first), CO_BORROWER (the others), GUARANTOR (ownership GUARANTOR);
+- links party + role: consumer holders GUARANTOR (ownership GUARANTOR), BORROWER (the first other holder, in any row
+  order), CO_BORROWER (the rest);
   commercial holders BORROWER, guarantors GUARANTOR, related parties RELATED on each of the borrower's sanctions.
 """
 
@@ -122,13 +123,15 @@ def entities_to_master(entities: Rows, submission_type: str) -> tuple[list[Party
     for a in e.get("account", []):
         key = str(a["account_key"])
         out = links.setdefault(key, [])
-        for i, h in enumerate(holders.get(key, [])):
+        has_borrower = False
+        for h in holders.get(key, []):  # the first holder that is not a guarantor is the borrower, in any row order
             own = h.get("ownership_indicator")
-            role = (
-                "GUARANTOR"
-                if consumer and own == "GUARANTOR"
-                else ("BORROWER" if i == 0 or not consumer else "CO_BORROWER")
-            )
+            if consumer and own == "GUARANTOR":
+                role = "GUARANTOR"
+            elif consumer and has_borrower:
+                role = "CO_BORROWER"
+            else:
+                role, has_borrower = "BORROWER", True
             out.append(SanctionPartyIn(str(h["party_key"]), role, {"ownership_indicator": own}))
             if role == "BORROWER":
                 borrower_of.setdefault(str(h["party_key"]), []).append(key)

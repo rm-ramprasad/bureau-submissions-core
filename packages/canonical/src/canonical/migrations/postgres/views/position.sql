@@ -12,7 +12,8 @@
 --   B. LMS Excel uploads (automn.stg_lms_position, migration 012) for clients without an LMS view: the newest LOADED
 --      upload per account, sanction and date wins (a re-upload for a date is a correction).
 -- vw_pos_account_position is A and B together; a client uses one of them (the configured mapping, PR 6, will generate
--- only the client's own). Every column is CAST so the parts line up. No tenant column: one client per database, as in
+-- only the client's own). lms_type says which LMS view a row came from (CONSUMER / COMMERCIAL; '' for an upload): the
+-- same account can be in both of rarfincare's LMS views, and each format reads its own (2026-11-10, parity report). Every column is CAST so the parts line up. No tenant column: one client per database, as in
 -- the other source views. sanction_number is '' for LMS views until the mapping names a column (ADR open point).
 CREATE OR REPLACE VIEW automn.vw_pos_lms_consumer AS
 SELECT
@@ -47,7 +48,8 @@ SELECT
   CAST(NULL AS DECIMAL(20, 2)) AS ufce_amount,
   CAST(NULL AS DATE) AS ufce_date,
   CAST('VIEW' AS VARCHAR(10)) AS source,
-  CAST(NULL AS BIGINT) AS source_load_id
+  CAST(NULL AS BIGINT) AS source_load_id,
+  CAST('CONSUMER' AS VARCHAR(20)) AS lms_type
 FROM (
   SELECT
     x.*,
@@ -105,7 +107,8 @@ SELECT
   CAST(l."UFCE Amount" AS DECIMAL(20, 2)) AS ufce_amount,
   automn.fn_date(l.ufce_date_text) AS ufce_date,
   CAST('VIEW' AS VARCHAR(10)) AS source,
-  CAST(NULL AS BIGINT) AS source_load_id
+  CAST(NULL AS BIGINT) AS source_load_id,
+  CAST('COMMERCIAL' AS VARCHAR(20)) AS lms_type
 FROM (
   SELECT
     y.*,
@@ -171,7 +174,8 @@ SELECT
   automn.fn_amount(x.ufce_amount) AS ufce_amount,
   automn.fn_date(x.ufce_date) AS ufce_date,
   CAST('UPLOAD' AS VARCHAR(10)) AS source,
-  CAST(x.load_id AS BIGINT) AS source_load_id
+  CAST(x.load_id AS BIGINT) AS source_load_id,
+  CAST('' AS VARCHAR(20)) AS lms_type
 FROM (
   SELECT
     y.*,

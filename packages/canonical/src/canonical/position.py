@@ -51,10 +51,11 @@ POSITION_COLUMNS: dict[str, str] = {
     "ufce_date": DATE,
     "source": CODE,  # VIEW (an LMS view) / UPLOAD (an LMS Excel upload)
     "source_load_id": ID,  # the upload (automn.input_load), UPLOAD only
+    "lms_type": CODE,  # the LMS view's format (CONSUMER / COMMERCIAL); '' = an upload, for every format
 }
 
 # The upload columns: the contract's figures as text, as typed in the workbook (the view parses them).
-_NOT_UPLOADED = ("account_number", "sanction_number", "as_of_date", "source", "source_load_id")
+_NOT_UPLOADED = ("account_number", "sanction_number", "as_of_date", "source", "source_load_id", "lms_type")
 UPLOAD_COLUMNS = (
     "account_number",
     "sanction_number",

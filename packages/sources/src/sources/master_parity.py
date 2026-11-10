@@ -8,9 +8,10 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import date
+from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Engine, text
+from sqlalchemy import Engine, select, text
 
 from canonical.schema import MODEL
 from sources.extract import coerce
@@ -21,8 +22,54 @@ from sources.views import bind_params
 EXAMPLES = 5
 
 
+def _value(col: Any, value: Any) -> str:
+    """A value as compared: numbers by value (480038 = 480038.00, 15.00 = 15.0000), the rest as text."""
+    if value is None:
+        return ""
+    v = coerce(col, value)
+    return format(v.normalize(), "f") if isinstance(v, Decimal) else str(v)
+
+
 def _row(entity: str, r: dict[str, Any]) -> tuple[str, ...]:
-    return tuple("" if r.get(c.name) is None else str(coerce(c, r.get(c.name))) for c in MODEL.entities[entity].columns)
+    return tuple(_value(c, r.get(c.name)) for c in MODEL.entities[entity].columns)
+
+
+def _why_missing(engine: Engine, tenant_id: str, submission_type: str, as_of_date: date, account: str) -> str:
+    """Why the new path does not report an account the current path reports (in plain words)."""
+    from canonical.master.tables import dm_party, dm_sanction, dm_sanction_party
+    from canonical.position import VIEW
+    from sources.master import SELECTION
+
+    s, sp, pt = dm_sanction, dm_sanction_party, dm_party
+    with engine.connect() as conn:
+        found = conn.execute(
+            select(s.c.sanction_id, s.c.is_active).where(s.c.tenant_id == tenant_id, s.c.account_number == account)
+        ).first()
+        if found is None:
+            return "not in the customer tables"
+        if not found.is_active:
+            return "marked inactive in the customer tables"
+        links = conn.execute(
+            select(sp.c.role, pt.c.party_kind).select_from(sp.join(pt, pt.c.party_id == sp.c.party_id))
+            .where(sp.c.sanction_id == found.sanction_id)
+        ).all()  # fmt: skip
+        kinds = sorted({r.party_kind for r in links if r.role == "BORROWER"})
+        if not kinds:
+            return f"no borrower (roles: {', '.join(sorted({r.role for r in links})) or 'none'})"
+        need = SELECTION[submission_type].borrower_kind
+        if need not in kinds:
+            return f"the borrower is {'/'.join(kinds)}, the format reports {need} borrowers"
+        rows = conn.execute(
+            text(f"SELECT lms_type, COUNT(*) AS n FROM automn.{VIEW} WHERE account_number = :a AND as_of_date = :d "  # noqa: S608
+                 "GROUP BY lms_type"),
+            {"a": account, "d": as_of_date},
+        ).all()  # fmt: skip
+        types = {r.lms_type or "upload": r.n for r in rows}
+        if not types:
+            return "no LMS figures for the date"
+        if not ({submission_type, "upload"} & set(types)):
+            return f"LMS figures for the date only in the {'/'.join(sorted(types))} LMS view"
+        return "selected: differs in its values"
 
 
 def _example(entity: str, row: tuple[str, ...]) -> dict[str, str]:
@@ -72,6 +119,26 @@ def compare(
                 f"{entity}: {sum(a.values())} rows today, {sum(b.values())} new; "
                 f"{sum(only_old.values())} only today, {sum(only_new.values())} only new"
             )
+    old_keys = {str(r["account_key"]) for r in old.get("account", [])}
+    new_keys = {str(r["account_key"]) for r in new.get("account", [])}
+    missing = sorted(old_keys - new_keys)
+    extra = sorted(new_keys - old_keys)
+    reasons = Counter(_why_missing(app_engine, tenant_id, submission_type, as_of_date, k) for k in missing)
+    accounts = {
+        "only_today": [
+            {"account_key": k, "why": _why_missing(app_engine, tenant_id, submission_type, as_of_date, k)}
+            for k in missing[: EXAMPLES * 2]
+        ],
+        "only_new": extra[: EXAMPLES * 2],  # in the customer tables with LMS figures for the date, not in this upload
+    }
+    if missing:
+        summary.append(
+            f"accounts only today: {len(missing)} (" + "; ".join(f"{n} {why}" for why, n in reasons.most_common()) + ")"
+        )
+    if extra:
+        summary.append(
+            f"accounts only new: {len(extra)} (in the customer tables from earlier uploads, not in this one)"
+        )
     same = not summary
     head = (
         f"{submission_type} {as_of_date} upload {load_id}: "
@@ -79,4 +146,4 @@ def compare(
         + f" (master: {applied.parties_added} parties added, {applied.parties_updated} updated; "
         f"{applied.sanctions_added} accounts added, {applied.sanctions_updated} updated)"
     )
-    return {"same": same, "summary": [head, *summary], "entities": entities}
+    return {"same": same, "summary": [head, *summary], "accounts": accounts, "entities": entities}
