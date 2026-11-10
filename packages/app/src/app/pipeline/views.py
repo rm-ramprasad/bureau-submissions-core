@@ -18,7 +18,7 @@ from canonical.snapshot import Snapshot
 from canonical.staging.loads import loaded_workbook
 from canonical.tenants import Tenant
 from sources.extract import Adjustments, run_extract
-from sources.views import compile_views
+from sources.views import CompiledViews, compile_views
 
 # (services, request, snapshot, bureau, created) -> (file content, stats)
 FileWriter = Callable[[Services, SubmissionRequest, Snapshot, BureauProfile, datetime], tuple[bytes, FileStats]]
@@ -42,9 +42,10 @@ class ViewsPipeline:
         check passes an old request's upload and frozen adjustments)."""
         if load_id is None:
             load_id = loaded_workbook(services.app_engine, request.batch_id, request.submission_type)
+        compiled = self._compiled(services, tenant, request, load_id)
         extract = run_extract(
             tenant=tenant,
-            compiled=compile_views(services.app_engine, request.submission_type),
+            compiled=compiled,
             submission_type=request.submission_type,
             as_of_date=request.as_of_date,
             app_engine=services.app_engine,
@@ -58,6 +59,23 @@ class ViewsPipeline:
         rules = load_rule_set(services.app_engine, tenant.tenant_id, request.submission_type)
         result = validate_snapshot(services.app_engine, services.snapshots, extract.snapshot_id, rules)
         return extract.snapshot_id, result
+
+    @staticmethod
+    def _compiled(services: Services, tenant: Tenant, request: SubmissionRequest, load_id: int | None) -> CompiledViews:
+        """The snapshot's SQL: the type's source views (default), or, when the client switched the type to the master
+        (Admin page, data source), the upload applied to the demographics master first, then master + position."""
+        from app.configstore.settings import data_source
+
+        kind = str(request.submission_type)
+        if data_source(services.app_engine, tenant.tenant_id, kind) != "master":
+            return compile_views(services.app_engine, kind)
+        from sources.master import compile_master
+        from sources.master_load import load_upload
+
+        if load_id is None:
+            raise ValueError("This request has no loaded workbook: upload it before submitting")
+        load_upload(services.app_engine, services.source_engine, tenant.tenant_id, kind, request.as_of_date, load_id)
+        return compile_master(services.app_engine, kind)  # account history off (owner 2026-11-09)
 
     def generate_file(
         self, services: Services, tenant: Tenant, request: SubmissionRequest, snapshot: Snapshot, bureau: BureauProfile

@@ -84,3 +84,35 @@ def test_cycles_are_part_of_the_configuration_document(api, engine):
     assert S.enabled_cycles(engine, "nbfc_001") == [ReportingCycle.MONTH_END]  # kept
     with pytest.raises(ValueError, match="Unknown setting"):
         S.put(engine, "nbfc_001", "colour", "red", "me")
+
+
+def test_the_data_source_is_switched_per_type_and_can_be_switched_back(api, engine):
+    _, data = api.get("/admin/settings")
+    assert [(d["submission_type"], d["source"]) for d in data["data_sources"]] == [
+        ("CONSUMER", "views"),
+        ("COMMERCIAL", "views"),
+    ]
+    path = "/admin/data-source/CONSUMER"
+    assert api.post(path, source="master")[0] == 400  # needs a reason
+    assert api.post(path, source="lake", reason="r")[0] == 400
+    assert api.post("/admin/data-source/NOPE", source="master", reason="r")[0] == 404
+    status, out = api.post(path, source="master", reason="parity identical on uploads 30 and 31")
+    assert status == 200 and "customer tables" in out["message"]
+    assert S.get_all(engine, "nbfc_001") == {"data_source": {"CONSUMER": "master"}}
+    assert (S.data_source(engine, "nbfc_001", "CONSUMER"), S.data_source(engine, "nbfc_001", "COMMERCIAL")) == (
+        "master",
+        "views",
+    )
+    assert api.post(path, source="master", reason="again")[1]["message"] == "Nothing changed."
+    doc = store.document(engine, "nbfc_001")
+    assert doc["settings"] == {"data_source": {"CONSUMER": "master"}}
+    api.post(path, source="views", reason="back")
+    assert S.get_all(engine, "nbfc_001") == {}  # the default again: no row
+    assert actions(engine).count("DATA_SOURCE_CHANGED") == 2
+    assert store.versions(engine, "nbfc_001")[0].action == "DATA_SOURCE_CHANGED"
+    status, out = api.post("/config/import", document=doc, reason="restore")
+    assert status == 200, out
+    assert S.data_source(engine, "nbfc_001", "CONSUMER") == "master"
+    bad = doc | {"settings": {"data_source": {"CONSUMER": "lake"}}}
+    status, err = api.post("/config/import", document=bad, reason="r")
+    assert status == 400 and "Unknown data source" in err["error"]

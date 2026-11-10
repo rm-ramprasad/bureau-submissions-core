@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 from app_helpers import GOLDEN, load_snapshot
-from sqlalchemy import Column, Date, Integer, MetaData, Numeric, String, Table, insert, select
+from sqlalchemy import Column, Date, Integer, MetaData, Numeric, String, Table, func, insert, select
 from test_worker_golden import GOLDEN_FILES, worker  # noqa: F401  (fixture)
 
 from app.enums import BureauCode, ReportingCycle, RunMode
@@ -366,3 +366,33 @@ def test_records_that_cannot_reach_a_file_are_set_aside(engine):
     assert report["summary"][1] == (
         "set aside (cannot reach a file in either path): 1 accounts without a borrower, 1 borrowers without an account"
     )
+
+
+def test_the_pipeline_follows_the_data_source_setting(engine):
+    """Default: the source views. Switched to master on the Admin page: the upload goes into the customer tables
+    first, then the snapshot SQL reads the master + position."""
+    from types import SimpleNamespace
+
+    from app.configstore import settings as S
+    from app.pipeline.views import ViewsPipeline
+    from canonical.master.tables import dm_sanction
+
+    batch = keyed_by_number(golden_json("commercial_nbfc_001")[0])
+    install_keyed_views(engine, batch)
+    install_positions(engine, batch)
+    services = SimpleNamespace(app_engine=engine, source_engine=engine)
+    tenant = TenantRepository(engine).get("nbfc_001")
+    request = SimpleNamespace(submission_type="COMMERCIAL", as_of_date=AS_OF)
+    assert ViewsPipeline._compiled(services, tenant, request, 1).version.startswith("views-")
+    S.put(engine, "nbfc_001", "data_source", {"COMMERCIAL": "master"}, "me")
+    with pytest.raises(ValueError, match="no loaded workbook"):
+        ViewsPipeline._compiled(services, tenant, request, None)
+    compiled = ViewsPipeline._compiled(services, tenant, request, 1)
+    assert compiled.version.startswith("master-") and "account_history" not in compiled.sql
+    with engine.connect() as conn:
+        assert conn.execute(select(func.count()).select_from(dm_sanction)).scalar_one() == len(
+            batch["entities"]["account"]
+        )
+    result = run_extract(tenant=tenant, compiled=compiled, submission_type="COMMERCIAL", as_of_date=AS_OF,
+                         app_engine=engine, source_engine=engine, snapshots=SnapshotRepository(engine), owner="t")  # fmt: skip
+    assert result.row_counts["account"] == len(batch["entities"]["account"])

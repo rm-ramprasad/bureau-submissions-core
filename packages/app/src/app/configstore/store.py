@@ -270,6 +270,15 @@ def import_document(engine: Engine, tenant_id: str, raw: object, user: str, reas
         except ValueError as exc:
             problems.append(f"settings: {exc}")
 
+    if new_settings is not None and "data_source" in new_settings:
+        try:
+            new_settings = {
+                **new_settings,
+                "data_source": client_settings.check_data_source(new_settings["data_source"]),
+            }
+        except ValueError as exc:
+            problems.append(f"settings: {exc}")
+
     if problems:
         more = f" (and {len(problems) - 10} more)" if len(problems) > 10 else ""
         raise ConfigDocumentError("The configuration was not imported: " + "; ".join(problems[:10]) + more)

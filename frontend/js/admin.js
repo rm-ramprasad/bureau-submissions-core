@@ -1,4 +1,4 @@
-// Admin settings (step 6): bureaus per submission type, reporting cycles for new requests, configuration versions with
+// Admin settings (step 6): bureaus per submission type, reporting cycles for new requests, data source per type, configuration versions with
 // export and import. Everyone can read; administrators change (with a reason, audited, versioned).
 document.addEventListener("alpine:init", () => {
   Alpine.data("adminPage", () => ({
@@ -32,6 +32,13 @@ document.addEventListener("alpine:init", () => {
       const reason = prompt(`Reason for switching ${s.display_name} ${active ? "on" : "off"} (kept in the audit trail):`);
       if (!reason) { event.target.checked = !active; return; }
       await this.send(`/admin/bureaus/${s.submission_type}/${s.bureau_code}/active`, { active, reason });
+    },
+
+    async switchSource(d, event) {
+      const source = event.target.value;
+      const reason = prompt(`Reason for switching ${d.label} to ${source === "master" ? "the customer tables" : "the source views"} (kept in the audit trail):`);
+      if (!reason) { event.target.value = d.source; return; }
+      await this.send(`/admin/data-source/${d.submission_type}`, { source, reason });
     },
 
     async saveCycles() {

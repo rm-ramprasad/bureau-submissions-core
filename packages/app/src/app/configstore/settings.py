@@ -4,6 +4,9 @@ a configuration version (app.configstore.store). A missing row means the product
 
 - reporting_cycles: the cycles offered for new requests (default: all). Hiding one affects new requests only; past
   requests and files are untouched.
+- data_source: per submission type, where a validation builds its snapshot (ADR 0002 switch-over, owner 2026-11-10):
+  "views" (default: the type's source views, as before) or "master" (the upload is applied to the demographics master
+  through those views, then the snapshot is built from the master + account position). {"CONSUMER": "master"}.
 """
 
 from __future__ import annotations
@@ -26,7 +29,8 @@ client_setting = Table(
     Column("updated_at", DateTime, nullable=False),
 )
 
-NAMES = ("reporting_cycles",)
+NAMES = ("reporting_cycles", "data_source")
+SOURCES = ("views", "master")
 
 
 def get_all(engine: Engine, tenant_id: str) -> dict[str, Any]:
@@ -66,3 +70,20 @@ def check_cycles(values: object) -> list[str]:
     if unknown:
         raise ValueError(f"Unknown reporting cycle {', '.join(map(str, unknown))}")
     return [c.value for c in ReportingCycle if c.value in values]
+
+
+def data_source(engine: Engine, tenant_id: str | None, submission_type: str) -> str:
+    """Where a validation of this type builds its snapshot: "views" (default) or "master"."""
+    chosen = get_all(engine, tenant_id).get("data_source") if tenant_id else None
+    value = (chosen or {}).get(str(submission_type).upper(), "views")
+    return value if value in SOURCES else "views"
+
+
+def check_data_source(values: object) -> dict[str, str]:
+    """{type: source}, checked; only "master" entries are kept (views is the default)."""
+    if not isinstance(values, dict):
+        raise ValueError("data_source must map submission types to views / master")
+    bad = {k: v for k, v in values.items() if v not in SOURCES}
+    if bad:
+        raise ValueError(f"Unknown data source {bad}: use views or master")
+    return {str(k).upper(): v for k, v in sorted(values.items()) if v == "master"}
