@@ -155,6 +155,10 @@ def test_views_recovery_retention_and_unknown_jobs(engine, requests_repo):
     assert out["ok"] is False and "Required views missing" in out["errors"][0]
     with pytest.raises(ValueError, match="views <TYPE>"):
         run(engine, {"job": "views", "args": ["consumer"]})
+    with pytest.raises(ValueError, match="master-parity <TYPE>"):
+        run(engine, {"job": "master-parity", "args": ["consumer"]})
+    with pytest.raises(Exception, match="Required views missing"):  # parity reads the type's views first
+        run(engine, {"job": "master-parity", "args": ["consumer", "--as-of", "2026-09-30", "--load-id", "1"]})
     assert run(engine, {"job": "recovery"}) == {
         "released": [],
         "failed": [],
@@ -215,7 +219,10 @@ def test_admin_function_route(azure_env):
         return resp.status_code, json.loads(resp.get_body())
 
     assert call("recovery", {})[0] == 200
-    assert call("nope", {}) == (400, {"error": "Unknown job 'nope': use migrate, users, views, recovery, retention"})
+    assert call("nope", {}) == (
+        400,
+        {"error": "Unknown job 'nope': use migrate, users, views, master-parity, recovery, retention"},
+    )
 
 
 def test_the_local_admin_command(azure_env, capsys):

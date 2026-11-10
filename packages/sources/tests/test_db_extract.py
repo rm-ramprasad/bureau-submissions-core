@@ -266,3 +266,25 @@ def test_master_extract_runs_on_real_databases(db: Engine, strategy: ExtractStra
     assert (rel.party_key, rel.related_key, rel.din, rel.state_code, rel.telephone, rel.telephone_area_code) == (
         "MK1", "MR1", "01234567", "TAMIL_NADU", "2222", "044"
     )  # fmt: skip
+
+
+# ---------------------------------------------------------------- ADR 0002 PR 6: parity through rarfincare's real views
+PARITY_DAY = date(2027, 1, 31)  # a date no other test uses: the master reports every sanction with a position on it
+
+
+def test_parity_through_the_real_views_is_identical(db: Engine) -> None:
+    from sources.master_parity import compare
+
+    run = next(_batches)
+    a1, a2 = (f"PAR{run}-{n}" for n in (1, 2))
+    lms = {"TL_DateDisbursed": "15012020", "TL_SanctionedAmt": Decimal("500000.00"), "TL_NoofDaysPastDue": 3,
+           "TL_CurrentBalance": Decimal("1000.50"), "TL_CreditFacilityStatus": 5, "AssetClassification": "STD"}  # fmt: skip
+    add_lms_rows(db, {"AccountNumber": a1, "TransactionDate": PARITY_DAY} | lms,
+                 {"AccountNumber": a2, "TransactionDate": PARITY_DAY} | lms)  # fmt: skip
+    first = upload(db, borrower(a1), borrower(a2, consumer_name="RAVI S", telephone_no_office="0442222333",
+                                              email_id_2="ravi2@example.com"), at=datetime(2027, 2, 1))  # fmt: skip
+    report = compare(db, db, TENANT.tenant_id, "CONSUMER", PARITY_DAY, first)
+    assert report["same"], report
+    assert report["entities"]["account"]["views"] == 2 and report["entities"]["party_phone"]["views"] == 3
+    again = compare(db, db, TENANT.tenant_id, "CONSUMER", PARITY_DAY, first)  # applying the same upload again
+    assert again["same"] and "0 updated" in again["summary"][0]
