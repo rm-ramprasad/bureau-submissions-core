@@ -62,6 +62,10 @@
         "reporting_cycles": {
           "description": "the cycles offered for new requests",
           "type": "array", "minItems": 1, "items": { "type": "string", "maxLength": 4 }
+        },
+        "data_source": {
+          "description": "per submission type, where validations build their snapshot (views is the default)",
+          "type": "object", "additionalProperties": { "type": "string", "maxLength": 20 }
         }
       }
     }

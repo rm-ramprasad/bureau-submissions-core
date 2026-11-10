@@ -61,6 +61,25 @@
       </div>
 
       <div class="panel">
+        <h2>Data source</h2>
+        <p class="muted">Where a new validation builds its snapshot. <b>Source views</b>: as before. <b>Customer tables</b>:
+          the upload is first saved in the customer tables, and the snapshot is built from them and the account
+          position (the parity report showed both give the same rows). Applies to new validations; you can switch back.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Submission type</th><th>Data source</th></tr></thead>
+          <tbody>
+            <template x-for="d in data.data_sources" :key="d.submission_type">
+              <tr><td x-text="d.label"></td>
+                <td><select :value="d.source" :disabled="!canEdit() || busy" @change="switchSource(d, $event)">
+                  <option value="views" :selected="d.source === 'views'">Source views (as before)</option>
+                  <option value="master" :selected="d.source === 'master'">Customer tables (new)</option>
+                </select></td></tr>
+            </template>
+          </tbody>
+        </table></div>
+      </div>
+
+      <div class="panel">
         <h2>Configuration versions</h2>
         <p class="muted">Every saved change to bureau profiles, rules, parameters, custom rules and these settings makes
           a new version. A request records the version it ran with. Export saves a version as a file; import replaces

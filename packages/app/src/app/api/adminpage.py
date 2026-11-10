@@ -61,6 +61,14 @@ def admin_settings():
             {"value": c.value, "label": CYCLE_LABELS.get(c, c.value), "help": CYCLE_HELP[c], "enabled": c in on}
             for c in ReportingCycle
         ],
+        data_sources=[
+            {
+                "submission_type": str(t),
+                "label": descriptor(t).label,
+                "source": client_settings.data_source(s.engine, tenant_id, str(t)),
+            }
+            for t in SubmissionType
+        ],
     )
 
 
@@ -115,3 +123,32 @@ def save_cycles():
     )  # fmt: skip
     versioned(tenant_id, "CYCLES_CHANGED", "reporting_cycles", reason)
     return message(f"Reporting cycles for new requests: {', '.join(chosen)}. Past requests are untouched.")
+
+
+@bp.post("/admin/data-source/<submission_type>")
+@admin_only
+def save_data_source(submission_type: str):
+    """Where validations of one type build their snapshot: {source: views | master, reason}. New validations only."""
+    s, b = svc(), body()
+    tenant_id = _tenant_required("data source")
+    try:
+        kind = str(SubmissionType(submission_type.upper()))
+    except ValueError:
+        fail(f"Unknown submission type {submission_type}", 404)
+    source = b.get("source")
+    if source not in client_settings.SOURCES:
+        fail("source must be views or master")
+    before = client_settings.data_source(s.engine, tenant_id, kind)
+    if source == before:
+        return message("Nothing changed.")
+    reason = _reason()
+    current = client_settings.get_all(s.engine, tenant_id).get("data_source") or {}
+    chosen = client_settings.check_data_source({**current, kind: source})
+    client_settings.put(s.engine, tenant_id, "data_source", chosen or None, current_user())
+    audit.record(
+        s.engine, current_user(), "DATA_SOURCE_CHANGED", tenant_id=tenant_id, target=kind, reason=reason,
+        before=before, after=source,
+    )  # fmt: skip
+    versioned(tenant_id, "DATA_SOURCE_CHANGED", f"data_source/{kind}", reason)
+    label = "customer tables + account position (new)" if source == "master" else "source views (as before)"
+    return message(f"{kind.title()}: new validations build their snapshot from the {label}.")
