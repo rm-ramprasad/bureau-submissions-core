@@ -18,13 +18,15 @@ EXPECTED_ENTITIES = {
     "guarantor",
     "security",
     "cheque_dishonour",
-}  # 1.1: commercial
+    "party_relative",
+    "borrower_group",
+}  # 1.1: commercial; 1.2: MFI
 
 
 # ---------------------------------------------------------------- definition
 def test_packaged_model_loads():
     model = canonical_model()
-    assert model.version == "1.1"
+    assert model.version == "1.2"  # 1.2: MFI (ADR 0003)
     assert set(model.entities) == EXPECTED_ENTITIES
     assert model.entities["account_holder"].column("ownership_indicator").code_list == "ownership_indicator"
 

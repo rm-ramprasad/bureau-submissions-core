@@ -1,0 +1,13 @@
+# MFI UCRF 3.3.1: canonical columns the MFI files always need (fields marked M in sections 4-7 of
+# docs/specs/UCRF_MFI_v3.3.1.md). Each becomes a generated REQUIRED rule once rules.yaml exists (ADR 0003 step 5).
+# Conditional requirements (SHG-only group fields, instalments for disbursals from 01-04-2022, IDs or phone, at least
+# one valid address set, write-off for S06 ...) are rules, not listed here.
+
+submission_type: MFI
+
+required:
+  party: [party_key, full_name, birth_date, gender]
+  party_address: [party_key]
+  account: [account_key, account_number, loan_category, date_opened, high_credit_amount, current_balance,
+            days_past_due]
+  account_holder: [account_key, party_key]

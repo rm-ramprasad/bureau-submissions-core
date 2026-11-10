@@ -109,6 +109,8 @@ def final_select(entity: str, sql: str, columns: list[str]) -> str:
             f"NOT ((q.entity = 'account' AND {_excluded('EXCLUDE', 'q.entity_key')}) "
             f"OR (q.entity = 'party' AND {_excluded('EXCLUDE_PARTY', 'q.entity_key')}))"
         )
+    elif entity == "borrower_group":  # MFI: written only on its member accounts' lines, which exclusions drop
+        where = "1 = 1"
     else:
         raise ValueError(f"No adjustment rule for entity {entity!r}: give it keys in canonical/model.yaml")
     return f"SELECT {cols}\nFROM (\n{_strip(sql)}\n) q\nWHERE {where}"

@@ -35,6 +35,7 @@ def test_migration_creates_every_master_table() -> None:
             "013_master_fields.sql",
             "014_master_lengths.sql",
             "015_sanction_payment_fallback.sql",
+            "016_mfi_data_model.sql",
         )
     )
     for table in MASTER_TABLES:

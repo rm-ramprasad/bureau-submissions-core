@@ -16,7 +16,7 @@ from sqlalchemy import Engine, select, text
 from canonical.schema import MODEL
 from sources.extract import coerce
 from sources.master import compile_master
-from sources.master_load import entities_to_master, rows_from_views
+from sources.master_load import entities_to_master, groups_of, rows_from_views
 from sources.views import bind_params
 
 EXAMPLES = 5
@@ -119,7 +119,7 @@ def compare(
     submission_type = submission_type.upper()
     old = rows_from_views(source_engine, submission_type, as_of_date, load_id)
     parties, sanctions = entities_to_master(old, submission_type)
-    applied = apply_upload(app_engine, tenant_id, load_id, parties, sanctions)
+    applied = apply_upload(app_engine, tenant_id, load_id, parties, sanctions, groups_of(old))
     compiled = compile_master(app_engine, submission_type, history=history)
     new: dict[str, list[dict[str, Any]]] = {}
     with app_engine.connect() as conn:

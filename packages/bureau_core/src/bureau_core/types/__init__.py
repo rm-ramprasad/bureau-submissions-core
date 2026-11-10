@@ -153,11 +153,13 @@ def _read(path: Path) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 
-def _load(folder: Path) -> TypeDefinition:
+def check_files(folder: Path) -> tuple[str, dict, dict, dict]:
+    """A type folder's codes.yaml and requirements.yaml checked against the canonical model: (type name,
+    translations, groups, required). Works for planned types too (their files are checked before they go live)."""
     codes, req = _read(folder / "codes.yaml"), _read(folder / "requirements.yaml")
-    st = SubmissionType(codes["submission_type"])
-    if SubmissionType(req["submission_type"]) is not st or descriptor(st).submission_type != st:
-        raise TypeDefinitionError(f"{folder.name}: type.yaml, codes.yaml and requirements.yaml name different types")
+    name = str(codes.get("submission_type"))
+    if str(req.get("submission_type")) != name:
+        raise TypeDefinitionError(f"{folder.name}: codes.yaml and requirements.yaml name different types")
     model = canonical_model()
 
     translations = {}
@@ -178,11 +180,11 @@ def _load(folder: Path) -> TypeDefinition:
 
     all_values = {v for cl in model.code_lists.values() for v in cl.values(active_only=False)}
     groups = {}
-    for name, values in (codes.get("groups") or {}).items():
+    for group, values in (codes.get("groups") or {}).items():
         unknown = set(values) - all_values
         if unknown:
-            raise TypeDefinitionError(f"{folder.name}/codes.yaml: group {name}: unknown values {sorted(unknown)}")
-        groups[name] = tuple(values)
+            raise TypeDefinitionError(f"{folder.name}/codes.yaml: group {group}: unknown values {sorted(unknown)}")
+        groups[group] = tuple(values)
 
     required = {}
     for entity, cols in (req.get("required") or {}).items():
@@ -190,6 +192,14 @@ def _load(folder: Path) -> TypeDefinition:
         if edef is None or not set(cols) <= {c.name for c in edef.columns}:
             raise TypeDefinitionError(f"{folder.name}/requirements.yaml: {entity}: unknown entity or columns")
         required[entity] = tuple(cols)
+    return name, translations, groups, required
+
+
+def _load(folder: Path) -> TypeDefinition:
+    name, translations, groups, required = check_files(folder)
+    st = SubmissionType(name)
+    if descriptor(st).submission_type != st:
+        raise TypeDefinitionError(f"{folder.name}: type.yaml, codes.yaml and requirements.yaml name different types")
     return TypeDefinition(st, folder, translations, groups, required)
 
 

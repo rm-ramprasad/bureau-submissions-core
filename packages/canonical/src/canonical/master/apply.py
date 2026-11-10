@@ -27,11 +27,13 @@ from canonical.db import utcnow
 from canonical.master.tables import (
     dm_change_log,
     dm_cheque_dishonour,
+    dm_group,
     dm_party,
     dm_party_address,
     dm_party_email,
     dm_party_identifier,
     dm_party_phone,
+    dm_party_relative,
     dm_sanction,
     dm_sanction_party,
     dm_security,
@@ -49,6 +51,7 @@ PARTY_LISTS: dict[str, Table] = {
     "phones": dm_party_phone,
     "emails": dm_party_email,
     "addresses": dm_party_address,
+    "relatives": dm_party_relative,  # MFI: key person, relatives, nominee (migration 016)
 }
 
 
@@ -62,6 +65,7 @@ LIST_FIELDS = {name: _fields(t, "party_id") for name, t in PARTY_LISTS.items()}
 LINK_FIELDS = _fields(dm_sanction_party, "sanction_id", "party_id", "role")
 SECURITY_FIELDS = _fields(dm_security, "sanction_id", "security_ref")
 CHEQUE_FIELDS = _fields(dm_cheque_dishonour, "sanction_id")
+GROUP_FIELDS = _fields(dm_group, "group_id", "tenant_id", "group_key")
 
 
 class UploadConflict(ValueError):
@@ -77,6 +81,15 @@ class PartyIn:
     phones: Sequence[Mapping[str, Any]] = ()
     emails: Sequence[Mapping[str, Any]] = ()
     addresses: Sequence[Mapping[str, Any]] = ()
+    relatives: Sequence[Mapping[str, Any]] = ()  # MFI: key person / relatives / nominee, in order
+
+
+@dataclass(frozen=True)
+class GroupIn:
+    """A borrower group (SHG / JLG) with its group loan (MFI); accounts and members point at it by group_key."""
+
+    group_key: str
+    values: Mapping[str, Any] = field(default_factory=dict)  # GROUP_FIELDS
 
 
 @dataclass(frozen=True)
@@ -110,6 +123,9 @@ class ApplyResult:
     sanctions_added: int = 0
     sanctions_updated: int = 0
     sanctions_unchanged: int = 0
+    groups_added: int = 0
+    groups_updated: int = 0
+    groups_unchanged: int = 0
     changes: int = 0  # change-log rows written
     cleared: int = 0  # previously filled values made blank
     clearable: int = 0  # previously filled values the upload could have cleared
@@ -299,6 +315,8 @@ class _Applier:
         res = self.result
         if entity == "dm_party":
             res.parties_added, res.parties_updated, res.parties_unchanged = added, updated, unchanged
+        elif entity == "dm_group":
+            res.groups_added, res.groups_updated, res.groups_unchanged = added, updated, unchanged
         else:
             res.sanctions_added, res.sanctions_updated, res.sanctions_unchanged = added, updated, unchanged
         return ids
@@ -339,7 +357,17 @@ class _Applier:
             self.conn.execute(insert(table), inserts)
         return True
 
-    def run(self, parties: Sequence[PartyIn], sanctions: Sequence[SanctionIn]) -> ApplyResult:
+    def run(
+        self, parties: Sequence[PartyIn], sanctions: Sequence[SanctionIn], groups: Sequence[GroupIn] = ()
+    ) -> ApplyResult:
+        gs: dict[str, dict[str, Any]] = {}
+        for g in groups:  # newest wins, completely; the same key twice with different values blocks the upload
+            key = _key(g.group_key, "A group")
+            row = _row(g.values, GROUP_FIELDS, f"Group {key}")
+            if gs.setdefault(key, row) != row:
+                raise UploadConflict(f"Group {key} appears twice in the upload with different values")
+        if gs:
+            self._upsert(dm_group, "group_id", gs, ("group_key",), "dm_group")
         ps: dict[str, _Party] = _dedupe([_party(p) for p in parties], lambda p: p.customer_id, "Customer")
         ss: dict[tuple[str, str], _Sanction] = _dedupe([_sanction(s) for s in sanctions], lambda s: s.key, "Account")
 
@@ -422,10 +450,11 @@ def apply_upload(
     load_id: int,
     parties: Sequence[PartyIn] = (),
     sanctions: Sequence[SanctionIn] = (),
+    groups: Sequence[GroupIn] = (),
     *,
     now: datetime | None = None,
 ) -> ApplyResult:
     """Apply one upload (load_id, the L1 input_load row) to the tenant's demographics master, in one transaction.
     Raises UploadConflict (nothing applied) when the upload contradicts itself or links an unknown customer."""
     with engine.begin() as conn:
-        return _Applier(conn, tenant_id, load_id, now or utcnow()).run(parties, sanctions)
+        return _Applier(conn, tenant_id, load_id, now or utcnow()).run(parties, sanctions, groups)

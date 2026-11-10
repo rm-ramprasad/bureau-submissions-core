@@ -266,4 +266,4 @@ def test_every_entity_can_carry_adjustments():
 
     for entity, definition in MODEL.entities.items():
         sql = final_select(entity, "SELECT 1", [c.name for c in definition.columns])
-        assert "NOT EXISTS" in sql or "NOT ((" in sql, entity
+        assert "NOT EXISTS" in sql or "NOT ((" in sql or entity == "borrower_group", entity

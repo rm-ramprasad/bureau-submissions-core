@@ -108,7 +108,11 @@ def test_capture_batch_round_trips(engine):
     sid = load_snapshot(engine, batch)
     with engine.connect() as conn:
         captured = capture_batch(conn, sid)
-    assert captured.entities == batch.entities and captured.submission_type == batch.submission_type
+    assert captured.submission_type == batch.submission_type
+    for entity, rows in batch.entities.items():  # the golden capture predates model 1.2: its new columns are empty
+        got = captured.entities[entity]
+        assert [{k: r[k] for k in want} for r, want in zip(got, rows, strict=True)] == rows, entity
+        assert all(v is None for r, want in zip(got, rows, strict=True) for k, v in r.items() if k not in want), entity
     assert captured.source["snapshot_id"] == sid and captured.exceptions == {}
 
 
