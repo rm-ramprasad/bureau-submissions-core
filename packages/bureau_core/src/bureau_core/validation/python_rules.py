@@ -240,3 +240,53 @@ for _entity in RELATED_ENTITIES:
     register(f"{_entity}_pin_state_mismatch")(_related_pin(_entity, "state"))
     for _column, _id_type in RELATED_IDS.items():
         register(f"{_entity}_{_column}_format")(_related_id(_entity, _column, _id_type))
+
+
+# ---------------------------------------------------------------- MFI (ADR 0003 step 5); generic where possible
+def _age(born: date, on: date) -> int:
+    return on.year - born.year - ((on.month, on.day) < (born.month, born.day))
+
+
+@register("min_age_at_as_of")
+def min_age_at_as_of(ctx):
+    """Borrowers younger than the parameter min_member_age on the as-of date (MFI CNSCRD #10: 16)."""
+    minimum = int(ctx.params.get("min_member_age", 16))
+    for p in ctx.rows("party"):
+        if p.birth_date is not None and _age(p.birth_date, ctx.as_of_date) < minimum:
+            yield PyFinding(
+                p.row_id, p.party_key, value=p.birth_date, detail=f"age {_age(p.birth_date, ctx.as_of_date)}"
+            )
+
+
+NAME_FIELD_WIDTHS = (100, 50, 50)  # MFI CNSCRD #6-#8
+
+
+@register("name_fits_100_50_50")
+def name_fits_100_50_50(ctx):
+    """A name that cannot be packed word by word into fields of 100, 50 and 50 characters (MFI 7.1: never split a
+    word, never truncate)."""
+    for p in ctx.rows("party"):
+        if not p.full_name:
+            continue
+        parts, i = [""] * len(NAME_FIELD_WIDTHS), 0
+        fits = True
+        for word in str(p.full_name).split():
+            while i < len(parts) and len(f"{parts[i]} {word}".strip()) > NAME_FIELD_WIDTHS[i]:
+                i += 1
+            if i == len(parts):
+                fits = False
+                break
+            parts[i] = f"{parts[i]} {word}".strip()
+        if not fits:
+            yield PyFinding(p.row_id, p.party_key, value=p.full_name)
+
+
+@register("group_name_no_valid_token")
+def group_name_no_valid_token(ctx):
+    """Accounts whose borrower group's name has no word of 2 or more letters (MFI GRPCRD #3): the group's records
+    are rejected with it (2.7), so the finding is on the account."""
+    groups = {g.group_key: g for g in ctx.rows("borrower_group")}
+    for a in ctx.rows("account"):
+        g = groups.get(a.group_key)
+        if g is not None and not any(len(re.findall(r"[A-Za-z]", w)) >= 2 for w in str(g.full_name or "").split()):
+            yield PyFinding(a.row_id, None, account_key=a.account_key, value=g.full_name)

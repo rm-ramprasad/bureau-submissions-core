@@ -181,12 +181,14 @@ def _categories(raw: dict, where: str) -> tuple[dict[str, str], dict[str, str], 
     return labels, by_segment, custom["key"]
 
 
-def load_pack_file(path: Path) -> Pack:
+def load_pack_file(path: Path, tdef: TypeDefinition | None = None) -> Pack:
+    """A rule pack file, checked; `tdef` is the type's definition (default: the registered type's; given for a
+    planned type, whose files are checked before it goes live, e.g. MFI)."""
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     unknown = set(raw) - _PACK_KEYS
     if unknown:
         raise RuleDefinitionError(f"{path.name}: unknown keys {sorted(unknown)}")
-    tdef = type_definition(raw["submission_type"])
+    tdef = tdef or type_definition(raw["submission_type"])
     pack, prefix, segments = raw["pack"], raw.get("rule_prefix") or "", raw.get("segments", {})
     if not prefix.endswith("."):
         raise RuleDefinitionError(f"{path.name}: rule_prefix must end with '.' (e.g. UCRF.)")
@@ -255,7 +257,7 @@ def load_pack_file(path: Path) -> Pack:
         raise RuleDefinitionError(f"{path.name}: duplicate rule ids {duplicates}")
     return Pack(
         name=pack,
-        submission_type=SubmissionType(raw["submission_type"]),
+        submission_type=tdef.submission_type,
         prefix=prefix,
         rules=tuple(_check_rule(r) for r in rules),
         categories=labels,
