@@ -287,6 +287,39 @@ def mark_submitted(request_id: int):
     return message(f"{req.output_file_name}: marked as submitted.", batch_id=req.batch_id)
 
 
+@bp.get("/requests/<int:request_id>/files/<int:file_id>")
+def download_bureau_file(request_id: int, file_id: int):
+    """One of a request's bureau files, when its format writes several (MFI: SHG and JLG + Individual): audited, then a
+    short-lived link ({"url": ...}), as the other downloads."""
+    s = svc()
+    try:
+        req = s.requests.get(request_id)
+    except RequestNotFoundError:
+        fail(f"No request {request_id}", 404)
+    if s.tenant and req.tenant_id != s.tenant:
+        fail(f"No request {request_id}", 404)
+    stored = outputfiles.bureau_file(s.engine, request_id, file_id)
+    if stored is None or req.status is not RequestStatus.SUCCEEDED:
+        fail(f"Request {request_id} has no such file", 404)
+    if not s.store.owns(stored.file_uri):
+        fail(f"The file {stored.file_name} is not in the storage this app is configured for", 404)
+    try:
+        url = s.store.download_url(stored.file_uri, stored.file_name, "text/plain")
+    except StoredFileNotFound:
+        fail(f"The file {stored.file_uri} no longer exists in storage.", 404)
+    audit.record(
+        s.engine, current_user(), "FILE_DOWNLOADED", tenant_id=req.tenant_id, target=request_id, kind="file",
+        file=stored.file_name, location=stored.file_uri,
+    )  # fmt: skip
+    if url:
+        return jsonify(url=url, file_name=stored.file_name)
+    return Response(  # a locally stored file (development) is streamed
+        s.store.read_chunks(stored.file_uri),
+        mimetype="text/plain",
+        headers={"Content-Disposition": f'attachment; filename="{stored.file_name}"'},
+    )
+
+
 @bp.get("/requests/<int:request_id>/reconciliation")
 def reconciliation_of(request_id: int):
     """A generated consumer file's reconciliation (bureau Excel vs TUDF), as stored (issue #39)."""

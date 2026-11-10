@@ -100,6 +100,22 @@ def delimited_file(
     return delimited.render_file(data, as_of_date, bureau, cycle, layout, translations, created_date)
 
 
+def delimited_files(
+    engine: Engine,
+    snapshot_id: int,
+    as_of_date: date,
+    bureau: BureauProfile,
+    cycle,
+    layout,
+    translations: dict[str, dict[str, str]],
+    created_date: date,
+) -> dict[str, tuple[bytes, FileStats]]:
+    """The files of a line layout (ADR 0003): file key -> (content, stats)."""
+    with engine.connect() as conn:
+        data = load_snapshot(conn, snapshot_id, layout)
+    return delimited.render_files(data, as_of_date, bureau, cycle, layout, translations, created_date)
+
+
 def workbook(
     engine: Engine,
     snapshot_id: int,

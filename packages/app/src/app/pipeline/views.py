@@ -20,8 +20,10 @@ from canonical.tenants import Tenant
 from sources.extract import Adjustments, run_extract
 from sources.views import CompiledViews, compile_views
 
-# (services, request, snapshot, bureau, created) -> (file content, stats)
-FileWriter = Callable[[Services, SubmissionRequest, Snapshot, BureauProfile, datetime], tuple[bytes, FileStats]]
+# (services, request, snapshot, bureau, created) -> [(file key or None, content, stats)]: one or more files
+FileWriter = Callable[
+    [Services, SubmissionRequest, Snapshot, BureauProfile, datetime], list[tuple[str | None, bytes, FileStats]]
+]
 
 
 class ViewsPipeline:

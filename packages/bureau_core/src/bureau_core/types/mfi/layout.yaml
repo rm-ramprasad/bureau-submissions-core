@@ -1,0 +1,237 @@
+# MFI UCRF 3.3.1 files (docs/specs/UCRF_MFI_v3.3.1.md; design: docs/adr/0003-mfi-format.md): two files per bureau and
+# date, one line per account, segments joined by '|':
+#   SHG file              GRPCRD (36) | CNSCRD (55) | ADRCRD (8) | ACTCRD (37)  = 136 columns   loan categories T04-T07
+#   JLG + Individual file              CNSCRD (55) | ADRCRD (8) | ACTCRD (37)  = 100 columns   loan categories T01-T03
+# between a fixed-width header (190 characters) and trailer (36). Rendered by the generic delimited engine's line
+# layouts (bureau_core/formats/delimited, `files:`); keys as in commercial/layout.yaml, plus width / align / pad for
+# fixed segments, if_positive, and the sources address. / relative. / group. / phone. / file.key.
+# Values are canonical (model.yaml); `translate` writes the MFI code from codes.yaml (as frozen with the snapshot).
+# Validation (types/mfi/rules.yaml, step 5) decides what is written: REJECT_FIELD empties a field, REJECT_RECORD
+# leaves the account out. Amounts are whole rupees with the decimals cut (2.3); dates DDMMYYYY.
+# Open points (ADR 0003): T08 (others) goes to the JLG + Individual file (a rule parameter later); line end CRLF as
+# for commercial (the spec does not say; confirm with the CIC sample).
+
+layout: MFI-UCRF-3.3
+
+encoding:
+  delimiter: "|"
+  line_end: "\r\n"
+  trailing_delimiter: false      # N columns -> N-1 pipes (1.2)
+  charset: ascii
+  strip_chars: ""                # '|', CR and LF are always stripped from values
+
+uses:
+  - {rows: party_identifier, by: party_key}
+  - {rows: party_phone, by: party_key}
+  - {rows: party_email, by: party_key}
+  - {rows: party_address, by: party_key}
+  - {rows: party_relative, by: party_key}
+  - {rows: borrower_group, by: group_key}
+
+# ------------------------------------------------------------------ HDR header (3), fixed length 190
+header:
+  tag: HDR
+  fields: 13
+  fixed: true
+  length: 190
+  field_list:
+    - {blank: true, width: 5}                                              # 2 name of submission file (may be spaces)
+    - {const: "3.3", width: 3}                                             # 3 layout version (ADR 0003 §10 #10)
+    - {source: bureau.member_id, check: none, width: 10}                   # 4 submitting member id
+    - {source: bureau.member_short_name, width: 30}                        # 5 submitting member name
+    - {blank: true, width: 30}                                             # 6 submitting branch id (may be spaces)
+    - {source: run.as_of_date, format: ddmmyyyy, width: 8}                 # 7 reported date
+    - {source: run.created_date, format: ddmmyyyy, width: 8}               # 8 file creation date (never before 7)
+    - {source: file.key, width: 3}                                         # 9 SHG / JLG
+    - {blank: true, width: 30}                                             # 10 old member id
+    - {blank: true, width: 30}                                             # 11 reserved
+    - {source: run.cycle, width: 10}                                       # 12 file frequency (DL W1 W2 W3 ME ...)
+    - {blank: true, width: 20}                                             # 13 reserved
+
+# ------------------------------------------------------------------ TRL trailer (7A), fixed length 36
+trailer:
+  tag: TRL
+  fields: 4
+  fixed: true
+  length: 36
+  field_list:
+    - {const: "3.3", width: 3}                                             # 2 layout version
+    - {source: bureau.member_id, check: none, width: 10}                   # 3 submitting member id
+    - {blank: true, width: 20}                                             # 4 reserved
+
+segments:
+  # ---------------------------------------------------------------- GRPCRD group (4), SHG file only
+  group:
+    tag: GRPCRD
+    from: group
+    fields: 36
+    field_list:
+      - group_key                                                          # 2 group identifier
+      - full_name                                                          # 3 group name
+      - group_account_number                                               # 4 group loan account number
+      - {source: disbursed_amount, format: amount_truncated, check: not_null}    # 5 disbursed amount
+      - {source: current_balance, format: signed_amount_truncated, check: not_null}  # 6 outstanding balance
+      - {source: date_opened, format: ddmmyyyy}                            # 7 date opened / disbursed
+      - {source: date_closed, format: ddmmyyyy}                            # 8 date closed
+      - {source: date_last_payment, format: ddmmyyyy}                      # 9 date of last payment
+      - {source: repayment_tenure, format: int}                            # 10 number of instalments
+      - {source: payment_frequency, translate: payment_frequency}          # 11 repayment frequency
+      - {source: emi_amount, format: amount_truncated, check: not_null}    # 12 instalment amount
+      - {source: amount_overdue, format: amount_truncated, check: not_null}  # 13 amount overdue
+      - {source: days_past_due, format: int3, cap: 999, check: not_null}   # 14 DPD, 3 digits, capped (§10 #5)
+      - {source: loan_cycle, format: int}                                  # 15 loan cycle id
+      - {source: loan_type, translate: loan_type}                          # 16 loan type C01 / C02
+      - {source: written_off_total, format: amount_truncated}              # 17 write-off amount
+      - {source: write_off_date, format: ddmmyyyy}                         # 18 date write-off
+      - {source: write_off_reason, translate: write_off_reason}            # 19 write-off reason
+      - address_line_1                                                     # 20 group's communication address
+      - {source: state_code, translate: state_code}                        # 21 state code (Appendix C)
+      - {source: pin_code, format: pin_code}                               # 22 PIN code
+      - {source: phone_type, translate: phone_type, default: NOT_CLASSIFIED, if_present: phone_number}  # 23 (P08)
+      - phone_number                                                       # 24 group telephone number 1
+      - bank_name                                                          # 25 bank name
+      - bank_branch                                                        # 26 bank branch (IFSC preferred)
+      - bank_account_number                                                # 27 bank account number
+      - {source: bank_balance, format: amount_truncated}                   # 28 bank account balance
+      - {source: formed_date, format: ddmmyyyy}                            # 29 first created date
+      - {source: first_linkage_date, format: ddmmyyyy}                     # 30 first linkage date
+      - govt_group_id                                                      # 31 group identifier (government)
+      - {source: govt_program, translate: govt_program, default: OTHERS, if_present: govt_group_id}  # 32 (U99)
+      - blank                                                              # 33 reserved
+      - blank                                                              # 34 reserved
+      - blank                                                              # 35 reserved
+      - blank                                                              # 36 reserved
+
+  # ---------------------------------------------------------------- CNSCRD member (5), columns 1-55
+  member:
+    tag: CNSCRD
+    from: party
+    fields: 55
+    field_list:
+      - party_key                                                          # 2 member identifier
+      - branch_id                                                          # 3 branch identifier
+      - centre_id                                                          # 4 kendra / centre identifier
+      - group_key                                                          # 5 group identifier
+      - {source: full_name, format: word_part, args: {widths: [100, 50, 50], part: 1}}  # 6 member name 1 (7.1)
+      - {source: full_name, format: word_part, args: {widths: [100, 50, 50], part: 2}}  # 7 member name 2
+      - {source: full_name, format: word_part, args: {widths: [100, 50, 50], part: 3}}  # 8 member name 3
+      - old_party_key                                                      # 9 old member identifier
+      - {source: birth_date, format: ddmmyyyy}                             # 10 member birth date
+      - {source: age, format: int}                                         # 11 member age
+      - {source: age_as_of, format: ddmmyyyy}                              # 12 member's age as on date
+      - {source: gender, translate: gender}                                # 13 gender F / M / T
+      - {source: marital_status, translate: marital_status}                # 14 marital status
+      - relative.KEY_PERSON.1.full_name                                    # 15 key person's name
+      - {source: relative.KEY_PERSON.1.relation, translate: relation}      # 16 key person's relationship
+      - relative.RELATIVE.1.full_name                                      # 17 relationship name 1
+      - {source: relative.RELATIVE.1.relation, translate: relation}        # 18 relationship type 1
+      - relative.RELATIVE.2.full_name                                      # 19 relationship name 2
+      - {source: relative.RELATIVE.2.relation, translate: relation}        # 20 relationship type 2
+      - relative.RELATIVE.3.full_name                                      # 21 relationship name 3
+      - {source: relative.RELATIVE.3.relation, translate: relation}        # 22 relationship type 3
+      - relative.RELATIVE.4.full_name                                      # 23 relationship name 4
+      - {source: relative.RELATIVE.4.relation, translate: relation}        # 24 relationship type 4
+      - relative.NOMINEE.1.full_name                                       # 25 nominee name
+      - {source: relative.NOMINEE.1.relation, translate: relation}         # 26 nominee relationship
+      - blank                                                              # 27 reserved (was nominee age)
+      - {source: id.VOTER_ID, format: alnum}                               # 28 voter's ID
+      - {source: id.AADHAAR, format: alnum}                                # 29 UID (Aadhaar)
+      - {source: id.PAN, format: alnum}                                    # 30 PAN
+      - {source: id.RATION_CARD, format: alnum}                            # 31 ration card
+      - id.G_RAM_G                                                         # 32 G-RAM-G
+      - {source: id.CKYC, format: alnum}                                   # 33 CKYC
+      - {source: id.DRIVING_LICENCE, format: alnum}                        # 34 driver's licence
+      - {source: id.PASSPORT, format: alnum}                               # 35 passport
+      - blank                                                              # 36 other ID 3 type description
+      - blank                                                              # 37 other ID 3
+      - {source: phone.1.phone_type, translate: phone_type, default: NOT_CLASSIFIED, if_present: phone.1.phone_number}  # 38
+      - phone.1.phone_number                                               # 39 telephone number 1
+      - {source: phone.2.phone_type, translate: phone_type, default: NOT_CLASSIFIED, if_present: phone.2.phone_number}  # 40
+      - phone.2.phone_number                                               # 41 telephone number 2
+      - {source: education, translate: education}                          # 42 educational qualification
+      - blank                                                              # 43 reserved
+      - blank                                                              # 44 reserved
+      - bank_name                                                          # 45 bank name
+      - bank_branch                                                        # 46 bank branch (IFSC preferred)
+      - bank_account_number                                                # 47 bank account number
+      - {source: occupation, translate: occupation}                        # 48 occupation
+      - {source: family_income, format: amount_truncated}                  # 49 total monthly family income
+      - {source: family_expenses, format: amount_truncated}                # 50 monthly family expenses
+      - {source: religion, translate: religion}                            # 51 religion
+      - {source: social_category, translate: social_category}              # 52 caste / social strata
+      - {source: member_role, translate: member_role}                      # 53 member's role
+      - blank                                                              # 54 reserved
+      - {source: member_status, translate: member_status}                  # 55 member's status (SHG)
+
+  # ---------------------------------------------------------------- ADRCRD address (6), columns 56-63
+  address:
+    tag: ADRCRD
+    from: party
+    fields: 8
+    field_list:
+      - address.PERMANENT.full                                             # 57 permanent address
+      - {source: address.PERMANENT.state_code, translate: state_code}      # 58 state code (permanent)
+      - {source: address.PERMANENT.pin_code, format: pin_code}             # 59 PIN code (permanent)
+      - {alternatives: [{source: address.RESIDENCE.full}, {source: address.PERMANENT.full}]}  # 60 current address
+      - {alternatives: [{source: address.RESIDENCE.state_code, translate: state_code},
+                        {source: address.PERMANENT.state_code, translate: state_code}]}       # 61 state (current)
+      - {alternatives: [{source: address.RESIDENCE.pin_code, format: pin_code},
+                        {source: address.PERMANENT.pin_code, format: pin_code}]}              # 62 PIN (current)
+      - {source: contacts.email, format: lower_text}                       # 63 e-mail
+
+  # ---------------------------------------------------------------- ACTCRD account (7), columns 64-100
+  account:
+    tag: ACTCRD
+    from: account
+    fields: 37
+    field_list:
+      - {alternatives: [{source: unique_reference}, {source: account_number}]}  # 65 unique account reference
+      - account_number                                                     # 66 account number
+      - branch_code                                                        # 67 branch identifier
+      - centre_id                                                          # 68 kendra / centre identifier
+      - loan_officer                                                       # 69 loan officer
+      - {source: run.as_of_date, format: ddmmyyyy}                         # 70 date of account information
+      - {source: loan_category, translate: loan_category}                  # 71 loan category
+      - group_key                                                          # 72 group identifier
+      - {source: loan_cycle, format: int}                                  # 73 loan cycle id
+      - loan_purpose                                                       # 74 loan purpose
+      - alternatives:                                                      # 75 account status (8.18)
+          - {source: credit_facility_status, translate: credit_facility_status}   # S06, S08-S18
+          - {const: "S07", if_present: date_closed}                        # closed
+          - {const: "S05", if_positive: days_past_due}                     # delinquent
+          - {const: "S04"}                                                 # current
+      - blank                                                              # 76 reserved (was application date)
+      - {source: sanctioned_date, format: ddmmyyyy}                        # 77 sanctioned date
+      - {source: date_opened, format: ddmmyyyy}                            # 78 date opened / disbursed
+      - {source: date_closed, format: ddmmyyyy}                            # 79 date closed
+      - {source: date_last_payment, format: ddmmyyyy}                      # 80 date of last payment
+      - {source: applied_amount, format: amount_truncated}                 # 81 applied for amount
+      - {source: sanctioned_amount, format: amount_truncated}              # 82 loan amount sanctioned
+      - {source: high_credit_amount, format: amount_truncated, check: not_null}  # 83 total amount disbursed
+      - {source: repayment_tenure, format: int}                            # 84 number of instalments
+      - {source: payment_frequency, translate: payment_frequency}          # 85 repayment frequency
+      - {source: emi_amount, format: amount_truncated, check: not_null}    # 86 instalment amount
+      - {source: current_balance, format: signed_amount_truncated, check: not_null}  # 87 current balance
+      - {source: amount_overdue, format: amount_truncated, check: not_null}  # 88 amount overdue
+      - {source: days_past_due, format: int3, cap: 999, check: not_null}   # 89 DPD, 3 digits, capped
+      - {source: written_off_total, format: amount_truncated}              # 90 write-off amount
+      - {source: write_off_date, format: ddmmyyyy}                         # 91 date write-off
+      - {source: write_off_reason, translate: write_off_reason}            # 92 write-off reason
+      - {source: loan_type, translate: loan_type}                          # 93 loan type
+      - old_unique_reference                                               # 94 old unique account reference
+      - {source: insurance_indicator, translate: yes_no}                   # 95 insurance indicator
+      - {source: insurance_type, translate: insurance_type}                # 96 type of insurance
+      - {source: sum_assured, format: amount_truncated}                    # 97 sum assured
+      - old_account_number                                                 # 98 old account number
+      - {source: settlement_amount, format: amount_truncated}              # 99 settlement amount
+      - blank                                                              # 100 reserved
+
+files:
+  - key: SHG
+    select: {account.loan_category: [SHG_GROUP, SHG_INDIVIDUAL, SHG_GROUP_GOVT, SHG_INTRA_GROUP]}  # codes.yaml groups
+    record_line: [group, member, address, account]
+    columns: 136
+  - key: JLG
+    select: {account.loan_category: [JLG_GROUP, JLG_INDIVIDUAL, INDIVIDUAL, OTHERS]}   # OTHERS (T08): ADR 0003 #4
+    record_line: [member, address, account]
+    columns: 100
