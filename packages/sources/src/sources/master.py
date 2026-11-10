@@ -46,11 +46,13 @@ from sqlalchemy.sql import operators
 from canonical.db import SCHEMA
 from canonical.master.tables import (
     dm_cheque_dishonour,
+    dm_group,
     dm_party,
     dm_party_address,
     dm_party_email,
     dm_party_identifier,
     dm_party_phone,
+    dm_party_relative,
     dm_sanction,
     dm_sanction_party,
     dm_security,
@@ -66,11 +68,13 @@ class Selection:
     holder_roles: tuple[str, ...]  # roles reported as account holders
     guarantors: bool = False  # GUARANTOR links -> the guarantor entity
     relationships: bool = False  # RELATED links -> the relationship entity (borrower x related party)
+    groups: bool = False  # MFI: members' relatives and the borrower groups (SHG / JLG) of the selected accounts
 
 
 SELECTION = {
     "CONSUMER": Selection("INDIVIDUAL", ("BORROWER", "CO_BORROWER", "GUARANTOR")),
     "COMMERCIAL": Selection("ENTITY", ("BORROWER",), guarantors=True, relationships=True),
+    "MFI": Selection("INDIVIDUAL", ("BORROWER", "CO_BORROWER"), groups=True),  # ADR 0003
 }
 GUARANTOR, RELATED, BORROWER = "GUARANTOR", "RELATED", "BORROWER"
 
@@ -346,6 +350,16 @@ class _Builder:
                 cols.append(_typed_null("account_history", c.name))
         return select(*cols).where(ranked.c.rn == 1).order_by(ranked.c.account_key, ranked.c.as_of_date.desc())
 
+    def borrower_group(self) -> Select[Any]:
+        """The groups (SHG / JLG) the selected accounts belong to (MFI)."""
+        a, g = self.selected, dm_group
+        cols: list[ColumnElement[Any]] = [
+            g.c[c.name].label(c.name) if c.name in g.c else _typed_null("borrower_group", c.name)
+            for c in MODEL.entities["borrower_group"].columns
+        ]
+        in_selection = select(a.c.group_key).where(a.c.group_key.is_not(None))
+        return select(*cols).where(g.c.tenant_id == _TENANT, g.c.group_key.in_(in_selection)).order_by(g.c.group_key)
+
     def statements(self, history: bool) -> dict[str, Select[Any]]:
         out: dict[str, Select[Any]] = {
             "party": self.party(),
@@ -362,6 +376,9 @@ class _Builder:
             out["relationship"] = self.relationship()
         if self.sel.guarantors:
             out["guarantor"] = self.guarantor()
+        if self.sel.groups:
+            out["party_relative"] = self.party_list("party_relative", dm_party_relative)
+            out["borrower_group"] = self.borrower_group()
         out["security"] = self.account_rows("security", dm_security, "security_ref")
         out["cheque_dishonour"] = self.account_rows("cheque_dishonour", dm_cheque_dishonour, "seq")
         return out

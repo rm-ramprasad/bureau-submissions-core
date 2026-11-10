@@ -1,0 +1,194 @@
+# MFI UCRF 3.3.1: canonical value -> MFI file code, per canonical code list.
+# Spec: docs/specs/UCRF_MFI_v3.3.1.md (section 8 enumerations, section 9 appendices). Decisions: docs/adr/0003-mfi-format.md.
+# Seeded into ref_code_translation / ref_code_group on deploy once MFI is switched on (planned until ADR 0003 step 7);
+# only missing rows are inserted: rows edited or added in those tables are kept (the database is the master).
+# A canonical value with no active translation cannot be reported in the MFI file: validation flags it.
+#
+# Not written as codes, so not translated: id_type (each identifier has its own field), address_category,
+# relative_role (decides which field a relative goes to).
+# Account status (S04-S18) is mostly a translation of credit_facility_status below; S04 current, S05 delinquent and
+# S07 closed have no special status and are derived in the layout from the closing date and DPD (step 4).
+# Open questions (verify with the CIC, ADR 0003):
+#  - state codes: Appendix C mapping (owner, 2026-11-10); Appendix B prints CG/CH, HP/HR, JH/JK the other way round.
+#  - occupation: SALARIED / SELF_EMPLOYED / SELF_EMPLOYED_PROFESSIONAL (consumer values) have no MFI code; left
+#    untranslated, so such members are flagged until the client or the CIC says which Z code they are.
+
+submission_type: MFI
+
+translations:
+  gender:                          # CNSCRD #13 (8.5)
+    FEMALE: "F"
+    MALE: "M"
+    TRANSGENDER: "T"
+  state_code:                      # ADRCRD #58 / #61, GRPCRD #21 (9.1, Appendix C mapping: ADR 0003, section 10 #1)
+    ANDAMAN_NICOBAR_ISLANDS: "AN"
+    ANDHRA_PRADESH: "AP"
+    ARUNACHAL_PRADESH: "AR"
+    ASSAM: "AS"
+    BIHAR: "BR"
+    CHANDIGARH: "CH"
+    CHHATTISGARH: "CG"
+    DADRA_NAGAR_HAVELI_DAMAN_DIU: "DD"
+    DELHI: "DL"
+    LADAKH: "LA"
+    GOA: "GA"
+    GUJARAT: "GJ"
+    HIMACHAL_PRADESH: "HP"
+    HARYANA: "HR"
+    JAMMU_KASHMIR: "JK"
+    JHARKHAND: "JH"
+    KARNATAKA: "KA"
+    KERALA: "KL"
+    LAKSHADWEEP: "LD"
+    MAHARASHTRA: "MH"
+    MEGHALAYA: "ML"
+    MANIPUR: "MN"
+    MADHYA_PRADESH: "MP"
+    MIZORAM: "MZ"
+    NAGALAND: "NL"
+    ODISHA: "OR"
+    PUNJAB: "PB"
+    PUDUCHERRY: "PY"
+    RAJASTHAN: "RJ"
+    SIKKIM: "SK"
+    TAMIL_NADU: "TN"
+    TRIPURA: "TR"
+    TELANGANA: "TS"
+    UTTARAKHAND: "UK"
+    UTTAR_PRADESH: "UP"
+    WEST_BENGAL: "WB"
+  payment_frequency:               # GRPCRD #11, ACTCRD #85 (8.1)
+    WEEKLY: "F01"
+    FORTNIGHTLY: "F02"
+    MONTHLY: "F03"
+    BIMONTHLY: "F04"
+    QUARTERLY: "F05"
+    HALF_YEARLY: "F06"
+    YEARLY: "F07"
+    BULLET: "F08"
+    OTHERS: "F10"
+    DAILY: "F11"
+    ON_DEMAND: "F12"
+  loan_type:                       # GRPCRD #16, ACTCRD #93 (8.2)
+    TERM_LOAN: "C01"
+    CASH_CREDIT: "C02"
+  write_off_reason:                # GRPCRD #19, ACTCRD #92 (8.4)
+    FIRST_PAYMENT_DEFAULT: "X01"
+    DEATH: "X02"
+    WILFUL_DEFAULT: "X03"
+    SUIT_FILED_WILFUL_DEFAULT: "X04"
+    NOT_CLASSIFIED: "X09"
+    NOT_APPLICABLE: "X10"
+  phone_type:                      # GRPCRD #23, CNSCRD #38 / #40 (8.6)
+    HOME: "P01"
+    OFFICE: "P02"
+    MOBILE: "P03"
+    PERMANENT: "P04"
+    OTHER: "P07"
+    NOT_CLASSIFIED: "P08"
+  relation:                        # CNSCRD #16 #18 #20 #22 #24 #26 (8.7)
+    FATHER: "K01"
+    HUSBAND: "K02"
+    MOTHER: "K03"
+    SON: "K04"
+    DAUGHTER: "K05"
+    WIFE: "K06"
+    BROTHER: "K07"
+    MOTHER_IN_LAW: "K08"
+    FATHER_IN_LAW: "K09"
+    DAUGHTER_IN_LAW: "K10"
+    SISTER_IN_LAW: "K11"
+    SON_IN_LAW: "K12"
+    BROTHER_IN_LAW: "K13"
+    OTHER: "K15"
+    SISTER: "K16"
+  govt_program:                    # GRPCRD #32 (8.9)
+    NRLM: "U01"
+    NULM: "U02"
+    SRLM: "U03"
+    MEPMA: "U04"
+    OTHERS: "U99"
+  marital_status:                  # CNSCRD #14 (8.10)
+    MARRIED: "M01"
+    SEPARATED: "M02"
+    DIVORCED: "M03"
+    WIDOWED: "M04"
+    UNMARRIED: "M05"
+    NOT_CLASSIFIED: "M06"
+  education:                       # CNSCRD #42 (8.11)
+    ILLITERATE: "Y01"
+    PASSED_5TH: "Y02"
+    PASSED_8TH: "Y03"
+    PASSED_10TH: "Y04"
+    ABOVE_10TH: "Y05"
+  occupation:                      # CNSCRD #48 (8.12)
+    HOME_MAKER: "Z01"
+    LANDLESS_LABOURER: "Z02"
+    MARGINAL_FARMER: "Z03"
+    SMALL_FARMER: "Z04"
+    NON_FARMING: "Z05"
+    OTHERS: "Z06"
+  religion:                        # CNSCRD #51 (8.13)
+    HINDU: "R01"
+    MUSLIM: "R02"
+    CHRISTIAN: "R03"
+    SIKH: "R04"
+    BUDDHIST: "R05"
+    JAIN: "R06"
+    BAHAI: "R07"
+    OTHERS: "R08"
+    NOT_STATED: "R09"
+  social_category:                 # CNSCRD #52 (8.14)
+    SC: "V01"
+    ST: "V02"
+    BC: "V03"
+    NT_VJ: "V04"
+    GENERAL: "V05"
+    OTHERS: "V08"
+    NOT_CLASSIFIED: "V09"
+  member_role:                     # CNSCRD #53 (8.15)
+    LEADER: "L01"
+    ASSOCIATE: "L02"
+    MEMBER: "L03"
+    NOT_CLASSIFIED: "L04"
+  member_status:                   # CNSCRD #55, SHG only (8.16)
+    ACTIVE: "W01"
+    INACTIVE: "W02"
+    EXITED: "W03"
+    NOT_CLASSIFIED: "W04"
+  loan_category:                   # ACTCRD #71 (8.17); also decides the file: SHG (T04-T07) or JLG + Individual
+    JLG_GROUP: "T01"
+    JLG_INDIVIDUAL: "T02"
+    INDIVIDUAL: "T03"
+    SHG_GROUP: "T04"
+    SHG_INDIVIDUAL: "T05"
+    SHG_GROUP_GOVT: "T06"
+    SHG_INTRA_GROUP: "T07"
+    OTHERS: "T08"
+  credit_facility_status:          # ACTCRD #75 (8.18); S04 / S05 / S07 derived in the layout (see the header)
+    WRITTEN_OFF: "S06"
+    RESTRUCTURED_DUE_TO_COVID_19: "S08"
+    RESTRUCTURED_CLOSED: "S09"
+    SETTLED: "S10"
+    POST_WO_SETTLED: "S11"
+    POST_WRITE_OFF_CLOSED: "S12"
+    ACCOUNT_SOLD: "S13"
+    ACCOUNT_PURCHASED: "S14"
+    CANCELLED: "S15"
+    RESTRUCTURED_DUE_TO_NATURAL_CALAMITY: "S16"
+    RESTRUCTURED_LOAN: "S17"
+    RESTRUCTURED_LOAN_GOVT_MANDATED: "S18"
+  insurance_type:                  # ACTCRD #96 (8.19)
+    LIFE: "L01"
+    CREDIT: "L02"
+    HEALTH: "L03"
+    PROPERTY: "L04"
+    LIABILITY: "L05"
+    OTHERS: "L10"
+  yes_no:                          # ACTCRD #95 (8.20)
+    "YES": "Y"
+    "NO": "N"
+
+groups:
+  shg_loan_categories: [SHG_GROUP, SHG_INDIVIDUAL, SHG_GROUP_GOVT, SHG_INTRA_GROUP]   # -> the SHG file (ADR 0003 #4)
+  jlg_loan_categories: [JLG_GROUP, JLG_INDIVIDUAL, INDIVIDUAL]                         # -> the JLG + Individual file

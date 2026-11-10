@@ -17,7 +17,8 @@
 #  - The snapshot accepts whatever the source holds (no unique constraints); validation judges it.
 #  - No semicolons in descriptions (the migration runner splits statements on ';').
 
-canonical_version: "1.1"           # 1.1: commercial (business borrowers, relationships, guarantors, security, cheque dishonour)
+canonical_version: "1.2"           # 1.1: commercial (business borrowers, relationships, guarantors, security, cheque dishonour)
+                                   # 1.2: MFI (SHG groups, relatives, member and loan details; ADR 0003)
 
 code_lists:
   gender:
@@ -54,6 +55,8 @@ code_lists:
       MOBILE: Mobile
       HOME: Home
       OFFICE: Office
+      PERMANENT: Permanent (MFI)
+      OTHER: Other (MFI)
 
   address_category:
     description: Address category
@@ -276,6 +279,7 @@ code_lists:
       SOLD_TO_ARC: Sold to ARC
       PURCHASED_FROM_BANK: Purchased from Bank (ARC)
       CLEAR_STATUS: Clear existing status
+      CANCELLED: Cancelled (MFI)
 
   asset_classification:
     description: Asset classification
@@ -312,6 +316,7 @@ code_lists:
       FORTNIGHTLY: Fortnightly
       MONTHLY: Monthly
       QUARTERLY: Quarterly
+      BIMONTHLY: Every two months (MFI)
       BULLET: Bullet
       DAILY: Daily
       HALF_YEARLY: Half-yearly
@@ -326,6 +331,11 @@ code_lists:
       SALARIED: Salaried
       SELF_EMPLOYED_PROFESSIONAL: Self-Employed Professional
       SELF_EMPLOYED: Self-Employed
+      HOME_MAKER: Home maker (MFI)
+      LANDLESS_LABOURER: Landless labourer (MFI)
+      MARGINAL_FARMER: Marginal farmer (MFI)
+      SMALL_FARMER: Small farmer (MFI)
+      NON_FARMING: Non-farming (MFI)
       OTHERS: Others
 
   income_basis:
@@ -841,6 +851,145 @@ code_lists:
       ZAMBIA: "Zambia"
       ZIMBABWE: "Zimbabwe"
 
+  # ---------------------------------------------------------------- MFI (1.2, ADR 0003)
+  marital_status:
+    description: Marital status
+    codes:
+      MARRIED: Married
+      SEPARATED: Separated
+      DIVORCED: Divorced
+      WIDOWED: Widowed
+      UNMARRIED: Unmarried
+      NOT_CLASSIFIED: Not classified
+
+  education:
+    description: Educational qualification
+    codes:
+      ILLITERATE: Illiterate
+      PASSED_5TH: Passed 5th
+      PASSED_8TH: Passed 8th
+      PASSED_10TH: Passed 10th
+      ABOVE_10TH: Above 10th
+
+  religion:
+    description: Religion
+    codes:
+      HINDU: Hindu
+      MUSLIM: Muslim
+      CHRISTIAN: Christian
+      SIKH: Sikh
+      BUDDHIST: Buddhist
+      JAIN: Jain
+      BAHAI: Bahai
+      OTHERS: Others
+      NOT_STATED: Not stated
+
+  social_category:
+    description: Caste or social strata
+    codes:
+      SC: Scheduled Caste
+      ST: Scheduled Tribe
+      BC: Backward Class
+      NT_VJ: Nomadic Tribe / Vimukta Jati
+      GENERAL: General
+      OTHERS: Others
+      NOT_CLASSIFIED: Not classified
+
+  member_role:
+    description: Role of a member in a group
+    codes:
+      LEADER: Leader / President / Office-bearer
+      ASSOCIATE: Associate / Secretary
+      MEMBER: Member
+      NOT_CLASSIFIED: Not classified
+
+  member_status:
+    description: Status of a member in a group (SHG)
+    codes:
+      ACTIVE: Active (loanee)
+      INACTIVE: Inactive / dormant (non-loanee)
+      EXITED: Exited
+      NOT_CLASSIFIED: Not classified
+
+  relation:
+    description: Family relation of a relative, key person or nominee to the borrower
+    codes:
+      FATHER: Father
+      HUSBAND: Husband
+      MOTHER: Mother
+      SON: Son
+      DAUGHTER: Daughter
+      WIFE: Wife
+      BROTHER: Brother
+      SISTER: Sister
+      MOTHER_IN_LAW: Mother-in-law
+      FATHER_IN_LAW: Father-in-law
+      DAUGHTER_IN_LAW: Daughter-in-law
+      SISTER_IN_LAW: Sister-in-law
+      SON_IN_LAW: Son-in-law
+      BROTHER_IN_LAW: Brother-in-law
+      OTHER: Other
+
+  relative_role:
+    description: Why a relative is recorded
+    codes:
+      KEY_PERSON: Key person
+      RELATIVE: Relative
+      NOMINEE: Insurance nominee
+
+  loan_category:
+    description: Microfinance loan category
+    codes:
+      JLG_GROUP: JLG group loan
+      JLG_INDIVIDUAL: Individual loan within a JLG
+      INDIVIDUAL: Individual loan (no group)
+      SHG_GROUP: SHG group loan
+      SHG_INDIVIDUAL: Individual loan within an SHG
+      SHG_GROUP_GOVT: Loan to a government-formed SHG
+      SHG_INTRA_GROUP: Lending among members within an SHG
+      OTHERS: Others
+
+  loan_type:
+    description: Term loan or cash credit
+    codes:
+      TERM_LOAN: Term loan
+      CASH_CREDIT: Cash credit
+
+  write_off_reason:
+    description: Reason for a write-off
+    codes:
+      FIRST_PAYMENT_DEFAULT: First payment default
+      DEATH: Death
+      WILFUL_DEFAULT: Wilful default
+      SUIT_FILED_WILFUL_DEFAULT: Suit filed, wilful default
+      NOT_CLASSIFIED: Not classified
+      NOT_APPLICABLE: Not applicable
+
+  insurance_type:
+    description: Type of insurance on a loan
+    codes:
+      LIFE: Life
+      CREDIT: Credit
+      HEALTH: Health / medical
+      PROPERTY: Property
+      LIABILITY: Liability
+      OTHERS: Others
+
+  govt_program:
+    description: Government programme a group is linked to
+    codes:
+      NRLM: NRLM
+      NULM: NULM
+      SRLM: SRLM
+      MEPMA: MEPMA
+      OTHERS: Others
+
+  yes_no:
+    description: Yes / no
+    codes:
+      "YES": "Yes"
+      "NO": "No"
+
 entities:
   party:
     table: c_party
@@ -872,6 +1021,23 @@ entities:
       rating_agency:      {type: code, code_list: rating_agency}
       rating_date:        {type: date}
       rating_expiry_date: {type: date}
+      branch_id:          {type: string, length: 30, description: MFI branch where the member enrolled}
+      centre_id:          {type: string, length: 30, description: MFI kendra / centre where the member enrolled}
+      group_key:          {type: string, length: 50, description: MFI group (borrower_group) the member belongs to}
+      old_party_key:      {type: string, length: 50, description: Previous member identifier after a change}
+      age:                {type: integer, description: Age when no birth date is captured}
+      age_as_of:          {type: date, description: Date age was recorded}
+      marital_status:     {type: code, code_list: marital_status}
+      education:          {type: code, code_list: education}
+      religion:           {type: code, code_list: religion}
+      social_category:    {type: code, code_list: social_category}
+      member_role:        {type: code, code_list: member_role}
+      member_status:      {type: code, code_list: member_status}
+      family_income:      {type: decimal, description: Total monthly family income}
+      family_expenses:    {type: decimal, description: Monthly family expenses}
+      bank_name:          {type: string, length: 50}
+      bank_branch:        {type: string, length: 50, description: IFSC preferred}
+      bank_account_number: {type: string, length: 35}
 
   party_identifier:
     table: c_party_identifier
@@ -994,6 +1160,22 @@ entities:
       other_lenders:            {type: string, length: 42, description: Other banks / FIs (consortium)}
       ufce_amount:              {type: decimal, description: Unhedged foreign currency exposure}
       ufce_date:                {type: date}
+      group_key:                {type: string, length: 50, description: MFI group (borrower_group) of the loan}
+      centre_id:                {type: string, length: 30, description: MFI kendra / centre of the loan}
+      loan_officer:             {type: string, length: 30, description: Employee code of the originating officer}
+      loan_category:            {type: code, code_list: loan_category}
+      loan_cycle:               {type: integer, description: Borrower's loan sequence}
+      loan_purpose:             {type: string, length: 20}
+      loan_type:                {type: code, code_list: loan_type}
+      sanctioned_date:          {type: date}
+      applied_amount:           {type: decimal}
+      unique_reference:         {type: string, length: 35, description: Stable account reference across branch moves}
+      old_unique_reference:     {type: string, length: 35}
+      write_off_date:           {type: date}
+      write_off_reason:         {type: code, code_list: write_off_reason}
+      insurance_indicator:      {type: code, code_list: yes_no}
+      insurance_type:           {type: code, code_list: insurance_type}
+      sum_assured:              {type: decimal}
 
   account_holder:
     table: c_account_holder
@@ -1138,6 +1320,55 @@ entities:
       dishonour_count:      {type: integer}
       cheque_issue_date:    {type: date, description: Only for a single dishonoured cheque}
       reason:               {type: code, code_list: dishonour_reason}
+
+  party_relative:
+    table: c_party_relative
+    description: A relative, key person or nominee of a borrower (MFI)
+    indexes: [[party_key]]
+    keys: {party: party_key}
+    columns:
+      party_key:        {type: string, length: 50}
+      relative_role:    {type: code, code_list: relative_role}
+      priority:         {type: integer, description: Order within the role (relatives 1 to 4)}
+      full_name:        {type: string, length: 200}
+      relation:         {type: code, code_list: relation}
+
+  borrower_group:
+    table: c_borrower_group
+    description: A borrower group (SHG / JLG) with its group loan (MFI). Accounts and parties point at it by group_key
+    indexes: [[group_key]]
+    columns:
+      group_key:            {type: string, length: 50, description: Source group identifier}
+      full_name:            {type: string, length: 200}
+      group_account_number: {type: string, length: 35, description: The group loan account}
+      disbursed_amount:     {type: decimal}
+      current_balance:      {type: decimal, description: Signed}
+      date_opened:          {type: date}
+      date_closed:          {type: date}
+      date_last_payment:    {type: date}
+      repayment_tenure:     {type: integer, description: Number of instalments}
+      payment_frequency:    {type: code, code_list: payment_frequency}
+      emi_amount:           {type: decimal}
+      amount_overdue:       {type: decimal}
+      days_past_due:        {type: integer}
+      loan_cycle:           {type: integer}
+      loan_type:            {type: code, code_list: loan_type}
+      written_off_total:    {type: decimal}
+      write_off_date:       {type: date}
+      write_off_reason:     {type: code, code_list: write_off_reason}
+      address_line_1:       {type: string, length: 200}
+      state_code:           {type: code, code_list: state_code}
+      pin_code:             {type: string, length: 20}
+      phone_type:           {type: code, code_list: phone_type}
+      phone_number:         {type: string, length: 60}
+      bank_name:            {type: string, length: 50}
+      bank_branch:          {type: string, length: 50}
+      bank_account_number:  {type: string, length: 35}
+      bank_balance:         {type: decimal}
+      formed_date:          {type: date}
+      first_linkage_date:   {type: date}
+      govt_group_id:        {type: string, length: 50}
+      govt_program:         {type: code, code_list: govt_program}
 
   extension_attribute:
     table: c_extension_attribute

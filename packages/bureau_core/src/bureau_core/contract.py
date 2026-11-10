@@ -182,12 +182,23 @@ def _type_ok(col: ColumnDef, v) -> bool:
     }[col.type]()
 
 
+def version_compatible(batch_version: str, model_version: str) -> bool:
+    """A batch of an older minor version of the same major model is valid: minor versions only add columns, entities
+    and code values (1.1 batches pass under model 1.2)."""
+    try:
+        b_major, b_minor = (int(x) for x in str(batch_version).split(".")[:2])
+        m_major, m_minor = (int(x) for x in str(model_version).split(".")[:2])
+    except ValueError:
+        return batch_version == model_version
+    return b_major == m_major and b_minor <= m_minor
+
+
 def check_batch(batch: CanonicalBatch, model: CanonicalModel | None = None) -> list[Problem]:
     """Every way the batch breaks the contract, in a stable order (same batch -> same list). Codes are checked against
     the canonical code lists only: a source that sends a label or a file code instead of the canonical value fails."""
     model = model or canonical_model()
     out: list[Problem] = []
-    if batch.canonical_version != model.version:
+    if not version_compatible(batch.canonical_version, model.version):
         out.append(
             Problem(
                 "",

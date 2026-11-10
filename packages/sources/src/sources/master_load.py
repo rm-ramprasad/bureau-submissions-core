@@ -21,7 +21,15 @@ from typing import Any
 
 from sqlalchemy import Engine, text
 
-from canonical.master.apply import ApplyResult, PartyIn, SanctionIn, SanctionPartyIn, SecurityIn, apply_upload
+from canonical.master.apply import (
+    ApplyResult,
+    GroupIn,
+    PartyIn,
+    SanctionIn,
+    SanctionPartyIn,
+    SecurityIn,
+    apply_upload,
+)
 from canonical.master.tables import dm_sanction
 from canonical.schema import MODEL
 from sources.extract import coerce
@@ -100,12 +108,14 @@ def entities_to_master(entities: Rows, submission_type: str) -> tuple[list[Party
             out.setdefault(str(r["account_key"]), []).append(r)
         return out
 
-    lists = {name: of_party(f"party_{name[:-1] if name != 'addresses' else 'address'}") for name in
-             ("identifiers", "phones", "emails", "addresses")}  # fmt: skip
+    list_entities = {"identifiers": "party_identifier", "phones": "party_phone", "emails": "party_email",
+                     "addresses": "party_address", "relatives": "party_relative"}  # fmt: skip
+    lists = {name: of_party(entity) for name, entity in list_entities.items()}
+    kind = "ENTITY" if str(submission_type).upper() == "COMMERCIAL" else "INDIVIDUAL"  # consumer and MFI: people
     parties = [
         PartyIn(
             str(p["party_key"]),
-            "INDIVIDUAL" if consumer else "ENTITY",
+            kind,
             _without(p, "party_key"),
             **{name: lists[name].get(str(p["party_key"]), []) for name in lists},
         )
@@ -163,6 +173,14 @@ def entities_to_master(entities: Rows, submission_type: str) -> tuple[list[Party
     return parties + list(related.values()), sanctions
 
 
+def groups_of(entities: Rows) -> list[GroupIn]:
+    """The borrower groups (SHG / JLG, MFI) in snapshot-shaped rows."""
+    return [
+        GroupIn(str(g["group_key"]), _without(typed("borrower_group", g), "group_key"))
+        for g in entities.get("borrower_group", [])
+    ]
+
+
 def rows_from_views(
     source_engine: Engine, submission_type: str, as_of_date: date, load_id: int
 ) -> dict[str, list[dict[str, Any]]]:
@@ -180,6 +198,6 @@ def load_upload(
     app_engine: Engine, source_engine: Engine, tenant_id: str, submission_type: str, as_of_date: date, load_id: int
 ) -> ApplyResult:
     """Apply one upload to the tenant's master through its source views (one transaction)."""
-    parties, sanctions = entities_to_master(rows_from_views(source_engine, submission_type, as_of_date, load_id),
-                                            submission_type)  # fmt: skip
-    return apply_upload(app_engine, tenant_id, load_id, parties, sanctions)
+    rows = rows_from_views(source_engine, submission_type, as_of_date, load_id)
+    parties, sanctions = entities_to_master(rows, submission_type)
+    return apply_upload(app_engine, tenant_id, load_id, parties, sanctions, groups_of(rows))

@@ -31,6 +31,26 @@ _AMOUNT = Numeric(20, 2)
 _RATE = Numeric(9, 4)
 
 
+MFI_PARTY = ("branch_id", "centre_id", "group_key", "old_party_key", "age", "age_as_of", "marital_status", "education",
+             "religion", "social_category", "member_role", "member_status", "family_income", "family_expenses",
+             "bank_name", "bank_branch", "bank_account_number")  # fmt: skip
+MFI_ACCOUNT = ("group_key", "centre_id", "loan_officer", "loan_category", "loan_cycle", "loan_purpose", "loan_type",
+               "sanctioned_date", "applied_amount", "unique_reference", "old_unique_reference", "write_off_date",
+               "write_off_reason", "insurance_indicator", "insurance_type", "sum_assured")  # fmt: skip
+
+
+def _like(entity: str, names: tuple[str, ...]) -> list[Column]:
+    """Master columns typed like the canonical model's (migration 016, MFI): text as Unicode of the same length."""
+    from canonical.schema import ENTITY_TABLES
+
+    out = []
+    for name in names:
+        t = ENTITY_TABLES[entity].c[name].type
+        length = getattr(t, "length", None)
+        out.append(Column(name, Unicode(length) if length else t))
+    return out
+
+
 def _code() -> Unicode:
     return Unicode(40)
 
@@ -77,6 +97,7 @@ dm_party = Table(
     Column("rating_date", Date),
     Column("rating_expiry_date", Date),
     Column("party_type", _code()),  # bureau type: INDIAN_INDIVIDUAL, INDIAN_ENTITY, ... (migration 013)
+    *_like("party", MFI_PARTY),  # MFI (migration 016)
     *_versioned(),
     UniqueConstraint("tenant_id", "customer_id", name="uq_dm_party_customer"),
 )
@@ -163,6 +184,7 @@ dm_sanction = Table(
     Column("collateral_value", _AMOUNT),
     Column("collateral_type", _code()),
     Column("actual_payment_amount", _AMOUNT),  # the workbook's, used when the LMS has none (migration 015)
+    *_like("account", MFI_ACCOUNT),  # MFI (migration 016)
     *_versioned(),
     UniqueConstraint("tenant_id", "account_number", "sanction_number", name="uq_dm_sanction_key"),
 )
@@ -208,6 +230,62 @@ dm_cheque_dishonour = Table(
     Column("load_id", _PK, nullable=False),
 )
 
+dm_party_relative = _party_list(
+    "dm_party_relative",
+    Column("relative_role", _code(), nullable=False),  # KEY_PERSON / RELATIVE / NOMINEE (migration 016, MFI)
+    Column("priority", Integer),
+    Column("full_name", Unicode(200)),
+    Column("relation", _code()),
+)
+
+dm_group = Table(
+    "dm_group",
+    metadata,
+    Column("group_id", _PK, primary_key=True, autoincrement=True),
+    Column("tenant_id", Unicode(30), nullable=False),
+    Column("group_key", Unicode(50), nullable=False),  # the client's group identifier (migration 016, MFI)
+    *_like(
+        "borrower_group",
+        tuple(
+            c
+            for c in (
+                "full_name",
+                "group_account_number",
+                "disbursed_amount",
+                "current_balance",
+                "date_opened",
+                "date_closed",
+                "date_last_payment",
+                "repayment_tenure",
+                "payment_frequency",
+                "emi_amount",
+                "amount_overdue",
+                "days_past_due",
+                "loan_cycle",
+                "loan_type",
+                "written_off_total",
+                "write_off_date",
+                "write_off_reason",
+                "address_line_1",
+                "state_code",
+                "pin_code",
+                "phone_type",
+                "phone_number",
+                "bank_name",
+                "bank_branch",
+                "bank_account_number",
+                "bank_balance",
+                "formed_date",
+                "first_linkage_date",
+                "govt_group_id",
+                "govt_program",
+            )
+        ),
+    ),
+    *_versioned(),
+    UniqueConstraint("tenant_id", "group_key", name="uq_dm_group_key"),
+)
+
 dm_change_log = Table(
     "dm_change_log",
     metadata,
@@ -233,5 +311,7 @@ MASTER_TABLES = (
     dm_sanction_party,
     dm_security,
     dm_cheque_dishonour,
+    dm_party_relative,
+    dm_group,
     dm_change_log,
 )
