@@ -56,6 +56,8 @@
                 <span x-show="f.has_review"> · <a href="#" @click.prevent="download(f, 'review')">Review Excel</a></span>
                 <span x-show="f.has_exceptions"> · <a href="#" @click.prevent="download(f, 'exceptions')">Exceptions</a></span></span></template>
               <span class="badge b-PURGED" x-show="!f.has_file">Purged</span>
+              <template x-if="(f.files || []).length > 1"><div class="hint">All files:
+                <template x-for="x in f.files" :key="x.file_id"><span> <a href="#" @click.prevent="downloadFile(f, x)" x-text="x.file_name"></a></span></template></div></template>
               <div class="hint mono" x-show="f.fingerprint" :title="f.fingerprint?.sha256"
                 x-text="f.fingerprint ? `SHA-256 ${f.fingerprint.sha256.slice(0, 12)}… · ${F.num(f.fingerprint.size_bytes)} bytes` : ''"></div>
             </td>

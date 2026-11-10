@@ -8,7 +8,7 @@ from datetime import date, datetime
 from bureau_core.enums import BureauCode, SubmissionType
 
 # Placeholders available in file_name_pattern
-PATTERN_FIELDS = "{member_id} {bureau} {cycle} {as_of:%d%m%Y} {created:%d%m%Y} {created:%H%M%S}"
+PATTERN_FIELDS = "{member_id} {bureau} {cycle} {as_of:%d%m%Y} {created:%d%m%Y} {created:%H%M%S} {file}"
 NO_CYCLE = "AH"  # {cycle} of a run without a reporting cycle: ad hoc submission
 
 
@@ -28,20 +28,27 @@ class BureauProfile:
     file_name_pattern: str
     is_active: bool = True
 
-    def file_name(self, created: datetime, as_of: date, cycle: str | None = None) -> str:
+    def file_name(self, created: datetime, as_of: date, cycle: str | None = None, file: str | None = None) -> str:
+        """`file`: the file's key when a format writes several files per request (MFI: SHG / JLG). A pattern without
+        {file} then gets "-<file>" before the extension, so the names never collide."""
         try:
-            return self.file_name_pattern.format(
+            name = self.file_name_pattern.format(
                 member_id=self.member_id,
                 bureau=str(self.bureau_code),
                 cycle=str(cycle) if cycle else NO_CYCLE,
                 created=created,
                 as_of=as_of,
+                file=file or "",
             )
         except (KeyError, IndexError, ValueError) as exc:
             raise InvalidFileNamePatternError(
                 f"Bad file_name_pattern for {self.tenant_id}/{self.bureau_code}/{self.submission_type}: "
                 f"{self.file_name_pattern!r} ({exc}). Allowed: {PATTERN_FIELDS}"
             ) from exc
+        if file and "{file" not in self.file_name_pattern:
+            stem, dot, ext = name.rpartition(".")
+            name = f"{stem}-{file}.{ext}" if dot else f"{name}-{file}"
+        return name
 
     @classmethod
     def from_row(cls, row) -> BureauProfile:

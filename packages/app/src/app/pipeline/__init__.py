@@ -11,10 +11,10 @@ from app.pipeline.base import FileGenerationUnavailable, Services, SubmissionPip
 
 
 def _pipeline() -> SubmissionPipeline:
-    from app.pipeline.files import write_file
+    from app.pipeline.files import write_files
     from app.pipeline.views import ViewsPipeline
 
-    return ViewsPipeline(write_file)
+    return ViewsPipeline(write_files)
 
 
 def get_pipeline(submission_type: SubmissionType | str) -> SubmissionPipeline | None:

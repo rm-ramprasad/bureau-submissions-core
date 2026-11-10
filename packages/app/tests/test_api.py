@@ -773,3 +773,36 @@ def test_bureau_profile_changes_are_checked(grouped, bureau_repo, field, value, 
         "/bureaus/CONSUMER/CIBIL", headers=bearer(groups=[ADMINS_GROUP]), **change
     )
     assert status == 400 and error in err["error"]
+
+
+def test_a_format_with_several_files_stores_lists_and_downloads_each(api, worker, requests_repo, engine, monkeypatch):
+    """MFI writes two files per bureau (SHG, JLG + Individual; ADR 0003). Any format whose layout has `files:` gets
+    each file stored, fingerprinted, listed on the Submitted files page and downloadable."""
+    import app.pipeline.files as files_module
+    from app.outputfiles import out_file
+
+    real = files_module.write_files
+
+    def two_files(services, request, snapshot, bureau, created):
+        ((_, content, stats),) = real(services, request, snapshot, bureau, created)
+        return [("SHG", content, stats), ("JLG", content + b"X", stats)]
+
+    monkeypatch.setattr(files_module, "write_files", two_files)
+    v = requests_repo.create_batch("nbfc_001", AS_OF, M.VALIDATE, [T.COMMERCIAL])  # the generic writer
+    worker.run_once()
+    row = requests_repo.list_batch(v)[0]
+    requests_repo.create_batch("nbfc_001", AS_OF, M.GENERATE, [T.COMMERCIAL], [B.CIBIL], snapshot_id=row.snapshot_id)
+    worker.run_once()
+    _, files = api.get("/files")
+    (f,) = files["files"]
+    names = [x["file_name"] for x in f["files"]]
+    assert len(set(names)) == 2 and names[0].endswith("-SHG.txt") and names[1].endswith("-JLG.txt")  # key added
+    assert f["output_file_name"] == names[0] and f["fingerprint"]["sha256"] == f["files"][0]["sha256"]
+    with engine.connect() as conn:
+        kinds = [r.kind for r in conn.execute(select(out_file).where(out_file.c.request_id == f["request_id"]))]
+    assert kinds.count("BUREAU_FILE") == 2
+    second = f["files"][1]
+    status, _ = api.get(f"/requests/{f['request_id']}/files/{second['file_id']}")
+    assert status == 200
+    assert api.get(f"/requests/{f['request_id']}/files/999999")[0] == 404
+    assert "FILE_DOWNLOADED" in actions(engine)

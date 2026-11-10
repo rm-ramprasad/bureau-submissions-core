@@ -69,7 +69,17 @@ class Renderer:
         if head == "address":  # address.<CATEGORY>.<col>
             category, _, column = rest.partition(".")
             row = self._first_child(ctx, "party_address", lambda r: r.address_category == category)
-            return (getattr(row, column), "party_address", row) if row is not None else (None, None, None)
+            if row is None:
+                return None, None, None
+            if column == "full":  # the address lines joined (MFI #57 / #60: one 200-character address field)
+                lines = [str(v).strip() for v in (getattr(row, f"address_line_{i}", None) for i in range(1, 6)) if v]
+                return (", ".join(x for x in lines if x) or None), "party_address", row
+            return getattr(row, column), "party_address", row
+        if head == "phone":  # phone.<n>.<col>: the borrower's n-th phone by priority
+            n, _, column = rest.partition(".")
+            rows = self._sorted_children(ctx, "party_phone", lambda r: True)
+            row = rows[int(n) - 1] if len(rows) >= int(n) else None
+            return (getattr(row, column), "party_phone", row) if row is not None else (None, None, None)
         if head == "relative":  # relative.<ROLE>.<n>.<col>
             role, _, more = rest.partition(".")
             n, _, column = more.partition(".")
@@ -153,6 +163,13 @@ class Renderer:
                 return None
         if spec.if_present and self._resolve(spec.if_present, ctx)[0] in (None, ""):
             return None
+        if spec.if_positive:
+            number = self._resolve(spec.if_positive, ctx)[0]
+            try:
+                if number is None or float(number) <= 0:
+                    return None
+            except TypeError, ValueError:
+                return None
         if spec.const is not None:
             return spec.const
         value, entity, obj = self._resolve(spec.source, ctx)
@@ -166,7 +183,8 @@ class Renderer:
                 return None
         if spec.cap is not None:
             value = min(int(value), spec.cap)
-        text = VALUE_FORMATTERS[spec.format](value, ctx.row, spec.args)
+        # the row the value came from (e.g. the address for address.PERMANENT.pin_code), else the line's own row
+        text = VALUE_FORMATTERS[spec.format](value, obj if obj is not None else ctx.row, spec.args)
         if text is None:
             return None
         text = text.translate(self._strip)

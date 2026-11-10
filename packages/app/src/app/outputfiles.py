@@ -98,13 +98,14 @@ def bureau_files(engine: Engine, request_ids: Iterable[int]) -> dict[int, dict[s
     out: dict[int, dict[str, Any]] = {}
     with engine.connect() as conn:
         for r in conn.execute(
-            select(f.request_id, f.sha256, f.size_bytes, f.record_count)
+            select(f.request_id, f.file_id, f.file_name, f.sha256, f.size_bytes, f.record_count)
             .where(f.request_id.in_(ids), f.kind == BUREAU_FILE)
             .order_by(f.file_id)
         ):
-            out.setdefault(r.request_id, {})["fingerprint"] = dict(
-                sha256=r.sha256, size_bytes=r.size_bytes, record_count=r.record_count
-            )
+            item = dict(sha256=r.sha256, size_bytes=r.size_bytes, record_count=r.record_count)
+            entry = out.setdefault(r.request_id, {})
+            entry.setdefault("fingerprint", item)  # the request's (first) file
+            entry.setdefault("files", []).append(dict(item, file_id=r.file_id, file_name=r.file_name))
         for r in conn.execute(select(out_submission).where(s.request_id.in_(ids))):
             out.setdefault(r.request_id, {})["submission"] = dict(
                 status=r.status,
@@ -114,6 +115,15 @@ def bureau_files(engine: Engine, request_ids: Iterable[int]) -> dict[int, dict[s
                 note=r.note,
             )
     return out
+
+
+def bureau_file(engine: Engine, request_id: int, file_id: int) -> Any | None:
+    """One stored bureau file of a request (a format may write several, e.g. MFI's SHG and JLG files)."""
+    f = out_file.c
+    with engine.connect() as conn:
+        return conn.execute(
+            select(out_file).where(f.request_id == request_id, f.file_id == file_id, f.kind == BUREAU_FILE)
+        ).first()
 
 
 def mark_submitted(

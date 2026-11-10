@@ -197,43 +197,80 @@ def _fingerprint(services, request, snapshot, bureau, kind, name, uri, content, 
     )
 
 
+def _rejected(engine, snapshot_id: int) -> int:
+    o = record_outcome.c
+    with engine.connect() as conn:
+        return len(
+            conn.execute(
+                select(o.account_key).where(o.snapshot_id == snapshot_id, o.outcome == str(RecordOutcome.REJECTED))
+            ).all()
+        )
+
+
 def generate_file_with_review(
-    services, tenant, request: SubmissionRequest, snapshot: Snapshot, bureau: BureauProfile, write_file
+    services, tenant, request: SubmissionRequest, snapshot: Snapshot, bureau: BureauProfile, write_files
 ) -> RequestResult:
-    """Types without an Excel layout (commercial): the bureau file from its engine, plus a review Excel (Summary, Loans,
-    Findings, Data quality) for the credit team. The file is never changed by the review."""
+    """Types without an Excel layout (commercial, MFI): the bureau file(s) from the type's engine, plus a review Excel
+    (Summary, Loans, Findings, Data quality) for the credit team. The files are never changed by the review. A format
+    that writes several files per request (MFI: SHG and JLG + Individual, ADR 0003) gets each stored and fingerprinted;
+    the request shows the first, the Submitted files page lists all."""
     created = datetime.now()
-    content, stats = write_file(services, request, snapshot, bureau, created)
-    if stats.written == 0:
+    outputs = write_files(services, request, snapshot, bureau, created)
+    if sum(stats.written for _key, _content, stats in outputs) == 0:
+        total = sum(stats.total_records for _key, _content, stats in outputs)
         raise ValueError(
-            f"No accepted records to submit: all {stats.total_records} records were rejected by "
+            f"No accepted records to submit: all {total} records were rejected by "
             f"validation. Review the findings of snapshot {snapshot.snapshot_id} (no file written)."
         )
-    name = bureau.file_name(created, snapshot.as_of_date, request.reporting_cycle)
-    if Path(name).name != name:
-        raise ValueError(f"File name {name!r} from the bureau profile must not contain a path")
-    engine, folder, stem = services.app_engine, f"{tenant.tenant_id}/{request.batch_id}", Path(name).stem
+    engine, folder = services.app_engine, f"{tenant.tenant_id}/{request.batch_id}"
     submission_type = str(request.submission_type)
     layout = yaml.safe_load(type_definition(submission_type).path("layout.yaml").read_text(encoding="utf-8"))
     delimiter = (layout.get("encoding") or {}).get("delimiter", "|")
+    several = len(outputs) > 1 or outputs[0][0] is not None
+    named = []
+    for key, content, stats in outputs:
+        name = bureau.file_name(created, snapshot.as_of_date, request.reporting_cycle, file=key if several else None)
+        if Path(name).name != name:
+            raise ValueError(f"File name {name!r} from the bureau profile must not contain a path")
+        named.append((key, name, content, stats))
+    summary: list[list] = []
+    for _key, name, content, _stats in named:
+        summary += ([["", ""]] if summary else []) + _file_summary(content, name, bureau, snapshot, delimiter)
+    stem = Path(named[0][1]).stem
     review = _workbook(
         {
-            "Summary": _file_summary(content, name, bureau, snapshot, delimiter),
+            "Summary": summary,
             "Loans": _loans(engine, snapshot.snapshot_id),
             "Findings": _findings(engine, snapshot.snapshot_id),
             "Exceptions applied": _adjustments(engine, snapshot.snapshot_id),
             "Data quality": _data_quality(engine, snapshot.batch_id, submission_type),
         }
     )
-    file_uri = services.store.put(f"{folder}/{name}", content, "text/plain")  # never overwrites
+    uris = []
+    for _key, name, content, stats in named:
+        uri = services.store.put(f"{folder}/{name}", content, "text/plain")  # never overwrites
+        _fingerprint(services, request, snapshot, bureau, outputfiles.BUREAU_FILE, name, uri, content, stats.written)
+        uris.append(uri)
     review_uri = services.store.put(f"{folder}/{stem}-review.xlsx", review, XLSX)
-    _fingerprint(services, request, snapshot, bureau, outputfiles.BUREAU_FILE, name, file_uri, content, stats.written)
     _fingerprint(
         services, request, snapshot, bureau, outputfiles.REVIEW_EXCEL, f"{stem}-review.xlsx", review_uri, review
     )
+    if several:  # per-file stats count the records each file selected; rejected records belong to no file
+        rejected = _rejected(engine, snapshot.snapshot_id)
+        written = sum(st.written for *_, st in named)
+        return RequestResult(
+            output_file_name=named[0][1],
+            output_file_path=uris[0],
+            review_file_path=review_uri,
+            total_records=sum(st.total_records for *_, st in named) + rejected,
+            accepted_records=written,
+            rejected_records=rejected,
+            duplicate_records=sum(st.duplicates for *_, st in named),
+        )
+    _key, name, _content, stats = named[0]
     return RequestResult(
         output_file_name=name,
-        output_file_path=file_uri,
+        output_file_path=uris[0],
         review_file_path=review_uri,
         total_records=stats.total_records,
         accepted_records=stats.written,

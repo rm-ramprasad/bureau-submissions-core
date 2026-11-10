@@ -11,7 +11,8 @@ the loader checks. A field says where its value comes from (`source`) or `const`
 Source paths: `column` (the line's own row), `party.<col>`, `account.<col>`, `bureau.<attr>`, `run.<attr>`
 (as_of_date, created_date, cycle), `id.<ID_TYPE>` (the borrower's valid identifier of that canonical type),
 `contacts.mobile | telephone | email` (the borrower's valid phones / first e-mail), `count.<TAG>` (lines written),
-and (line layouts) `address.<CATEGORY>.<col>` (the borrower's first address of that canonical category),
+and (line layouts) `address.<CATEGORY>.<col>` (the borrower's first address of that canonical category; `full` =
+its address lines joined), `phone.<n>.<col>` (the borrower's n-th phone by priority),
 `relative.<ROLE>.<n>.<col>` (the borrower's n-th relative of that role), `group.<col>` (the account's group,
 borrower_group by account.group_key), `file.key` (the file being written).
 
@@ -34,7 +35,20 @@ import yaml
 from bureau_core.canonical import canonical_model
 from bureau_core.formats.delimited.formatters import VALUE_FORMATTERS
 
-HEADS = {"party", "account", "bureau", "run", "id", "contacts", "count", "address", "relative", "group", "file"}
+HEADS = {
+    "party",
+    "account",
+    "bureau",
+    "run",
+    "id",
+    "contacts",
+    "count",
+    "address",
+    "relative",
+    "group",
+    "file",
+    "phone",
+}
 CHECKS = {"present", "not_null", "none"}
 TAG_RE = re.compile(r"^[A-Z]{2,6}$")  # CR / BS ... ; HDR, CNSCRD ... (MFI)
 SOURCES = {"party", "account", "group"}
@@ -63,6 +77,7 @@ class Field:
     check: str = "present"
     when: dict = field(default_factory=dict)
     if_present: str | None = None  # only when this source path has a value
+    if_positive: str | None = None  # only when this source path's value is a number above 0 (e.g. DPD)
     default: object = None
     translate: str | None = None
     cap: int | None = None
@@ -135,6 +150,7 @@ def _field(where: str, spec) -> Field:
         check=spec.get("check", "present"),
         when=spec.get("when", {}),
         if_present=spec.get("if_present"),
+        if_positive=spec.get("if_positive"),
         default=spec.get("default"),
         translate=spec.get("translate"),
         cap=spec.get("cap"),
@@ -157,7 +173,7 @@ def _field(where: str, spec) -> Field:
         raise LayoutError(f"{where}: align must be left or right, pad one character")
     if f.format == "lookup" and not isinstance(f.args.get("map"), dict):
         raise LayoutError(f"{where}: format lookup needs args.map")
-    for path in (f.source, f.if_present, *f.when):
+    for path in (f.source, f.if_present, f.if_positive, *f.when):
         if path:
             _check_path(where, path)
     return f

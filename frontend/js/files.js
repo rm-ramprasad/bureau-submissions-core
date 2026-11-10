@@ -25,6 +25,10 @@ document.addEventListener("alpine:init", () => {
       } catch (e) { App.error(e); }
     },
 
+    async downloadFile(f, x) {  // one of several bureau files of a request (e.g. MFI SHG / JLG)
+      try { await Api.download(`/requests/${f.request_id}/files/${x.file_id}`); } catch (e) { App.error(e); }
+    },
+
     async download(f, kind) {
       try { await Api.download(`/requests/${f.request_id}/${kind}`); } catch (e) { App.error(e); }
     },
