@@ -26,9 +26,45 @@ def _hundredths(value, row, args) -> str:
     return str(int((Decimal(str(value)) * 100).to_integral_value()))
 
 
+def _truncate(value) -> int:
+    """Whole rupees by cutting the decimals, as the CIC does (MFI 2.3): 1234.99 -> 1234, -10.5 -> -10."""
+    return int(Decimal(str(value)))
+
+
+def _amount_truncated(value, row, args) -> str | None:
+    """Unsigned whole rupees, decimals cut (MFI 2.3); a negative value is left out (validation reports it)."""
+    n = _truncate(value)
+    return None if n < 0 else str(n)
+
+
+def _signed_amount_truncated(value, row, args) -> str:
+    """Whole rupees, decimals cut, a leading '-' when negative (MFI GRPCRD #6, ACTCRD #87)."""
+    return str(_truncate(value))
+
+
+def _word_part(value, row, args) -> str | None:
+    """One part of a text packed word by word into fields of `widths` (e.g. [100, 50, 50]) without splitting a word
+    (MFI 7.1); `part` is 1-based. A word that does not fit its field moves to the next one; once a word fits no
+    remaining field, packing stops (words are never reordered; validation reports the name as too long)."""
+    widths, part = list(args["widths"]), int(args["part"])
+    parts = [""] * len(widths)
+    i = 0
+    for word in str(value).split():
+        while i < len(widths):
+            candidate = f"{parts[i]} {word}".strip()
+            if len(candidate) <= widths[i]:
+                parts[i] = candidate
+                break
+            i += 1
+    return parts[part - 1] or None
+
+
 VALUE_FORMATTERS = {
     **TUDF_FORMATTERS,
     "signed_amount_leading": _signed_amount_leading,
     "dpd_1nnn": _dpd_1nnn,
     "hundredths": _hundredths,
+    "amount_truncated": _amount_truncated,
+    "signed_amount_truncated": _signed_amount_truncated,
+    "word_part": _word_part,
 }
