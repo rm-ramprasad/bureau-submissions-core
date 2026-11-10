@@ -78,7 +78,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
 .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
 .badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-.b-SUCCEEDED, .b-ACCEPTED, .b-VALIDATED { color: var(--ok); background: var(--ok-bg); }
+.b-SUCCEEDED, .b-ACCEPTED, .b-VALIDATED, .b-LOADED { color: var(--ok); background: var(--ok-bg); }
 .b-FAILED, .b-REJECTED, .b-REJECT_RECORD, .b-REJECT_FILE { color: var(--bad); background: var(--bad-bg); }
 .b-PARTIAL, .b-REJECT_SEGMENT, .b-REJECT_FIELD, .b-WARN, .b-CANCELLED, .b-PURGED { color: var(--warn); background: var(--warn-bg); }
 .b-PENDING, .b-RUNNING, .b-BUILDING, .b-EXTRACTED { color: var(--run); background: var(--run-bg); }

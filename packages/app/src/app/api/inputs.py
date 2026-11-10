@@ -35,10 +35,24 @@ def needs_workbook(submission_type: str) -> bool:
     return submission_type in available_specs()
 
 
-def missing_workbooks(engine: Engine, batch_id: str, submission_types) -> list[str]:
-    """Types of the request that still need a successfully loaded workbook."""
+def on_customer_tables(engine: Engine, tenant_id: str | None, submission_type: str) -> bool:
+    """The type builds its snapshots from the customer tables (Admin page, data source): its data comes from the
+    Uploads page, so a request needs no workbook of its own."""
+    from app.configstore.settings import data_source
+
+    return data_source(engine, tenant_id, submission_type) == "master"
+
+
+def missing_workbooks(engine: Engine, batch_id: str, submission_types, tenant_id: str | None = None) -> list[str]:
+    """Types of the request that still need a successfully loaded workbook (none for types on the customer tables)."""
     loads = latest_loads(engine, batch_id)
-    return [t for t in submission_types if needs_workbook(t) and loads.get(t, {}).get("status") != "LOADED"]
+    return [
+        t
+        for t in submission_types
+        if needs_workbook(t)
+        and not on_customer_tables(engine, tenant_id, t)
+        and loads.get(t, {}).get("status") != "LOADED"
+    ]
 
 
 def _load_json(engine: Engine, load: dict | None) -> dict | None:
@@ -128,7 +142,9 @@ def request_inputs(batch_id: str):
         inputs=[
             {
                 "submission_type": r.submission_type.value,
-                "needs_workbook": needs_workbook(r.submission_type.value),
+                "needs_workbook": needs_workbook(r.submission_type.value)
+                and not on_customer_tables(s.engine, r.tenant_id, r.submission_type.value),
+                "on_customer_tables": on_customer_tables(s.engine, r.tenant_id, r.submission_type.value),
                 "latest": _load_json(s.engine, loads.get(r.submission_type.value)),
             }
             for r in rows

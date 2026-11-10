@@ -32,6 +32,7 @@ MIGRATIONS = [
     "014_master_lengths",
     "015_sanction_payment_fallback",
     "016_mfi_data_model",
+    "017_upload_page",
 ]
 
 

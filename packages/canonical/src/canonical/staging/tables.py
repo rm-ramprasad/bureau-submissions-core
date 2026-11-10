@@ -3,7 +3,7 @@ the load header (input_load) and what the loader reported (input_issue)."""
 
 from __future__ import annotations
 
-from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Index, Integer, String, Table, Unicode
+from sqlalchemy import BigInteger, Column, Date, DateTime, ForeignKey, Index, Integer, String, Table, Unicode
 
 from canonical.db import SCHEMA, metadata
 from canonical.staging.spec import VALUE_LENGTH, WorkbookSpec, available_specs, load_spec
@@ -26,6 +26,9 @@ input_load = Table(
     Column("error_message", Unicode(2000)),
     Column("loaded_by", String(100), nullable=False),
     Column("loaded_at", DateTime, nullable=False),
+    Column("as_of_date", Date),  # Uploads page: the data's as-of date (migration 017)
+    Column("applied_at", DateTime),  # when it went into the customer tables (Uploads page)
+    Column("apply_summary", Unicode(1000)),  # what that changed, in words
     Index("ix_input_load_batch", "batch_id"),
     Index("ix_input_load_tenant", "tenant_id", "submission_type", "loaded_at"),
 )
