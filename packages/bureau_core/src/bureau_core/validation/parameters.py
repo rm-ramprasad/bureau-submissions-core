@@ -69,11 +69,8 @@ class Parameter:
         return value.isoformat() if isinstance(value, date) else str(value)
 
 
-@cache
-def builtin_parameters(submission_type: SubmissionType | str) -> dict[str, Parameter]:
-    from bureau_core.validation.rules import pack_paths
-
-    raw = yaml.safe_load(pack_paths()[SubmissionType(submission_type)].read_text(encoding="utf-8"))
+def parse_parameters(raw: dict) -> dict[str, Parameter]:
+    """A rule pack's parameters (its `parameters:` list), defaults parsed and checked."""
     out = {}
     for spec in raw.get("parameters", []):
         p = Parameter(
@@ -88,6 +85,13 @@ def builtin_parameters(submission_type: SubmissionType | str) -> dict[str, Param
         )
         out[p.name] = Parameter(**{**p.__dict__, "default": p.parse(spec["default"])})
     return out
+
+
+@cache
+def builtin_parameters(submission_type: SubmissionType | str) -> dict[str, Parameter]:
+    from bureau_core.validation.rules import pack_paths
+
+    return parse_parameters(yaml.safe_load(pack_paths()[SubmissionType(submission_type)].read_text(encoding="utf-8")))
 
 
 def defaults(submission_type: SubmissionType | str) -> dict[str, object]:
