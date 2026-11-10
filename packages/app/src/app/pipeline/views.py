@@ -74,9 +74,11 @@ class ViewsPipeline:
         from sources.master import compile_master
         from sources.master_load import load_upload
 
-        if load_id is None:
-            raise ValueError("This request has no loaded workbook: upload it before submitting")
-        load_upload(services.app_engine, services.source_engine, tenant.tenant_id, kind, request.as_of_date, load_id)
+        if load_id is not None:  # a workbook attached to the request (before the Uploads page): saved first
+            load_upload(
+                services.app_engine, services.source_engine, tenant.tenant_id, kind, request.as_of_date, load_id
+            )
+        # otherwise the customer tables as the Uploads page left them
         return compile_master(services.app_engine, kind)  # account history off (owner 2026-11-09)
 
     def generate_file(

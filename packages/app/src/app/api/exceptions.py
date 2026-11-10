@@ -233,7 +233,10 @@ def submit_request(batch_id: str):
     s = svc()
     rows, _ = _request_row(batch_id)
     missing = s.require_inputs and missing_workbooks(
-        s.engine, batch_id, [r.submission_type.value for r in rows if r.status is RequestStatus.DRAFT]
+        s.engine,
+        batch_id,
+        [r.submission_type.value for r in rows if r.status is RequestStatus.DRAFT],
+        rows[0].tenant_id,
     )
     if missing:
         fail(

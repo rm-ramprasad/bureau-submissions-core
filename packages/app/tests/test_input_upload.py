@@ -63,7 +63,9 @@ def test_upload_loads_the_workbook_and_shows_the_result(api, engine, tmp_path):
     batch_id = draft(api)
     status, inputs = api.get(f"/batches/{batch_id}/inputs")
     assert status == 200 and inputs["is_draft"] is True
-    assert inputs["inputs"] == [{"submission_type": "CONSUMER", "needs_workbook": True, "latest": None}]
+    assert inputs["inputs"] == [
+        {"submission_type": "CONSUMER", "needs_workbook": True, "on_customer_tables": False, "latest": None}
+    ]
     status, data = upload(api, batch_id, GOOD)
     assert status == 201 and "loaded and checked: 1 rows from 1 sheet(s)" in data["message"]
     assert "1 warning(s)" in data["message"]
@@ -171,3 +173,70 @@ def test_blocking_data_quality_problems_stop_the_request_until_fixed(api, dispat
     assert status == 409 and "data-quality checks" in err["error"] and dispatcher.dispatched == []
     assert upload(api, batch_id, GOOD)[0] == 201  # corrected workbook
     assert api.post(f"/batches/{batch_id}/submit")[0] == 200
+
+
+# ---------------------------------------------------------------- Uploads page (ADR 0002 PR 7)
+def upload_page(api, data, as_of="2026-09-30", name="Consumer.xlsx", submission_type="CONSUMER"):
+    resp = api.client.post(
+        f"/api/uploads/{submission_type}",
+        data={"file": (io.BytesIO(data), name), "as_of_date": as_of, "tenant_id": "nbfc_001"},
+        content_type="multipart/form-data",
+    )
+    return resp.status_code, resp.get_json(silent=True)
+
+
+def test_an_upload_on_the_uploads_page_is_checked_and_kept_for_its_date(api, engine):
+    status, data = upload_page(api, GOOD)
+    assert status == 201 and "source views" in data["message"]  # consumer is still on the source views
+    u = data["upload"]
+    assert (u["status"], u["as_of_date"], u["applied_at"], u["source"]) == ("LOADED", "2026-09-30", None, "views")
+    with engine.connect() as conn:
+        load = conn.execute(select(input_load)).one()
+    assert load.batch_id is None and load.as_of_date == date(2026, 9, 30)
+    _, listed = api.get("/uploads", tenant_id="nbfc_001")
+    assert [x["load_id"] for x in listed["uploads"]] == [u["load_id"]]
+    assert {t["submission_type"] for t in listed["types"]} == {"CONSUMER", "COMMERCIAL"}
+    with engine.connect() as conn:
+        assert conn.execute(select(audit_event.c.action).where(audit_event.c.action == "DATA_UPLOADED")).scalar()
+
+
+def test_a_type_on_the_customer_tables_saves_the_upload_and_its_requests_need_no_workbook(api, engine):
+    from app.configstore import settings as S
+    from canonical.master.tables import dm_sanction
+
+    S.put(engine, "nbfc_001", "data_source", {"CONSUMER": "master"}, "admin")
+    status, data = upload_page(api, GOOD)
+    assert status == 201 and "saved in the customer tables" in data["message"], data
+    assert data["upload"]["applied_at"] and "accounts" in data["upload"]["apply_summary"]
+    with engine.connect() as conn:
+        assert conn.execute(select(dm_sanction)).first() is not None
+    batch_id = draft(api)
+    _, inputs = api.get(f"/batches/{batch_id}/inputs")
+    assert inputs["inputs"][0]["needs_workbook"] is False and inputs["inputs"][0]["on_customer_tables"] is True
+    assert api.post(f"/batches/{batch_id}/submit")[0] == 200  # no workbook of its own needed
+
+
+def test_blocking_checks_or_a_bad_file_save_nothing(api, engine):
+    from app.configstore import settings as S
+    from canonical.master.tables import dm_sanction
+
+    S.put(engine, "nbfc_001", "data_source", {"CONSUMER": "master"}, "admin")
+    status, data = upload_page(api, FAILS_CHECKS)
+    assert status == 422 and "blocking data-quality checks" in data["message"] and not data["upload"]["applied_at"]
+    assert upload_page(api, BAD)[0] == 422
+    with engine.connect() as conn:
+        assert conn.execute(select(dm_sanction)).first() is None
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"as_of": "2999-01-01"}, "cannot be in the future"),
+        ({"as_of": "31-10-2026"}, "as-of date"),
+        ({"name": "Consumer.csv"}, ".xlsx"),
+        ({"submission_type": "NOPE"}, "has no input workbook"),
+    ],
+)
+def test_upload_page_input_is_checked(api, kwargs, message):
+    status, data = upload_page(api, GOOD, **kwargs)
+    assert status in (400, 404) and message in data["error"]

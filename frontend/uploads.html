@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Uploads · Open Terrace Analytics</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="app.css">
+  <script defer src="vendor/oidc-client-ts.min.js"></script>
+  <script defer src="js/core.js"></script>
+  <script defer src="js/uploads.js"></script>
+  <script defer src="vendor/alpine.min.js"></script>
+</head>
+<body data-nav="uploads" data-crumb="Uploads">
+<main class="content" x-data="uploadsPage">
+  <div class="page-head">
+    <div>
+      <h1>Uploads</h1>
+      <p class="subtitle">Upload a workbook once: it is checked, and for types on the customer tables (Admin settings,
+        data source) saved in them straight away. Requests of those types then need no workbook of their own.</p>
+    </div>
+  </div>
+
+  <form class="panel row" @submit.prevent="send()">
+    <div><label for="type">Submission type</label>
+      <select id="type" x-model="type">
+        <template x-for="t in data?.types || []" :key="t.submission_type">
+          <option :value="t.submission_type" x-text="F.title(t.submission_type) + (t.source === 'master' ? ' (customer tables)' : ' (source views)')"></option>
+        </template></select></div>
+    <div><label for="asof">Data as of</label><input type="date" id="asof" x-model="asOf" required></div>
+    <div><label for="wb">Workbook (.xlsx)</label><input type="file" id="wb" accept=".xlsx" @change="file = $event.target.files[0] || null"></div>
+    <div><button type="submit" :disabled="busy || !file || !type || !asOf">Upload &amp; check</button></div>
+  </form>
+  <p class="muted" x-show="current()?.source === 'views'">This type is on the source views: the upload is checked here,
+    but its request still takes the workbook as before (switch it on Admin settings when ready).</p>
+
+  <div class="panel flush">
+    <div class="panel-head"><h2>Uploads</h2></div>
+    <div class="table-wrap" x-show="data?.uploads.length"><table>
+      <thead><tr><th>Uploaded</th><th>Type</th><th>As of</th><th>File</th><th>Checks</th><th>Customer tables</th></tr></thead>
+      <tbody>
+        <template x-for="u in data?.uploads || []" :key="u.load_id">
+          <tr>
+            <td><span x-text="F.dt(u.loaded_at)"></span><div class="hint" x-text="u.loaded_by"></div></td>
+            <td x-text="F.title(u.submission_type)"></td>
+            <td x-text="F.d(u.as_of_date)"></td>
+            <td class="mono" x-text="u.file_name"></td>
+            <td>
+              <span class="badge" :class="'b-' + u.status" x-text="u.status"></span>
+              <template x-for="g in u.summary || []" :key="g.code + g.sheet + g.column">
+                <div class="hint" :class="g.severity === 'ERROR' ? 'error' : ''"
+                     x-text="`${g.severity === 'ERROR' ? 'Blocks' : 'Warning'}: ${g.title} (${F.num(g.count)} row(s), ${g.sheet || ''})`"></div>
+              </template>
+            </td>
+            <td>
+              <template x-if="u.applied_at"><div><span class="badge b-SUCCEEDED">Saved</span>
+                <div class="hint" x-text="F.dt(u.applied_at)"></div><div class="hint" x-text="u.apply_summary"></div></div></template>
+              <span class="muted" x-show="!u.applied_at" x-text="u.source === 'master' ? 'Not saved (see checks)' : 'Source views: use in a request'"></span>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table></div>
+    <div class="panel-body muted" x-show="data && !data.uploads.length">No uploads yet.</div>
+  </div>
+</main>
+</body>
+</html>

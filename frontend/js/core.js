@@ -79,9 +79,10 @@ const Api = {
 
   // POST a file as multipart form data. Returns the JSON body; a 422 (a rejected workbook) is returned, not thrown,
   // so the page can show what was wrong with it.
-  async upload(path, file) {
+  async upload(path, file, fields = {}) {
     const form = new FormData();
     form.append("file", file);
+    for (const [k, v] of Object.entries(fields)) if (v !== undefined && v !== null) form.append(k, v);
     const headers = { "Accept": "application/json" };
     const token = await Auth.token();
     if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -284,7 +285,7 @@ const icon = (name) => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"
 
 const NAV = [
   ["Main"], ["howto", "howto.html", "How to", "help"], ["dashboard", "index.html", "Dashboard", "dashboard"],
-  ["new", "batch.html", "New request", "new"],
+  ["new", "batch.html", "New request", "new"], ["uploads", "uploads.html", "Uploads", "plus"],
   ["Reports"], ["tracker", "tracker.html", "Submission tracker", "tracker"],
   ["tudf", "tudf.html", "File viewer", "view"], ["files", "files.html", "Submitted files", "files"],
   ["audit", "audit.html", "Audit", "audit"],

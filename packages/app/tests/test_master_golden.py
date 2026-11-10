@@ -385,8 +385,10 @@ def test_the_pipeline_follows_the_data_source_setting(engine):
     request = SimpleNamespace(submission_type="COMMERCIAL", as_of_date=AS_OF)
     assert ViewsPipeline._compiled(services, tenant, request, 1).version.startswith("views-")
     S.put(engine, "nbfc_001", "data_source", {"COMMERCIAL": "master"}, "me")
-    with pytest.raises(ValueError, match="no loaded workbook"):
-        ViewsPipeline._compiled(services, tenant, request, None)
+    # no workbook of its own (Uploads page): the customer tables as they are; nothing applied yet, so none selected
+    assert ViewsPipeline._compiled(services, tenant, request, None).version.startswith("master-")
+    with engine.connect() as conn:
+        assert conn.execute(select(func.count()).select_from(dm_sanction)).scalar_one() == 0
     compiled = ViewsPipeline._compiled(services, tenant, request, 1)
     assert compiled.version.startswith("master-") and "account_history" not in compiled.sql
     with engine.connect() as conn:

@@ -28,7 +28,19 @@ def create_app(services: ApiServices, identify: IdentityProvider, frontend_dir: 
     app.config.update(MAX_CONTENT_LENGTH=1024 * 1024)
     app.extensions["bureau_submissions"] = services
 
-    from app.api import admin, adminpage, config, dashboard, exceptions, findings, inputs, meta, requests, rules  # noqa: F401  (routes)
+    from app.api import (  # noqa: F401  (routes)
+        admin,
+        adminpage,
+        config,
+        dashboard,
+        exceptions,
+        findings,
+        inputs,
+        meta,
+        requests,
+        rules,
+        uploads,
+    )
     from app.api.common import bp
 
     @app.before_request

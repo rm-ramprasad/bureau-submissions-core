@@ -117,7 +117,9 @@
                 + `${(input().latest.summary || []).filter((g) => g.severity !== 'ERROR').length} note(s)`
               : 'Not uploaded'"></span> <span x-text="isOpen('upload') ? '▾' : '▸'"></span></span></div>
         <div class="panel-body stack" x-show="isOpen('upload')">
-          <p class="muted" x-show="!input()?.needs_workbook">This type needs no workbook.</p>
+          <p class="muted" x-show="input()?.on_customer_tables">No workbook here: this type uses the customer tables,
+            filled from the <a href="uploads.html">Uploads</a> page.</p>
+          <p class="muted" x-show="!input()?.needs_workbook && !input()?.on_customer_tables">This type needs no workbook.</p>
           <p class="muted" x-show="input()?.needs_workbook && !input()?.latest">No workbook uploaded yet. Upload this
             period's input file (.xlsx): its sheets are loaded and checked straight away.</p>
           <template x-if="input()?.latest">
