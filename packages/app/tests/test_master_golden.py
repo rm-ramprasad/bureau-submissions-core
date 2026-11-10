@@ -25,14 +25,15 @@ from test_worker_golden import GOLDEN_FILES, worker  # noqa: F401  (fixture)
 from app.enums import BureauCode, ReportingCycle, RunMode
 from app.validation.run import store_result
 from bureau_core.contract import CanonicalBatch, ValidationResult
-from canonical.master.apply import PartyIn, SanctionIn, SanctionPartyIn, SecurityIn, apply_upload
-from canonical.master.tables import dm_party, dm_sanction
+from canonical.master.apply import apply_upload
+from canonical.master.tables import dm_party
 from canonical.position import POSITION_COLUMNS, VIEW
 from canonical.schema import ENTITY_TABLES, MODEL
 from canonical.snapshot import SnapshotRepository
 from canonical.tenants import TenantRepository
 from sources.extract import coerce, run_extract
-from sources.master import ID_COLUMNS, compile_master
+from sources.master import compile_master
+from sources.master_load import entities_to_master, typed
 
 AS_OF = date(2026, 9, 30)
 KINDS = {"date": Date, "amount": Numeric(20, 2), "number": Integer, "id": Integer}
@@ -43,11 +44,6 @@ def golden_json(name: str) -> tuple[dict, dict]:
         json.loads((GOLDEN / f"{name}.batch.json").read_text("utf-8")),
         json.loads((GOLDEN / f"{name}.result.json").read_text("utf-8")),
     )
-
-
-def typed(entity: str, row: dict) -> dict:
-    cols = {c.name: c for c in MODEL.entities[entity].columns}
-    return {k: coerce(cols[k], v) if k in cols else v for k, v in row.items()}
 
 
 def keyed_by_number(batch: dict) -> dict:
@@ -62,109 +58,17 @@ def keyed_by_number(batch: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------------------------------- golden -> L2a/L2b
-def _related_party(row: dict) -> PartyIn:
-    kind = "INDIVIDUAL" if "INDIVIDUAL" in (row["related_type"] or "") else "ENTITY"
-    values = {k: row[k] for k in ("full_name", "name_prefix", "business_category", "industry_type", "gender",
-                                  "birth_date", "incorporation_date")}  # fmt: skip
-    values = typed("relationship", values) | {"party_type": row["related_type"]}
-    address = {k: row[k] for k in ("address_line_1", "address_line_2", "address_line_3", "city", "district",
-                                   "state_code", "pin_code", "country")}  # fmt: skip
-    phones = [
-        {"phone_number": row["mobile"], "phone_type": "MOBILE"} if row["mobile"] else None,
-        {"phone_number": row["telephone"], "area_code": row["telephone_area_code"], "phone_type": "OFFICE"}
-        if row["telephone"]
-        else None,
-        {"phone_number": row["fax"], "area_code": row["fax_area_code"], "phone_type": "FAX"} if row["fax"] else None,
-    ]
-    return PartyIn(
-        row["related_key"],
-        kind,
-        values,
-        identifiers=[{"id_type": t, "id_number": row[c]} for c, t in ID_COLUMNS.items() if row[c]],
-        phones=[p for p in phones if p],
-        addresses=[address] if any(address.values()) else [],
-    )
-
-
 def load_master(engine, batch: dict) -> None:
-    """Split a golden batch into demographics (apply_upload) and positions (the stand-in view)."""
-    e, consumer = batch["entities"], batch["submission_type"] == "CONSUMER"
+    """Split a golden batch into demographics (the product's loader: entities_to_master -> apply_upload) and positions
+    (the stand-in view)."""
+    parties, sanctions = entities_to_master(batch["entities"], batch["submission_type"])
+    apply_upload(engine, "nbfc_001", 1, parties, sanctions)
+    install_positions(engine, batch)
 
-    def lists(entity: str, key: str) -> list[dict]:
-        return [
-            {k: v for k, v in typed(entity, r).items() if k not in ("row_id", "party_key")}
-            for r in e.get(entity, [])
-            if r["party_key"] == key
-        ]
 
-    parties = [
-        PartyIn(
-            p["party_key"],
-            "INDIVIDUAL" if consumer else "ENTITY",
-            {k: v for k, v in typed("party", p).items() if k not in ("row_id", "party_key")},
-            identifiers=lists("party_identifier", p["party_key"]),
-            phones=lists("party_phone", p["party_key"]),
-            emails=lists("party_email", p["party_key"]),
-            addresses=lists("party_address", p["party_key"]),
-        )
-        for p in e["party"]
-    ]
-    related = {r["related_key"]: _related_party(r) for r in e.get("relationship", []) + e.get("guarantor", [])}
-
-    sanction_fields = set(dm_sanction.c.keys()) - set(POSITION_COLUMNS) - {"sanction_id", "tenant_id"}
-    borrowers: dict[str, list[str]] = {}  # party -> its accounts (where it is the borrower)
-    sanctions = []
-    for a in e["account"]:
-        key = a["account_key"]
-        holders = [h for h in e["account_holder"] if h["account_key"] == key]
-        links = []
-        for i, h in enumerate(holders):
-            own = h["ownership_indicator"]
-            role = "GUARANTOR" if own == "GUARANTOR" else ("BORROWER" if i == 0 else "CO_BORROWER")
-            links.append(SanctionPartyIn(h["party_key"], role, {"ownership_indicator": own}))
-            if role == "BORROWER":
-                borrowers.setdefault(h["party_key"], []).append(key)
-        for g in (g for g in e.get("guarantor", []) if g["account_key"] == key):
-            links.append(
-                SanctionPartyIn(
-                    g["related_key"],
-                    "GUARANTOR",
-                    typed("guarantor", {"guarantee_invocation_date": g["guarantee_invocation_date"]}),
-                )
-            )
-        sanctions.append(
-            {
-                "key": key,
-                "number": a["account_number"],
-                "values": {k: v for k, v in typed("account", a).items() if k in sanction_fields},
-                "links": links,
-                "securities": [
-                    SecurityIn(
-                        f"S{i:04d}",
-                        {k: v for k, v in typed("security", s).items() if k not in ("row_id", "account_key")},
-                    )
-                    for i, s in enumerate(x for x in e.get("security", []) if x["account_key"] == key)
-                ],
-                "cheques": [
-                    {k: v for k, v in typed("cheque_dishonour", c).items() if k not in ("row_id", "account_key")}
-                    for c in e.get("cheque_dishonour", [])
-                    if c["account_key"] == key
-                ],
-            }
-        )
-    for r in e.get("relationship", []):  # a related party is linked on each of the borrower's sanctions
-        for s in sanctions:
-            if s["key"] in borrowers.get(r["party_key"], []):
-                v = typed("relationship", {k: r[k] for k in ("relationship_type", "control_percentage")})
-                s["links"].append(SanctionPartyIn(r["related_key"], "RELATED", v))
-    apply_upload(
-        engine,
-        "nbfc_001",
-        1,
-        parties + list(related.values()),
-        [SanctionIn(s["number"], "", s["values"], s["links"], s["securities"], s["cheques"]) for s in sanctions],
-    )
-
+def install_positions(engine, batch: dict) -> None:
+    """The stand-in account position view: each account on the as-of date, its history rows as earlier positions."""
+    e = batch["entities"]
     # positions: the account's figures on the as-of date, and its history rows as earlier positions
     meta = MetaData(schema="automn")
     pos = Table(VIEW, meta, *(Column(c, KINDS.get(k, String(100))) for c, k in POSITION_COLUMNS.items()))
@@ -311,3 +215,65 @@ def test_history_is_off_unless_asked(engine):
     assert "account_history" in compile_master(engine, "CONSUMER", history=True).sql
     with engine.connect() as conn:
         assert conn.execute(select(dm_party.c.customer_id).limit(1)).scalar() is not None
+
+
+# ---------------------------------------------------------------------------------------------------- parity report
+def install_keyed_views(engine, batch: dict) -> None:
+    """Stand-ins for the type's source views over the golden batch keyed by account number (as rarfincare's views
+    key accounts), returning load_id 1 and the as-of date."""
+    from sqlalchemy import text
+
+    t = batch["submission_type"].lower()
+    meta = MetaData(schema="automn")
+    for entity, rows in batch["entities"].items():
+        if not rows:
+            continue
+        columns = [c.name for c in MODEL.entities[entity].columns]
+        table = Table(f"src_{t}_{entity}", meta, *(Column(c, ENTITY_TABLES[entity].c[c].type) for c in columns))
+        table.create(engine)
+        with engine.begin() as conn:
+            conn.execute(insert(table), [typed(entity, {c: r.get(c) for c in columns}) for r in rows])
+            conn.execute(text(f"CREATE VIEW automn.vw_{t}_{entity} AS SELECT 1 AS load_id, '{AS_OF}' AS as_of_date, "
+                              f"{', '.join(columns)} FROM automn.src_{t}_{entity}"))  # fmt: skip
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_parity_report_on_the_golden_data_is_identical(engine, name):
+    from sources.master_parity import compare
+
+    batch = keyed_by_number(golden_json(name)[0])
+    install_keyed_views(engine, batch)
+    install_positions(engine, batch)
+    history = batch["submission_type"] == "CONSUMER"
+    report = compare(engine, engine, "nbfc_001", batch["submission_type"], AS_OF, 1, history=history)
+    assert report["same"], report["summary"]
+    assert "IDENTICAL" in report["summary"][0]
+    assert (
+        report["entities"]["account"]["views"]
+        == report["entities"]["account"]["master"]
+        == len(batch["entities"]["account"])
+    )
+
+
+def test_parity_report_shows_what_differs(engine):
+    """An account from an earlier upload, still in the master and in the LMS for the date but not in this upload:
+    the new path reports it, today's path does not. The report names it."""
+    from canonical.master.apply import PartyIn, SanctionIn, SanctionPartyIn
+    from sources.master_parity import compare
+
+    batch = keyed_by_number(golden_json("commercial_nbfc_001")[0])
+    install_keyed_views(engine, batch)
+    install_positions(engine, batch)
+    apply_upload(engine, "nbfc_001", 0, [PartyIn("OLD-B", "ENTITY", {"full_name": "Old Borrower"})],
+                 [SanctionIn("OLD-1", parties=[SanctionPartyIn("OLD-B", "BORROWER")])])  # fmt: skip
+    with engine.begin() as conn:
+        conn.execute(insert(Table(VIEW, MetaData(schema="automn"), autoload_with=conn)).values(
+            account_number="OLD-1", sanction_number="", as_of_date=AS_OF, current_balance=1, source="VIEW"))  # fmt: skip
+    report = compare(engine, engine, "nbfc_001", "COMMERCIAL", AS_OF, 1)
+    assert not report["same"] and "part(s) differ" in report["summary"][0]
+    acc = report["entities"]["account"]
+    assert (acc["views"], acc["master"], acc["only_in_views"]) == (18, 19, [])
+    assert [a["account_number"] for a in acc["only_in_master"]] == ["OLD-1"]
+    assert any(
+        line.startswith("account: 18 rows today, 19 new; 0 only today, 1 only new") for line in report["summary"]
+    )
