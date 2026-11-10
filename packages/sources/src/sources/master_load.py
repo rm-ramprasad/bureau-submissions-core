@@ -23,14 +23,14 @@ from sqlalchemy import Engine, text
 
 from canonical.master.apply import ApplyResult, PartyIn, SanctionIn, SanctionPartyIn, SecurityIn, apply_upload
 from canonical.master.tables import dm_sanction
-from canonical.position import POSITION_COLUMNS
 from canonical.schema import MODEL
 from sources.extract import coerce
 from sources.master import ID_COLUMNS
 from sources.views import bind_params, compile_views
 
 Rows = Mapping[str, Iterable[Mapping[str, Any]]]
-SANCTION_FIELDS = frozenset(dm_sanction.c.keys()) - set(POSITION_COLUMNS) - {
+# a field both the master and the position hold (actual_payment_amount) is stored too: the LMS wins, this is the fallback
+SANCTION_FIELDS = frozenset(dm_sanction.c.keys()) - {
     "sanction_id", "tenant_id", "is_active", "first_load_id", "last_load_id", "updated_at",
 }  # fmt: skip
 PERSON = (

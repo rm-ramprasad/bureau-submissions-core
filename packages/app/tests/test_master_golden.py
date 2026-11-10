@@ -328,3 +328,41 @@ def test_parity_report_explains_and_compares_by_value(engine):
         line.startswith("accounts only today: 1 (1 LMS figures for the date only in the COMMERCIAL")
         for line in report["summary"]
     )
+
+
+def test_the_workbook_payment_amount_fills_in_when_the_lms_has_none(engine):
+    """rarfincare's second report: 58 consumer accounts whose LMS has no actual payment amount; today's view takes
+    the workbook's, so the new path must too (the LMS still wins when it has one)."""
+    from sources.master_parity import compare
+
+    batch = keyed_by_number(golden_json("consumer_nbfc_001")[0])
+    install_keyed_views(engine, batch)
+    install_positions(engine, batch)
+    pos = Table(VIEW, MetaData(schema="automn"), autoload_with=engine)
+    with engine.begin() as conn:  # no payment amount in the LMS for any account; the views (workbook) still have it
+        conn.execute(pos.update().where(pos.c.as_of_date == AS_OF).values(actual_payment_amount=None))
+    report = compare(engine, engine, "nbfc_001", "CONSUMER", AS_OF, 1, history=True)
+    assert report["same"], report["summary"]
+
+
+def test_records_that_cannot_reach_a_file_are_set_aside(engine):
+    """rarfincare's commercial report: 21 accounts with no borrower and 4 borrowers with no account (no LMS row for
+    the date) in today's snapshot. A record needs both, so neither reaches a file in either path."""
+    from sources.master_parity import compare
+
+    batch = keyed_by_number(golden_json("commercial_nbfc_001")[0])
+    e = batch["entities"]
+    e["account"].append({**e["account"][0], "account_key": "NOHOLDER-1", "account_number": "NOHOLDER-1"})
+    e["party"].append({**e["party"][0], "party_key": "NOACC-B"})
+    e["account_holder"].append({"account_key": "NOACC-1", "party_key": "NOACC-B", "ownership_indicator": None})
+    e["party_phone"].append(
+        {"party_key": "NOACC-B", "phone_number": "9000000000", "phone_type": "MOBILE", "priority": 1}
+    )
+    install_keyed_views(engine, batch)
+    install_positions(engine, batch)
+    report = compare(engine, engine, "nbfc_001", "COMMERCIAL", AS_OF, 1)
+    assert report["same"], report["summary"]
+    assert report["left_out"] == {"accounts without a borrower": 1, "borrowers without an account": 1}
+    assert report["summary"][1] == (
+        "set aside (cannot reach a file in either path): 1 accounts without a borrower, 1 borrowers without an account"
+    )

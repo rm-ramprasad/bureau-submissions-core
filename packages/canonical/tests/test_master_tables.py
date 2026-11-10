@@ -30,7 +30,12 @@ def eng(tmp_path):
 def test_migration_creates_every_master_table() -> None:
     sql = "".join(
         (AZURE_MIGRATIONS / f).read_text()
-        for f in ("010_demographics_master.sql", "013_master_fields.sql", "014_master_lengths.sql")
+        for f in (
+            "010_demographics_master.sql",
+            "013_master_fields.sql",
+            "014_master_lengths.sql",
+            "015_sanction_payment_fallback.sql",
+        )
     )
     for table in MASTER_TABLES:
         assert f"CREATE TABLE automn.{table.name} (" in sql
