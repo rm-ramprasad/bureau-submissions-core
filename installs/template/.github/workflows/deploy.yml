@@ -46,7 +46,7 @@ jobs:
           CONFIRM: ${{ inputs.confirm }}
         run: |
           [ "$CONFIRM" = "$VERSION" ] || { echo "The confirmation ($CONFIRM) does not match the version ($VERSION)" >&2; exit 1; }
-      - uses: actions/checkout@v4      # install.json and scripts/; the code comes from the release
+      - uses: actions/checkout@v7      # install.json and scripts/; the code comes from the release
       - name: This install's names (install.json)
         run: |
           for k in resource_group:RG function_app:FUNCTION_APP static_web_app:STATIC_WEB_APP \
