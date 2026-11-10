@@ -76,6 +76,33 @@ def _example(entity: str, row: tuple[str, ...]) -> dict[str, str]:
     return {c.name: v for c, v in zip(MODEL.entities[entity].columns, row, strict=True) if v != ""}
 
 
+ACCOUNT_CHILDREN = ("account_history", "guarantor", "security", "cheque_dishonour")
+PARTY_CHILDREN = ("party_identifier", "party_phone", "party_email", "party_address", "relationship")
+
+
+def reportable(rows: dict[str, list[dict[str, Any]]]) -> tuple[dict[str, list[dict[str, Any]]], dict[str, int]]:
+    """The rows that can become a bureau record: a record needs an account AND its borrower (the files are written
+    from account + borrower pairs). An account without a holder, or a holder whose account has no LMS row for the
+    date, cannot reach a file in either path; they are set aside and counted. Returns (rows kept, counts)."""
+    accounts = {str(r["account_key"]) for r in rows.get("account", [])}
+    holders = [h for h in rows.get("account_holder", []) if str(h["account_key"]) in accounts]
+    held = {str(h["account_key"]) for h in holders}
+    parties = {str(h["party_key"]) for h in holders}
+    all_parties = {str(p["party_key"]) for p in rows.get("party", [])}
+    kept = dict(rows)
+    kept["account"] = [a for a in rows.get("account", []) if str(a["account_key"]) in held]
+    kept["account_holder"] = holders
+    kept["party"] = [p for p in rows.get("party", []) if str(p["party_key"]) in parties]
+    for e in ACCOUNT_CHILDREN:
+        kept[e] = [r for r in rows.get(e, []) if str(r["account_key"]) in held]
+    for e in PARTY_CHILDREN:
+        kept[e] = [r for r in rows.get(e, []) if str(r["party_key"]) in parties]
+    return kept, {
+        "accounts without a borrower": len(accounts - held),
+        "borrowers without an account": len(all_parties - parties),
+    }
+
+
 def compare(
     app_engine: Engine,
     source_engine: Engine,
@@ -100,6 +127,8 @@ def compare(
             params = bind_params(sql, {"as_of_date": as_of_date, "tenant_id": tenant_id})
             new[entity] = [dict(r._mapping) for r in conn.execute(text(sql), params)]
 
+    old, left_out = reportable(old)  # the same rule on both sides: only what can reach a file is compared
+    new, _ = reportable(new)
     entities: dict[str, Any] = {}
     summary: list[str] = []
     for entity in MODEL.entities:
@@ -146,4 +175,12 @@ def compare(
         + f" (master: {applied.parties_added} parties added, {applied.parties_updated} updated; "
         f"{applied.sanctions_added} accounts added, {applied.sanctions_updated} updated)"
     )
-    return {"same": same, "summary": [head, *summary], "accounts": accounts, "entities": entities}
+    aside = [f"{n} {what}" for what, n in left_out.items() if n]
+    note = [f"set aside (cannot reach a file in either path): {', '.join(aside)}"] if aside else []
+    return {
+        "same": same,
+        "summary": [head, *note, *summary],
+        "left_out": left_out,
+        "accounts": accounts,
+        "entities": entities,
+    }
