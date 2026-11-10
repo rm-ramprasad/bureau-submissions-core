@@ -223,6 +223,26 @@ def test_admin_function_route(azure_env):
         400,
         {"error": "Unknown job 'nope': use migrate, users, views, master-parity, recovery, retention"},
     )
+    status, body = call("master-parity", {"args": ["consumer", "--as-of", "2026-09-30", "--load-id", "1"]})
+    assert status == 400 and "Required views missing" in body["error"]
+
+
+def test_an_unexpected_admin_error_returns_its_reason(azure_env, monkeypatch):
+    import azure.functions as func
+
+    from shell_azure import handlers
+    from shell_azure.functions import admin as admin_function
+
+    def boom(event, **kw):
+        raise RuntimeError("String or binary data would be truncated in column 'phone_number'")
+
+    monkeypatch.setattr(handlers, "jobs", boom)
+    req = func.HttpRequest("POST", "/ops/master-parity", body=b"{}", route_params={"job": "master-parity"})
+    resp = admin_function._function._func(req) if hasattr(admin_function, "_function") else admin_function(req)
+    assert resp.status_code == 500
+    assert json.loads(resp.get_body()) == {
+        "error": "RuntimeError: String or binary data would be truncated in column 'phone_number'"
+    }
 
 
 def test_the_local_admin_command(azure_env, capsys):

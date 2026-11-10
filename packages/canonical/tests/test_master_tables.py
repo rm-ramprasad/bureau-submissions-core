@@ -28,11 +28,39 @@ def eng(tmp_path):
 
 
 def test_migration_creates_every_master_table() -> None:
-    sql = "".join((AZURE_MIGRATIONS / f).read_text() for f in ("010_demographics_master.sql", "013_master_fields.sql"))
+    sql = "".join(
+        (AZURE_MIGRATIONS / f).read_text()
+        for f in ("010_demographics_master.sql", "013_master_fields.sql", "014_master_lengths.sql")
+    )
     for table in MASTER_TABLES:
         assert f"CREATE TABLE automn.{table.name} (" in sql
         for col in table.columns:
             assert f"\t{col.name} " in sql, f"{table.name}.{col.name}"
+
+
+def test_master_columns_are_as_wide_as_the_snapshot_columns_they_feed() -> None:
+    """A value today's snapshot accepts must fit the master too (rarfincare: two phone numbers in one field)."""
+    from canonical.schema import ENTITY_TABLES
+
+    snapshot: dict[str, int] = {}
+    for table in ENTITY_TABLES.values():
+        for col in table.columns:
+            if getattr(col.type, "length", None):
+                snapshot[col.name] = max(snapshot.get(col.name, 0), col.type.length)
+    # the guarantor / relationship shapes' flattened fields land in these master columns
+    snapshot["phone_number"] = max(snapshot["phone_number"], snapshot["mobile"], snapshot["telephone"], snapshot["fax"])
+    snapshot["area_code"] = max(snapshot["telephone_area_code"], snapshot["fax_area_code"])
+    snapshot["id_number"] = max(
+        snapshot["id_number"], *(snapshot[c] for c in ("pan", "din", "cin", "company_registration"))
+    )
+    snapshot["customer_id"] = max(snapshot["party_key"], snapshot["related_key"])
+    narrow = [
+        f"{t.name}.{c.name}: {c.type.length} < {snapshot[c.name]}"
+        for t in MASTER_TABLES
+        for c in t.columns
+        if getattr(c.type, "length", None) and c.name in snapshot and c.type.length < snapshot[c.name]
+    ]
+    assert not narrow, narrow
 
 
 def test_party_sanction_role_round_trip(eng) -> None:
