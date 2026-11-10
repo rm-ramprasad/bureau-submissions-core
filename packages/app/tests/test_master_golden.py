@@ -328,3 +328,18 @@ def test_parity_report_explains_and_compares_by_value(engine):
         line.startswith("accounts only today: 1 (1 LMS figures for the date only in the COMMERCIAL")
         for line in report["summary"]
     )
+
+
+def test_the_workbook_payment_amount_fills_in_when_the_lms_has_none(engine):
+    """rarfincare's second report: 58 consumer accounts whose LMS has no actual payment amount; today's view takes
+    the workbook's, so the new path must too (the LMS still wins when it has one)."""
+    from sources.master_parity import compare
+
+    batch = keyed_by_number(golden_json("consumer_nbfc_001")[0])
+    install_keyed_views(engine, batch)
+    install_positions(engine, batch)
+    pos = Table(VIEW, MetaData(schema="automn"), autoload_with=engine)
+    with engine.begin() as conn:  # no payment amount in the LMS for any account; the views (workbook) still have it
+        conn.execute(pos.update().where(pos.c.as_of_date == AS_OF).values(actual_payment_amount=None))
+    report = compare(engine, engine, "nbfc_001", "CONSUMER", AS_OF, 1, history=True)
+    assert report["same"], report["summary"]

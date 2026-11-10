@@ -162,6 +162,7 @@ dm_sanction = Table(
     Column("suit_date", Date),
     Column("collateral_value", _AMOUNT),
     Column("collateral_type", _code()),
+    Column("actual_payment_amount", _AMOUNT),  # the workbook's, used when the LMS has none (migration 015)
     *_versioned(),
     UniqueConstraint("tenant_id", "account_number", "sanction_number", name="uq_dm_sanction_key"),
 )
