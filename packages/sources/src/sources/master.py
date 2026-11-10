@@ -110,8 +110,8 @@ def _typed_null(entity: str, column: str) -> ColumnElement[Any]:
 
 
 class _Builder:
-    def __init__(self, selection: Selection) -> None:
-        self.sel = selection
+    def __init__(self, selection: Selection, submission_type: str) -> None:
+        self.sel, self.submission_type = selection, submission_type
         s, p = dm_sanction.alias("s"), position.alias("p")
         self.s, self.p = s, p
         borrower = exists().where(
@@ -134,6 +134,7 @@ class _Builder:
                         p.c.account_number == s.c.account_number,
                         p.c.sanction_number == s.c.sanction_number,
                         p.c.as_of_date == _AS_OF,
+                        p.c.lms_type.in_((self.submission_type, "")),  # the format's own LMS view, or an upload
                     ),
                 )
             )
@@ -327,6 +328,7 @@ class _Builder:
                         h.c.account_number == a.c.account_number,
                         h.c.sanction_number == a.c.sanction_number,
                         h.c.as_of_date < _AS_OF,
+                        h.c.lms_type.in_((self.submission_type, "")),
                     ),
                 )
             )
@@ -372,7 +374,7 @@ def compile_master(engine: Engine, submission_type: str, *, history: bool = Fals
     if selection is None:
         raise MasterError(f"No selection defined for {submission_type} (sources.master.SELECTION)")
     sql, order = {}, {}
-    for entity, stmt in _Builder(selection).statements(history).items():
+    for entity, stmt in _Builder(selection, str(submission_type).upper()).statements(history).items():
         unordered, order[entity] = _order_outside(stmt)
         sql[entity] = str(unordered.compile(dialect=engine.dialect, compile_kwargs={"literal_binds": True}))
     fingerprint = hashlib.sha256("\n".join(f"{e}\n{q}" for e, q in sql.items()).encode()).hexdigest()[:16]

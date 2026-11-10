@@ -25,7 +25,14 @@ def test_each_part_returns_the_contract_columns_in_order(view: str) -> None:
 
 
 def test_upload_table_has_every_figure_of_the_contract() -> None:
-    figures = set(POSITION_COLUMNS) - {"account_number", "sanction_number", "as_of_date", "source", "source_load_id"}
+    figures = set(POSITION_COLUMNS) - {
+        "account_number",
+        "sanction_number",
+        "as_of_date",
+        "source",
+        "source_load_id",
+        "lms_type",
+    }
     assert set(UPLOAD_COLUMNS) == figures | {"account_number", "sanction_number", "position_date"}
     assert [c.name for c in stg_lms_position.columns][:2] == ["load_id", "source_row"]
     migration = (AZURE_MIGRATIONS / "012_lms_position_upload.sql").read_text()

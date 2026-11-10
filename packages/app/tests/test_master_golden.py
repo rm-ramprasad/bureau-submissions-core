@@ -76,7 +76,13 @@ def install_positions(engine, batch: dict) -> None:
     number = {a["account_key"]: a["account_number"] for a in e["account"]}
     rows = [
         {c: v for c, v in typed("account", a).items() if c in POSITION_COLUMNS}
-        | {"account_number": a["account_number"], "sanction_number": "", "as_of_date": AS_OF, "source": "VIEW"}
+        | {
+            "account_number": a["account_number"],
+            "sanction_number": "",
+            "as_of_date": AS_OF,
+            "source": "VIEW",
+            "lms_type": batch["submission_type"],
+        }
         for a in e["account"]
     ]
     for h in e.get("account_history", []):
@@ -88,6 +94,7 @@ def install_positions(engine, batch: dict) -> None:
                 "sanction_number": "",
                 "as_of_date": t["history_month"],
                 "source": "VIEW",
+                "lms_type": batch["submission_type"],
             }
         )
     with engine.begin() as conn:
@@ -268,7 +275,8 @@ def test_parity_report_shows_what_differs(engine):
                  [SanctionIn("OLD-1", parties=[SanctionPartyIn("OLD-B", "BORROWER")])])  # fmt: skip
     with engine.begin() as conn:
         conn.execute(insert(Table(VIEW, MetaData(schema="automn"), autoload_with=conn)).values(
-            account_number="OLD-1", sanction_number="", as_of_date=AS_OF, current_balance=1, source="VIEW"))  # fmt: skip
+            account_number="OLD-1", sanction_number="", as_of_date=AS_OF, current_balance=1, source="VIEW",
+            lms_type="COMMERCIAL"))  # fmt: skip
     report = compare(engine, engine, "nbfc_001", "COMMERCIAL", AS_OF, 1)
     assert not report["same"] and "part(s) differ" in report["summary"][0]
     acc = report["entities"]["account"]
@@ -276,4 +284,47 @@ def test_parity_report_shows_what_differs(engine):
     assert [a["account_number"] for a in acc["only_in_master"]] == ["OLD-1"]
     assert any(
         line.startswith("account: 18 rows today, 19 new; 0 only today, 1 only new") for line in report["summary"]
+    )
+
+
+def test_parity_report_explains_and_compares_by_value(engine):
+    """Rarfincare's first real report: the same account in both LMS views (each format must read its own), the
+    guarantor listed before the borrower, and 480038 vs 480038.00 (equal numbers)."""
+    from decimal import Decimal
+
+    from sqlalchemy import text
+
+    from sources.master_parity import compare
+
+    batch = keyed_by_number(golden_json("consumer_nbfc_001")[0])
+    e = batch["entities"]
+    first = e["account"][0]["account_number"]
+    holders = [h for h in e["account_holder"] if h["account_key"] == first]
+    others = [h for h in e["account_holder"] if h["account_key"] != first]
+    e["account_holder"] = [
+        {**holders[0], "ownership_indicator": "GUARANTOR", "party_key": e["party"][-1]["party_key"]},
+        *holders,
+        *others,
+    ]  # fmt: skip  (a guarantor row before the borrower)
+    install_keyed_views(engine, batch)
+    install_positions(engine, batch)
+    meta = MetaData(schema="automn")
+    pos = Table(VIEW, meta, autoload_with=engine)
+    with engine.begin() as conn:  # the commercial LMS view has the same account, with other figures
+        conn.execute(insert(pos).values(account_number=first, sanction_number="", as_of_date=AS_OF,
+                                        current_balance=Decimal("1.00"), source="VIEW", lms_type="COMMERCIAL"))  # fmt: skip
+        # the view gives 471875.18 as text with more decimals: equal by value
+        conn.execute(text("UPDATE automn.src_consumer_account SET current_balance = '471875.1800' WHERE rowid = 1"))
+    report = compare(engine, engine, "nbfc_001", "CONSUMER", AS_OF, 1, history=True)
+    assert report["same"], report["summary"]
+
+    with engine.begin() as conn:  # an account the LMS has no figures for on the date: the report says so
+        conn.execute(pos.delete().where(pos.c.account_number == first, pos.c.lms_type == "CONSUMER"))
+    report = compare(engine, engine, "nbfc_001", "CONSUMER", AS_OF, 1, history=True)
+    assert report["accounts"]["only_today"] == [
+        {"account_key": first, "why": "LMS figures for the date only in the COMMERCIAL LMS view"}
+    ]
+    assert any(
+        line.startswith("accounts only today: 1 (1 LMS figures for the date only in the COMMERCIAL")
+        for line in report["summary"]
     )
