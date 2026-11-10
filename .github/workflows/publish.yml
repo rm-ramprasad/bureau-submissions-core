@@ -30,7 +30,7 @@ jobs:
       VERSION: ${{ inputs.version }}
       CLIENT: ${{ inputs.client }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.version }}   # the install files as they were at that release
       - name: Release files and notes
