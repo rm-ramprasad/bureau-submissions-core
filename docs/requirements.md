@@ -511,6 +511,10 @@ Excel → converter path), `outputs` (10.1a), default bureau file-name pattern. 
 The CIC's MFI data-submission specification (record layout, code lists, validation rules) and a sample file the CIC
 has accepted. Then: check which engine fits, write the folder, goldens, release, switch on per client.
 
+**Spec received 2026-11-10:** [specs/UCRF_MFI_v3.3.1.md](specs/UCRF_MFI_v3.3.1.md) (UCRF for MFIs incl. SHG, v3.3.1,
+effective 01-07-2026). Design, decisions and order of work: [ADR 0003](adr/0003-mfi-format.md). Still needed: a sample
+file the CIC has accepted (or a CIC test window), and the first MFI client's data source.
+
 ### Order of work, added
 
 | # | Step | Sections |
