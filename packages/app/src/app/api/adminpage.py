@@ -138,6 +138,8 @@ def save_data_source(submission_type: str):
     source = b.get("source")
     if source not in client_settings.SOURCES:
         fail("source must be views or master")
+    if source == "master" and not client_settings.on_customer_tables_possible(kind):
+        fail(f"{kind.title()} cannot use the customer tables yet; it runs from the source views.")
     before = client_settings.data_source(s.engine, tenant_id, kind)
     if source == before:
         return message("Nothing changed.")

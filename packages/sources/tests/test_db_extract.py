@@ -183,7 +183,7 @@ def _master_data(engine: Engine) -> None:
     """Demographics through apply_upload; positions as an LMS upload (vw_pos_upload), on a date no other test uses."""
     from sqlalchemy import insert
 
-    from canonical.master.apply import PartyIn, SanctionIn, SanctionPartyIn, SecurityIn, apply_upload
+    from canonical.master.apply import AccountIn, PersonIn, SanctionIn, apply_upload
     from canonical.position import stg_lms_position
     from canonical.staging.tables import input_load
 
@@ -206,35 +206,34 @@ def _master_data(engine: Engine) -> None:
             [dict(load_id=load, source_row=i + 2, account_number=a, position_date=d, current_balance=b, days_past_due="0")
              for i, (a, d, b) in enumerate(rows)],
         )  # fmt: skip
-    people = [
-        PartyIn("MC1", "INDIVIDUAL", {"full_name": "Asha Kumar", "birth_date": date(1985, 8, 15)},
-                identifiers=[{"id_type": "PAN", "id_number": "ABCPK1234F"}], phones=[{"phone_number": "9876543210", "phone_type": "MOBILE", "priority": 1}]),
-        PartyIn("MK1", "ENTITY", {"full_name": "Acme Traders"}),
-        PartyIn("MR1", "INDIVIDUAL", {"full_name": "Ravi Director", "party_type": "INDIAN_INDIVIDUAL"},
-                identifiers=[{"id_type": "DIN", "id_number": "01234567"}],
-                addresses=[{"address_line_1": "1 Road", "state_code": "TAMIL_NADU", "pin_code": "600001", "priority": 1}],
-                phones=[{"phone_number": "2222", "area_code": "044", "phone_type": "OFFICE"},
-                        {"phone_number": "067-42303999,43137080", "phone_type": "HOME"}]),
-    ]  # fmt: skip
-    loans = [
-        SanctionIn("MST-C1", values={"account_type": "PERSONAL_LOAN", "suit_filed_status": "NO_SUIT_FILED"},
-                   parties=[SanctionPartyIn("MC1", "BORROWER", {"ownership_indicator": "INDIVIDUAL"})]),
-        SanctionIn("MST-K1", values={"account_type": "TERM_LOAN"},
-                   parties=[SanctionPartyIn("MK1", "BORROWER"), SanctionPartyIn("MR1", "RELATED", {"relationship_type": "PROMOTER_DIRECTOR"}),
-                            SanctionPartyIn("MR1", "GUARANTOR")],
-                   securities=[SecurityIn("S1", {"security_value": Decimal("700.00")})],
+    sanctions = [
+        SanctionIn("MST-C1", PersonIn("INDIVIDUAL", {"full_name": "Asha Kumar", "birth_date": date(1985, 8, 15),
+                                                     "ownership_indicator": "INDIVIDUAL"},
+                                      identifiers=[{"id_type": "PAN", "id_number": "ABCPK1234F"}],
+                                      phones=[{"phone_number": "9876543210", "phone_type": "MOBILE", "priority": 1}])),
+        SanctionIn("MST/SR-K", PersonIn("ENTITY", {"full_name": "Acme Traders"}),
+                   relationships=[{"related_key": "MR1", "relationship_type": "PROMOTER_DIRECTOR", "din": "01234567",
+                                   "related_type": "INDIAN_INDIVIDUAL", "full_name": "Ravi Director",
+                                   "address_line_1": "1 Road", "state_code": "TAMIL_NADU", "pin_code": "600001",
+                                   "telephone": "2222", "telephone_area_code": "044"}],
+                   guarantors=[{"related_key": "MR1", "full_name": "Ravi Director", "din": "01234567",
+                                "mobile": "067-42303999,43137080"}],
+                   securities=[{"security_value": Decimal("700.00")}],
                    cheques=[{"amount": Decimal("10.00"), "dishonour_date": date(2026, 12, 1)}]),
     ]  # fmt: skip
-    apply_upload(engine, TENANT.tenant_id, load, people, loans)
+    accounts = [AccountIn("MST-C1", "MST-C1", {"account_type": "PERSONAL_LOAN", "suit_filed_status": "NO_SUIT_FILED"}),
+                AccountIn("MST-K1", "MST/SR-K", {"account_type": "TERM_LOAN"})]  # fmt: skip
+    apply_upload(engine, TENANT.tenant_id, load, sanctions, accounts)
 
 
 @pytest.mark.parametrize("strategy", [ExtractStrategy.INSERT_SELECT, ExtractStrategy.STREAM])
 def test_master_extract_runs_on_real_databases(db: Engine, strategy: ExtractStrategy) -> None:
-    from canonical.master.tables import dm_party
+    from canonical.master.tables import dm_sanction
     from sources.master import compile_master
 
     with db.connect() as conn:
-        if conn.execute(select(dm_party.c.party_id).where(dm_party.c.customer_id == "MC1")).first() is None:
+        found = select(dm_sanction.c.sanction_id).where(dm_sanction.c.sanction_reference_number == "MST-C1")
+        if conn.execute(found).first() is None:
             conn.close()
             _master_data(db)
     tenant = replace(TENANT, extract_strategy=strategy)
@@ -265,7 +264,7 @@ def test_master_extract_runs_on_real_databases(db: Engine, strategy: ExtractStra
     )
     assert (hist.history_month, hist.current_balance) == (date(2026, 11, 20), Decimal("1090.00"))
     assert (rel.party_key, rel.related_key, rel.din, rel.state_code, rel.telephone, rel.telephone_area_code) == (
-        "MK1", "MR1", "01234567", "TAMIL_NADU", "2222", "044"
+        "MST/SR-K", "MR1", "01234567", "TAMIL_NADU", "2222", "044"
     )  # fmt: skip
 
 

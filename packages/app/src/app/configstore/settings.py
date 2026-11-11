@@ -76,7 +76,14 @@ def data_source(engine: Engine, tenant_id: str | None, submission_type: str) -> 
     """Where a validation of this type builds its snapshot: "views" (default) or "master"."""
     chosen = get_all(engine, tenant_id).get("data_source") if tenant_id else None
     value = (chosen or {}).get(str(submission_type).upper(), "views")
-    return value if value in SOURCES else "views"
+    return value if value in SOURCES and on_customer_tables_possible(submission_type) else "views"
+
+
+def on_customer_tables_possible(submission_type: str) -> bool:
+    """True if the type has a customer-table model (sources.master.SELECTION; MFI: not yet, owner 2026-11-11)."""
+    from sources.master import SELECTION
+
+    return str(submission_type).upper() in SELECTION
 
 
 def check_data_source(values: object) -> dict[str, str]:

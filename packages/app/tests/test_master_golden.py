@@ -1,4 +1,4 @@
-"""ADR 0002 PR 4: the snapshot built from the demographics master (L2a) and the account position (L2b) is the golden
+"""ADR 0002 PR 4 (sanction model since 2026-11-11): the snapshot built from the customer tables (L2a) and the account position (L2b) is the golden
 snapshot, and its files are the golden files.
 
 The golden batches (captures of the reference app's mock sources) are split the way a client's data would arrive:
@@ -18,15 +18,15 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-from app_helpers import GOLDEN, load_snapshot
+from app_helpers import GOLDEN
 from sqlalchemy import Column, Date, Integer, MetaData, Numeric, String, Table, func, insert, select
 from test_worker_golden import GOLDEN_FILES, worker  # noqa: F401  (fixture)
 
 from app.enums import BureauCode, ReportingCycle, RunMode
 from app.validation.run import store_result
-from bureau_core.contract import CanonicalBatch, ValidationResult
+from bureau_core.contract import ValidationResult
 from canonical.master.apply import apply_upload
-from canonical.master.tables import dm_party
+from canonical.master.tables import dm_sanction, dm_sanction_account
 from canonical.position import POSITION_COLUMNS, VIEW
 from canonical.schema import ENTITY_TABLES, MODEL
 from canonical.snapshot import SnapshotRepository
@@ -34,6 +34,7 @@ from canonical.tenants import TenantRepository
 from sources.extract import coerce, run_extract
 from sources.master import compile_master
 from sources.master_load import entities_to_master, typed
+from sources.master_parity import rekeyed as per_account
 
 AS_OF = date(2026, 9, 30)
 KINDS = {"date": Date, "amount": Numeric(20, 2), "number": Integer, "id": Integer}
@@ -61,9 +62,42 @@ def keyed_by_number(batch: dict) -> dict:
 def load_master(engine, batch: dict) -> None:
     """Split a golden batch into demographics (the product's loader: entities_to_master -> apply_upload) and positions
     (the stand-in view)."""
-    parties, sanctions = entities_to_master(batch["entities"], batch["submission_type"])
-    apply_upload(engine, "nbfc_001", 1, parties, sanctions)
+    sanctions, accounts = entities_to_master(batch["entities"], batch["submission_type"], refs_of(batch))
+    apply_upload(engine, "nbfc_001", 1, sanctions, accounts)
     install_positions(engine, batch)
+
+
+def per_sanction(batch: dict) -> dict:
+    """The golden batch as the sanction model reports it: commercial securities, guarantors and cheque dishonours
+    belong to the sanction (the borrower), so each of its accounts reports all of them (B0004: two accounts, one
+    security each -> both on each)."""
+    if batch["submission_type"] != "COMMERCIAL":
+        return batch
+    out = json.loads(json.dumps(batch))
+    e = out["entities"]
+    ref = {h["account_key"]: h["party_key"] for h in e["account_holder"]}
+    accounts: dict[str, list[str]] = {}
+    for a in e["account"]:
+        accounts.setdefault(ref.get(a["account_key"], a["account_key"]), []).append(a["account_key"])
+    for entity in ("security", "guarantor", "cheque_dishonour"):
+        rows: dict[str, list[dict]] = {}
+        for r in e.get(entity, []):
+            rest = {k: v for k, v in r.items() if k not in ("account_key", "row_id")}
+            group = rows.setdefault(ref.get(r["account_key"], r["account_key"]), [])
+            if rest not in group:
+                group.append(rest)
+        e[entity] = [{"account_key": a, **r} for g, rs in rows.items() for a in accounts.get(g, []) for r in rs]
+    return out
+
+
+def refs_of(batch: dict) -> dict[str, str]:
+    """Commercial: each account's sanction = its borrower in the golden batch (the mock keys borrowers B0001...; B0004
+    holds two accounts, as a sanction with two loan accounts)."""
+    if batch["submission_type"] != "COMMERCIAL":
+        return {}
+    number = {a["account_key"]: a["account_number"] for a in batch["entities"]["account"]}
+    refs = {h["account_key"]: h["party_key"] for h in batch["entities"]["account_holder"]}
+    return refs | {number[k]: v for k, v in refs.items() if k in number}
 
 
 def install_positions(engine, batch: dict) -> None:
@@ -138,8 +172,8 @@ NAMES = ["consumer_nbfc_001", "commercial_nbfc_001"]
 @pytest.mark.parametrize("name", NAMES)
 def test_the_master_snapshot_is_the_golden_snapshot(engine, name):
     sid, batch = extract_from_master(engine, name)
-    got = snapshot_rows(engine, sid)
-    want = keyed_by_number(batch)["entities"]
+    got = per_account(snapshot_rows(engine, sid))  # parties compared per account they hold (keys differ)
+    want = per_account(keyed_by_number(per_sanction(batch))["entities"])
     for entity in MODEL.entities:
         expected = Counter(_comparable(entity, r) for r in want.get(entity, []))
         actual = Counter(_comparable(entity, r) for r in got[entity])
@@ -194,25 +228,33 @@ def _generate(w, engine, sid: int, submission_type: str, result: ValidationResul
 
 @pytest.mark.parametrize("name", NAMES)
 def test_the_master_snapshot_writes_the_golden_files(engine, worker, name):  # noqa: F811  (fixture)
+    """Validated with today's rules, the files hold the golden records. Consumer: the same records, in account-number
+    order. Commercial: the golden lines, plus the second security of borrower B0004 on each of its two accounts
+    (securities belong to the sanction since 2026-11-11, owner)."""
+    from app.validation.run import validate_snapshot
+    from app.validation.settings import load_rule_set
+
     sid, batch = extract_from_master(engine, name)
-    _, result = golden_json(name)
-    number = {a["account_key"]: a["account_number"] for a in batch["entities"]["account"]}
-    keyed = keyed_by_number(batch)
-    keyed_result = _keyed_result(result, number)
-    files = _generate(worker, engine, sid, batch["submission_type"],
-                      _remapped_result(keyed_result, keyed["entities"], snapshot_rows(engine, sid)))  # fmt: skip
-    if batch["submission_type"] == "COMMERCIAL":
-        for bureau, content in files.items():
-            assert content == (GOLDEN_FILES / f"commercial_nbfc_001_{bureau}.txt").read_bytes(), bureau
-        return
-    # consumer: today's code on the golden batch keyed by account number
-    ref = load_snapshot(engine, CanonicalBatch.from_json(json.dumps(keyed)), batch_id="today", keep_row_ids=False)
-    ref_rows = snapshot_rows(engine, ref)
-    expected = _generate(worker, engine, ref, "CONSUMER", _remapped_result(keyed_result, keyed["entities"], ref_rows))
-    for bureau, content in files.items():
-        assert content == expected[bureau], bureau
-        golden_file = (GOLDEN_FILES / f"consumer_nbfc_001_{bureau}_via_excel.txt").read_bytes()
-        assert sorted(content) == sorted(golden_file) and len(content) == len(golden_file)  # same records, reordered
+    kind = batch["submission_type"]
+    validate_snapshot(engine, SnapshotRepository(engine), sid, load_rule_set(engine, "nbfc_001", kind))
+    b = worker.requests.create_batch(
+        "nbfc_001", AS_OF, RunMode.GENERATE, [kind], list(BureauCode),
+        reporting_cycle=ReportingCycle.MONTH_END, snapshot_id=sid,
+    )  # fmt: skip
+    worker.run_once()
+    for row in worker.requests.list_batch(b):
+        assert row.status.value == "SUCCEEDED", row.error_message
+        content = Path(row.output_file_path).read_bytes()
+        bureau = row.bureau_code.value.lower()
+        if kind == "CONSUMER":
+            golden = (GOLDEN_FILES / f"consumer_nbfc_001_{bureau}_via_excel.txt").read_bytes()
+            assert sorted(content) == sorted(golden) and len(content) == len(golden), bureau
+            continue
+        golden_lines = (GOLDEN_FILES / f"commercial_nbfc_001_{bureau}.txt").read_bytes().split(b"\r\n")
+        lines = content.split(b"\r\n")
+        extra = list((Counter(lines) - Counter(golden_lines)).elements())
+        assert not Counter(golden_lines) - Counter(lines), bureau  # every golden line is still there
+        assert [x[:2] for x in extra] == [b"SS"], (bureau, extra)  # one security added (B0004's other account)
 
 
 def test_history_is_off_unless_asked(engine):
@@ -221,7 +263,7 @@ def test_history_is_off_unless_asked(engine):
     assert "account_history" not in compile_master(engine, "CONSUMER").sql
     assert "account_history" in compile_master(engine, "CONSUMER", history=True).sql
     with engine.connect() as conn:
-        assert conn.execute(select(dm_party.c.customer_id).limit(1)).scalar() is not None
+        assert conn.execute(select(dm_sanction.c.sanction_reference_number).limit(1)).scalar() is not None
 
 
 # ---------------------------------------------------------------------------------------------------- parity report
@@ -242,13 +284,18 @@ def install_keyed_views(engine, batch: dict) -> None:
             conn.execute(insert(table), [typed(entity, {c: r.get(c) for c in columns}) for r in rows])
             conn.execute(text(f"CREATE VIEW automn.vw_{t}_{entity} AS SELECT 1 AS load_id, '{AS_OF}' AS as_of_date, "
                               f"{', '.join(columns)} FROM automn.src_{t}_{entity}"))  # fmt: skip
+    if t == "commercial":  # account -> sanction (the golden borrower)
+        with engine.begin() as conn:
+            conn.execute(text("CREATE VIEW automn.vw_commercial_account_ref AS SELECT 1 AS load_id, account_key AS "
+                              "account_number, party_key AS sanction_reference_number "
+                              "FROM automn.src_commercial_account_holder"))  # fmt: skip
 
 
 @pytest.mark.parametrize("name", NAMES)
 def test_parity_report_on_the_golden_data_is_identical(engine, name):
     from sources.master_parity import compare
 
-    batch = keyed_by_number(golden_json(name)[0])
+    batch = keyed_by_number(per_sanction(golden_json(name)[0]))  # rarfincare's views repeat GS/SS per account
     install_keyed_views(engine, batch)
     install_positions(engine, batch)
     history = batch["submission_type"] == "CONSUMER"
@@ -265,14 +312,14 @@ def test_parity_report_on_the_golden_data_is_identical(engine, name):
 def test_parity_report_shows_what_differs(engine):
     """An account from an earlier upload, still in the master and in the LMS for the date but not in this upload:
     the new path reports it, today's path does not. The report names it."""
-    from canonical.master.apply import PartyIn, SanctionIn, SanctionPartyIn
+    from canonical.master.apply import AccountIn, PersonIn, SanctionIn
     from sources.master_parity import compare
 
-    batch = keyed_by_number(golden_json("commercial_nbfc_001")[0])
+    batch = keyed_by_number(per_sanction(golden_json("commercial_nbfc_001")[0]))  # the views repeat SS per account
     install_keyed_views(engine, batch)
     install_positions(engine, batch)
-    apply_upload(engine, "nbfc_001", 0, [PartyIn("OLD-B", "ENTITY", {"full_name": "Old Borrower"})],
-                 [SanctionIn("OLD-1", parties=[SanctionPartyIn("OLD-B", "BORROWER")])])  # fmt: skip
+    apply_upload(engine, "nbfc_001", 0, [SanctionIn("OLD-B", PersonIn("ENTITY", {"full_name": "Old Borrower"}))],
+                 [AccountIn("OLD-1", "OLD-B")])  # fmt: skip
     with engine.begin() as conn:
         conn.execute(insert(Table(VIEW, MetaData(schema="automn"), autoload_with=conn)).values(
             account_number="OLD-1", sanction_number="", as_of_date=AS_OF, current_balance=1, source="VIEW",
@@ -350,7 +397,7 @@ def test_records_that_cannot_reach_a_file_are_set_aside(engine):
     the date) in today's snapshot. A record needs both, so neither reaches a file in either path."""
     from sources.master_parity import compare
 
-    batch = keyed_by_number(golden_json("commercial_nbfc_001")[0])
+    batch = keyed_by_number(per_sanction(golden_json("commercial_nbfc_001")[0]))  # the views repeat SS per account
     e = batch["entities"]
     e["account"].append({**e["account"][0], "account_key": "NOHOLDER-1", "account_number": "NOHOLDER-1"})
     e["party"].append({**e["party"][0], "party_key": "NOACC-B"})
@@ -375,9 +422,8 @@ def test_the_pipeline_follows_the_data_source_setting(engine):
 
     from app.configstore import settings as S
     from app.pipeline.views import ViewsPipeline
-    from canonical.master.tables import dm_sanction
 
-    batch = keyed_by_number(golden_json("commercial_nbfc_001")[0])
+    batch = keyed_by_number(per_sanction(golden_json("commercial_nbfc_001")[0]))  # the views repeat SS per account
     install_keyed_views(engine, batch)
     install_positions(engine, batch)
     services = SimpleNamespace(app_engine=engine, source_engine=engine)
@@ -388,13 +434,14 @@ def test_the_pipeline_follows_the_data_source_setting(engine):
     # no workbook of its own (Uploads page): the customer tables as they are; nothing applied yet, so none selected
     assert ViewsPipeline._compiled(services, tenant, request, None).version.startswith("master-")
     with engine.connect() as conn:
-        assert conn.execute(select(func.count()).select_from(dm_sanction)).scalar_one() == 0
+        assert conn.execute(select(func.count()).select_from(dm_sanction_account)).scalar_one() == 0
     compiled = ViewsPipeline._compiled(services, tenant, request, 1)
     assert compiled.version.startswith("master-") and "account_history" not in compiled.sql
     with engine.connect() as conn:
-        assert conn.execute(select(func.count()).select_from(dm_sanction)).scalar_one() == len(
+        assert conn.execute(select(func.count()).select_from(dm_sanction_account)).scalar_one() == len(
             batch["entities"]["account"]
         )
+        assert conn.execute(select(func.count()).select_from(dm_sanction)).scalar_one() == 17  # B0004: 2 accounts
     result = run_extract(tenant=tenant, compiled=compiled, submission_type="COMMERCIAL", as_of_date=AS_OF,
                          app_engine=engine, source_engine=engine, snapshots=SnapshotRepository(engine), owner="t")  # fmt: skip
     assert result.row_counts["account"] == len(batch["entities"]["account"])

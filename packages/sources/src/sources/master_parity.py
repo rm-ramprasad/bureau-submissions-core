@@ -1,6 +1,7 @@
 """Parity before the switch-over (ADR 0002 PR 6): for one upload and as-of date, the snapshot rows the current path
-builds (the type's source views) next to the rows the new path builds (the upload applied to the demographics master,
-then the master + account position). Equal rows mean equal files. Writes only the master (nothing reads it yet);
+builds (the type's source views) next to the rows the new path builds (the upload applied to the customer tables,
+then customer tables + account position). Rows are compared by what they report (parties re-keyed by the accounts
+they hold): a commercial sanction with several accounts is one borrower in the new path, one per account today. Writes only the master (nothing reads it yet);
 no snapshot is created.
 """
 
@@ -16,7 +17,7 @@ from sqlalchemy import Engine, select, text
 from canonical.schema import MODEL
 from sources.extract import coerce
 from sources.master import compile_master
-from sources.master_load import entities_to_master, groups_of, rows_from_views
+from sources.master_load import account_refs, entities_to_master, rows_from_views
 from sources.views import bind_params
 
 EXAMPLES = 5
@@ -36,29 +37,24 @@ def _row(entity: str, r: dict[str, Any]) -> tuple[str, ...]:
 
 def _why_missing(engine: Engine, tenant_id: str, submission_type: str, as_of_date: date, account: str) -> str:
     """Why the new path does not report an account the current path reports (in plain words)."""
-    from canonical.master.tables import dm_party, dm_sanction, dm_sanction_party
+    from canonical.master.tables import dm_sanction, dm_sanction_account
     from canonical.position import VIEW
     from sources.master import SELECTION
 
-    s, sp, pt = dm_sanction, dm_sanction_party, dm_party
+    a, s = dm_sanction_account, dm_sanction
     with engine.connect() as conn:
         found = conn.execute(
-            select(s.c.sanction_id, s.c.is_active).where(s.c.tenant_id == tenant_id, s.c.account_number == account)
-        ).first()
+            select(a.c.is_active, s.c.is_active.label("sanction_active"), s.c.party_kind)
+            .select_from(a.join(s, s.c.sanction_id == a.c.sanction_id))
+            .where(a.c.tenant_id == tenant_id, a.c.account_number == account)
+        ).first()  # fmt: skip
         if found is None:
-            return "not in the customer tables"
-        if not found.is_active:
+            return "not in the customer tables (no borrower for its sanction, or no LMS row on the upload date)"
+        if not (found.is_active and found.sanction_active):
             return "marked inactive in the customer tables"
-        links = conn.execute(
-            select(sp.c.role, pt.c.party_kind).select_from(sp.join(pt, pt.c.party_id == sp.c.party_id))
-            .where(sp.c.sanction_id == found.sanction_id)
-        ).all()  # fmt: skip
-        kinds = sorted({r.party_kind for r in links if r.role == "BORROWER"})
-        if not kinds:
-            return f"no borrower (roles: {', '.join(sorted({r.role for r in links})) or 'none'})"
         need = SELECTION[submission_type].borrower_kind
-        if need not in kinds:
-            return f"the borrower is {'/'.join(kinds)}, the format reports {need} borrowers"
+        if found.party_kind != need:
+            return f"the borrower is {found.party_kind}, the format reports {need} borrowers"
         rows = conn.execute(
             text(f"SELECT lms_type, COUNT(*) AS n FROM automn.{VIEW} WHERE account_number = :a AND as_of_date = :d "  # noqa: S608
                  "GROUP BY lms_type"),
@@ -70,6 +66,24 @@ def _why_missing(engine: Engine, tenant_id: str, submission_type: str, as_of_dat
         if not ({submission_type, "upload"} & set(types)):
             return f"LMS figures for the date only in the {'/'.join(sorted(types))} LMS view"
         return "selected: differs in its values"
+
+
+def rekeyed(rows: dict[str, list[dict[str, Any]]]) -> dict[str, list[dict[str, Any]]]:
+    """Party rows once per account the party holds, keyed by that account: the current path keys a borrower per
+    account, the customer tables per sanction (one borrower for all its accounts), so rows compare by what each
+    account reports, not by their key."""
+    held: dict[str, list[str]] = {}
+    for h in rows.get("account_holder", []):
+        held.setdefault(str(h["party_key"]), []).append(str(h["account_key"]))
+    out = dict(rows)
+    for entity, rs in rows.items():
+        if entity == "account_holder":
+            out[entity] = [r | {"party_key": str(r["account_key"])} for r in rs]
+        elif rs and "party_key" in rs[0]:
+            out[entity] = [
+                r | {"party_key": a} for r in rs for a in held.get(str(r["party_key"]), [str(r["party_key"])])
+            ]
+    return out
 
 
 def _example(entity: str, row: tuple[str, ...]) -> dict[str, str]:
@@ -118,8 +132,10 @@ def compare(
 
     submission_type = submission_type.upper()
     old = rows_from_views(source_engine, submission_type, as_of_date, load_id)
-    parties, sanctions = entities_to_master(old, submission_type)
-    applied = apply_upload(app_engine, tenant_id, load_id, parties, sanctions, groups_of(old))
+    sanctions, account_rows = entities_to_master(
+        old, submission_type, account_refs(source_engine, submission_type, load_id)
+    )
+    applied = apply_upload(app_engine, tenant_id, load_id, sanctions, account_rows)
     compiled = compile_master(app_engine, submission_type, history=history)
     new: dict[str, list[dict[str, Any]]] = {}
     with app_engine.connect() as conn:
@@ -129,6 +145,7 @@ def compare(
 
     old, left_out = reportable(old)  # the same rule on both sides: only what can reach a file is compared
     new, _ = reportable(new)
+    old, new = rekeyed(old), rekeyed(new)
     entities: dict[str, Any] = {}
     summary: list[str] = []
     for entity in MODEL.entities:
@@ -172,8 +189,8 @@ def compare(
     head = (
         f"{submission_type} {as_of_date} upload {load_id}: "
         + ("IDENTICAL - every row the same" if same else f"{len(summary)} part(s) differ")
-        + f" (master: {applied.parties_added} parties added, {applied.parties_updated} updated; "
-        f"{applied.sanctions_added} accounts added, {applied.sanctions_updated} updated)"
+        + f" (customer tables: {applied.sanctions_added} sanctions added, {applied.sanctions_updated} updated; "
+        f"{applied.accounts_added} accounts added, {applied.accounts_updated} updated)"
     )
     aside = [f"{n} {what}" for what, n in left_out.items() if n]
     note = [f"set aside (cannot reach a file in either path): {', '.join(aside)}"] if aside else []

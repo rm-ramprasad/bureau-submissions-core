@@ -117,24 +117,21 @@ def test_mssql_master_apply_is_stable(mssql_migrated: Engine) -> None:
     from datetime import date
     from decimal import Decimal
 
-    from canonical.master.apply import PartyIn, SanctionIn, SanctionPartyIn, SecurityIn, apply_upload
+    from canonical.master.apply import AccountIn, PersonIn, SanctionIn, apply_upload
 
-    party = PartyIn(
-        "DBT1",
-        "INDIVIDUAL",
-        {"full_name": "Test Ünicode", "birth_date": date(1990, 1, 2), "income": Decimal("50000.5")},
-        phones=[{"phone_number": "9000000001"}],
-    )
-    loan = SanctionIn(
-        "DBT-L1",
-        values={"rate_of_interest": Decimal("12.25"), "repayment_tenure": 36},
-        parties=[SanctionPartyIn("DBT1", "BORROWER", {"control_percentage": Decimal("100")})],
-        securities=[SecurityIn("s-b"), SecurityIn("S-A")],
-    )
-    first = apply_upload(mssql_migrated, "dbtest", 1, [party], [loan])
-    again = apply_upload(mssql_migrated, "dbtest", 2, [party], [loan])
-    assert (first.parties_added, first.sanctions_added) == (1, 1)
-    assert (again.parties_unchanged, again.sanctions_unchanged, again.changes) == (1, 1, 0)
+    sanction = SanctionIn(
+        "DBT/SR-1",
+        PersonIn("ENTITY", {"full_name": "Test Ünicode", "incorporation_date": date(1990, 1, 2),
+                            "sales_amount": Decimal("50000.5")}, phones=[{"phone_number": "9000000001"}]),
+        relationships=[{"related_key": "RS-1", "control_percentage": Decimal("100")}],
+        securities=[{"security_value": Decimal("1.5")}, {"security_value": Decimal("2")}],
+    )  # fmt: skip
+    accounts = [AccountIn("DBT-L1", "DBT/SR-1", {"rate_of_interest": Decimal("12.25"), "repayment_tenure": 36}),
+                AccountIn("DBT-L2", "DBT/SR-1")]  # fmt: skip
+    first = apply_upload(mssql_migrated, "dbtest", 1, [sanction], accounts)
+    again = apply_upload(mssql_migrated, "dbtest", 2, [sanction], accounts)
+    assert (first.sanctions_added, first.accounts_added) == (1, 2)
+    assert (again.sanctions_unchanged, again.accounts_unchanged, again.changes) == (1, 2, 0)
 
 
 def _position_data(engine: Engine) -> None:

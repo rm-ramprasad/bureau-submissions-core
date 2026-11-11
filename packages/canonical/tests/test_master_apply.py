@@ -1,4 +1,4 @@
-"""Applying an upload to the L2a demographics master: the owner's rules (ADR 0002), one test each."""
+"""Applying an upload to the L2a customer tables (sanction model, owner 2026-11-11): one test per rule."""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -7,27 +7,22 @@ import pytest
 from sqlalchemy import func, select
 
 from canonical.db import make_engine, metadata
-from canonical.master.apply import (
-    LIST_FIELD,
-    PartyIn,
-    SanctionIn,
-    SanctionPartyIn,
-    SecurityIn,
-    UploadConflict,
-    apply_upload,
-)
+from canonical.master.apply import LIST_FIELD, AccountIn, PersonIn, SanctionIn, UploadConflict, apply_upload
 from canonical.master.tables import (
     MASTER_TABLES,
     dm_change_log,
-    dm_party,
-    dm_party_phone,
     dm_sanction,
-    dm_sanction_party,
-    dm_security,
+    dm_sanction_account,
+    dm_sanction_address,
+    dm_sanction_guarantor,
+    dm_sanction_holder,
+    dm_sanction_phone,
+    dm_sanction_relationship,
+    dm_sanction_security,
 )
 
 T = "nbfc_001"
-NOW = datetime(2026, 11, 8, 10)
+NOW = datetime(2026, 11, 11, 10)
 
 
 @pytest.fixture
@@ -37,23 +32,25 @@ def eng(tmp_path):
     return engine
 
 
-def _ravi(**values) -> PartyIn:
-    base = dict(full_name="Ravi Kumar", birth_date=date(1990, 1, 2), gender="MALE", income=Decimal("50000.00"))
-    return PartyIn("C1", "INDIVIDUAL", {**base, **values}, phones=[{"phone_number": "9000000001"}])
-
-
-def _loan(**values) -> SanctionIn:
+def _acme(ref="SR/1", **values) -> SanctionIn:
+    base = dict(full_name="Acme Traders", legal_constitution="PROPRIETORSHIP")
     return SanctionIn(
-        "L1",
-        values={"account_type": "PERSONAL_LOAN", "sanctioned_amount": Decimal("100000.00"), **values},
-        parties=[SanctionPartyIn("C1", "borrower")],
-        securities=[SecurityIn("S1", {"security_value": Decimal("5000.00")})],
-    )
+        ref,
+        PersonIn("ENTITY", {**base, **values}, phones=[{"phone_number": "9000000001", "phone_type": "MOBILE"}],
+                 addresses=[{"address_line_1": "1 Main Rd", "state_code": "TAMIL_NADU", "pin_code": "600001"}]),
+        guarantors=[{"related_key": "GS-SR/1-2", "full_name": "Ravi", "pan": "ABCPR1234F"}],
+        relationships=[{"related_key": "RS-SR/1-2", "full_name": "Meena", "relationship_type": "PROPRIETOR"}],
+        securities=[{"security_value": Decimal("5000.00"), "security_type": "PROPERTY"}],
+    )  # fmt: skip
 
 
-def _one(eng, table):
+def _acc(number="A1", ref="SR/1", **values) -> AccountIn:
+    return AccountIn(number, ref, {"account_type": "TERM_LOAN", "sanctioned_amount": Decimal("100000.00"), **values})
+
+
+def _all(eng, table) -> list:
     with eng.connect() as conn:
-        return conn.execute(select(table)).one()
+        return conn.execute(select(table)).all()
 
 
 def _count(eng, table) -> int:
@@ -64,200 +61,119 @@ def _count(eng, table) -> int:
 def _log(eng) -> list[tuple]:
     t = dm_change_log
     with eng.connect() as conn:
-        return [
-            tuple(r)
-            for r in conn.execute(
-                select(t.c.entity, t.c.entity_key, t.c.field, t.c.old_value, t.c.new_value, t.c.load_id).order_by(
-                    t.c.change_id
-                )
-            )
-        ]
+        q = select(t.c.entity, t.c.entity_key, t.c.field, t.c.old_value, t.c.new_value).order_by(t.c.change_id)
+        return [tuple(r) for r in conn.execute(q)]
 
 
-def test_first_upload_adds_everything_without_change_log(eng) -> None:
-    r = apply_upload(eng, T, 1, [_ravi()], [_loan()], now=NOW)
-    assert (r.parties_added, r.sanctions_added, r.changes, r.warnings) == (1, 1, 0, [])
-    p, s = _one(eng, dm_party), _one(eng, dm_sanction)
-    assert (p.customer_id, p.full_name, p.first_load_id, p.last_load_id, p.is_active) == (
-        "C1",
-        "Ravi Kumar",
-        1,
-        1,
-        True,
-    )
-    assert (s.account_number, s.sanction_number, s.sanctioned_amount) == ("L1", "", Decimal("100000.00"))
-    link = _one(eng, dm_sanction_party)
-    assert (link.party_id, link.role, link.load_id) == (p.party_id, "BORROWER", 1)
-    assert _one(eng, dm_security).security_value == Decimal("5000.00")
-    assert _one(eng, dm_party_phone).seq == 1
+def test_one_sanction_with_its_lists_and_several_accounts(eng) -> None:
+    r = apply_upload(eng, T, 1, [_acme()], [_acc("A1"), _acc("A2")], now=NOW)
+    assert (r.sanctions_added, r.accounts_added, r.changes, r.warnings) == (1, 2, 0, [])
+    (s,) = _all(eng, dm_sanction)
+    assert (s.sanction_reference_number, s.party_kind, s.full_name, s.first_load_id) == ("SR/1", "ENTITY",
+                                                                                          "Acme Traders", 1)  # fmt: skip
+    assert {(a.account_number, a.sanction_id) for a in _all(eng, dm_sanction_account)} == {("A1", s.sanction_id),
+                                                                                          ("A2", s.sanction_id)}  # fmt: skip
+    assert [(p.holder_seq, p.seq, p.phone_number) for p in _all(eng, dm_sanction_phone)] == [(0, 1, "9000000001")]
+    assert [a.pin_code for a in _all(eng, dm_sanction_address)] == ["600001"]
+    assert [g.pan for g in _all(eng, dm_sanction_guarantor)] == ["ABCPR1234F"]
+    assert [x.relationship_type for x in _all(eng, dm_sanction_relationship)] == ["PROPRIETOR"]
+    assert [x.security_value for x in _all(eng, dm_sanction_security)] == [Decimal("5000.00")]
 
 
 def test_same_upload_again_changes_nothing(eng) -> None:
-    apply_upload(eng, T, 1, [_ravi()], [_loan()], now=NOW)
-    r = apply_upload(eng, T, 2, [_ravi()], [_loan()], now=NOW)
-    assert (r.parties_unchanged, r.sanctions_unchanged, r.changes) == (1, 1, 0)
-    assert _one(eng, dm_party).last_load_id == 1
+    apply_upload(eng, T, 1, [_acme()], [_acc()], now=NOW)
+    r = apply_upload(eng, T, 2, [_acme()], [_acc()], now=NOW)
+    assert (r.sanctions_unchanged, r.accounts_unchanged, r.changes) == (1, 1, 0)
+    assert _all(eng, dm_sanction)[0].last_load_id == 1
 
 
 def test_newest_wins_and_a_blank_clears_with_change_log(eng) -> None:
-    apply_upload(eng, T, 1, [_ravi()], [_loan()], now=NOW)
-    r = apply_upload(eng, T, 2, [_ravi(full_name="Ravi K", gender="  ", income=None)], [], now=NOW)
-    p = _one(eng, dm_party)
-    assert (p.full_name, p.gender, p.income, p.birth_date, p.first_load_id, p.last_load_id) == (
-        "Ravi K",
-        None,
-        None,
-        date(1990, 1, 2),
-        1,
-        2,
-    )
-    assert (r.parties_updated, r.cleared) == (1, 2)
-    assert _log(eng) == [
-        ("dm_party", "C1", "full_name", "Ravi Kumar", "Ravi K", 2),
-        ("dm_party", "C1", "gender", "MALE", None, 2),
-        ("dm_party", "C1", "income", "50000.00", None, 2),
-    ]
+    apply_upload(eng, T, 1, [_acme()], [_acc()], now=NOW)
+    r = apply_upload(eng, T, 2, [_acme(full_name="Acme Traders Pvt", legal_constitution=" ")],
+                     [_acc(sanctioned_amount=Decimal("90000.00"))], now=NOW)  # fmt: skip
+    assert (r.sanctions_updated, r.accounts_updated, r.cleared) == (1, 1, 1)
+    s = _all(eng, dm_sanction)[0]
+    assert (s.full_name, s.legal_constitution, s.last_load_id) == ("Acme Traders Pvt", None, 2)
+    assert ("dm_sanction", "SR/1", "full_name", "Acme Traders", "Acme Traders Pvt") in _log(eng)
+    assert ("dm_sanction_account", "A1", "sanctioned_amount", "100000.00", "90000.00") in _log(eng)
 
 
-def test_a_field_missing_from_the_upload_is_a_blank(eng) -> None:
-    apply_upload(eng, T, 1, [_ravi()], [], now=NOW)
-    apply_upload(eng, T, 2, [PartyIn("C1", "INDIVIDUAL", {"full_name": "Ravi Kumar"})], [], now=NOW)
-    assert _one(eng, dm_party).birth_date is None
+def test_lists_are_replaced_per_sanction(eng) -> None:
+    apply_upload(eng, T, 1, [_acme()], [], now=NOW)
+    moved = SanctionIn("SR/1", PersonIn("ENTITY", {"full_name": "Acme Traders", "legal_constitution": "PROPRIETORSHIP"},
+                                        phones=[{"phone_number": "9000000002"}, {"phone_number": "9000000003"}]))  # fmt: skip
+    apply_upload(eng, T, 2, [moved], [], now=NOW)
+    assert [p.phone_number for p in _all(eng, dm_sanction_phone)] == ["9000000002", "9000000003"]
+    assert _count(eng, dm_sanction_guarantor) == _count(eng, dm_sanction_address) == 0  # replaced by nothing
+    assert any(e == "dm_sanction_guarantor" and f == LIST_FIELD for e, _, f, *_ in _log(eng))
 
 
-def test_lists_are_replaced_per_customer(eng) -> None:
-    apply_upload(eng, T, 1, [_ravi()], [], now=NOW)
-    two = PartyIn(
-        "C1",
-        "INDIVIDUAL",
-        _ravi().values,
-        phones=[{"phone_number": "9000000002"}, {"phone_number": "9000000003", "phone_type": "HOME"}],
-    )
-    apply_upload(eng, T, 2, [two], [], now=NOW)
-    with eng.connect() as conn:
-        rows = conn.execute(
-            select(dm_party_phone.c.seq, dm_party_phone.c.phone_number, dm_party_phone.c.load_id).order_by(
-                dm_party_phone.c.seq
-            )
-        ).all()
-    assert [tuple(r) for r in rows] == [(1, "9000000002", 2), (2, "9000000003", 2)]
-    assert _log(eng) == [
-        (
-            "dm_party_phone",
-            "C1",
-            LIST_FIELD,
-            "9000000001 |  |  |  | ",
-            "9000000002 |  |  |  | ; 9000000003 |  | HOME |  | ",
-            2,
-        )
-    ]
-
-
-def test_customers_not_in_the_upload_are_untouched(eng) -> None:
-    apply_upload(eng, T, 1, [_ravi(), PartyIn("C2", "ENTITY", {"full_name": "Acme"})], [], now=NOW)
-    apply_upload(eng, T, 2, [_ravi(full_name="Ravi K")], [], now=NOW)
-    with eng.connect() as conn:
-        acme = conn.execute(select(dm_party).where(dm_party.c.customer_id == "C2")).one()
-    assert (acme.full_name, acme.last_load_id) == ("Acme", 1)
-    assert _count(eng, dm_party_phone) == 1
-
-
-def test_sanction_parties_and_securities_are_replaced(eng) -> None:
-    apply_upload(eng, T, 1, [_ravi(), PartyIn("C2", "INDIVIDUAL")], [_loan()], now=NOW)
-    loan = SanctionIn(
+def test_consumer_holders_keep_their_order_and_contacts(eng) -> None:
+    joint = SanctionIn(
         "L1",
-        values=_loan().values,
-        parties=[SanctionPartyIn("C1", "BORROWER"), SanctionPartyIn("C2", "GUARANTOR")],
-    )
-    apply_upload(eng, T, 2, [], [loan], now=NOW)
-    with eng.connect() as conn:
-        roles = sorted(conn.execute(select(dm_sanction_party.c.role)).scalars())
-    assert roles == ["BORROWER", "GUARANTOR"]
-    assert _count(eng, dm_security) == 0
-    assert [e[:3] for e in _log(eng)] == [("dm_sanction_party", "L1", LIST_FIELD), ("dm_security", "L1", LIST_FIELD)]
+        PersonIn("INDIVIDUAL", {"full_name": "Asha", "ownership_indicator": "JOINT"},
+                 phones=[{"phone_number": "9000000001"}]),
+        holders=[PersonIn("INDIVIDUAL", {"full_name": "Ravi", "ownership_indicator": "JOINT"}, role="co_borrower",
+                          phones=[{"phone_number": "9000000009"}]),
+                 PersonIn("INDIVIDUAL", {"full_name": "Kumar", "ownership_indicator": "GUARANTOR"}, role="GUARANTOR")],
+    )  # fmt: skip
+    apply_upload(eng, T, 1, [joint], [AccountIn("L1", "L1")], now=NOW)
+    assert [(h.holder_seq, h.role, h.full_name) for h in _all(eng, dm_sanction_holder)] == [
+        (1, "CO_BORROWER", "Ravi"), (2, "GUARANTOR", "Kumar")]  # fmt: skip
+    assert sorted((p.holder_seq, p.phone_number) for p in _all(eng, dm_sanction_phone)) == [(0, "9000000001"),
+                                                                                           (1, "9000000009")]  # fmt: skip
 
 
-def test_a_sanction_may_link_a_customer_from_an_earlier_upload(eng) -> None:
-    apply_upload(eng, T, 1, [_ravi()], [], now=NOW)
-    r = apply_upload(eng, T, 2, [], [_loan()], now=NOW)
-    assert r.sanctions_added == 1
+def test_sanctions_and_accounts_not_in_the_upload_are_untouched(eng) -> None:
+    apply_upload(eng, T, 1, [_acme(), _acme("SR/2")], [_acc("A1"), _acc("A2", "SR/2")], now=NOW)
+    apply_upload(eng, T, 2, [_acme(full_name="Changed")], [_acc("A1")], now=NOW)
+    names = {s.sanction_reference_number: s.full_name for s in _all(eng, dm_sanction)}
+    assert names == {"SR/1": "Changed", "SR/2": "Acme Traders"}
+    assert _count(eng, dm_sanction_account) == 2
 
 
-def test_an_unknown_customer_blocks_the_whole_upload(eng) -> None:
-    loan = SanctionIn("L1", parties=[SanctionPartyIn("C9", "BORROWER")])
-    with pytest.raises(UploadConflict, match=r"unknown customer.*C9"):
-        apply_upload(eng, T, 1, [_ravi()], [loan], now=NOW)
-    assert _count(eng, dm_party) == 0  # nothing applied
+def test_an_account_may_link_a_sanction_from_an_earlier_upload(eng) -> None:
+    apply_upload(eng, T, 1, [_acme()], [], now=NOW)
+    r = apply_upload(eng, T, 2, [], [_acc("A9")], now=NOW)
+    assert r.accounts_added == 1 and r.warnings == []
+
+
+def test_an_account_of_an_unknown_sanction_is_left_out_with_a_warning(eng) -> None:
+    r = apply_upload(eng, T, 1, [_acme()], [_acc("A1"), _acc("A2", "SR/9")], now=NOW)
+    assert r.accounts_added == 1 and "no borrower" in r.warnings[0] and "A2" in r.warnings[0]
+
+
+def test_the_same_key_with_different_values_uses_the_first_and_warns(eng) -> None:
+    r = apply_upload(eng, T, 1, [_acme(), _acme(full_name="Other")], [_acc(), _acc(remark="x")], now=NOW)
+    assert _all(eng, dm_sanction)[0].full_name == "Acme Traders"
+    assert any("Sanction(s)" in w and "SR/1" in w for w in r.warnings)
+    assert any("Account(s)" in w and "A1" in w for w in r.warnings)
 
 
 def test_an_exact_repeat_counts_once(eng) -> None:
-    r = apply_upload(eng, T, 1, [_ravi(), _ravi()], [_loan(), _loan()], now=NOW)
-    assert (r.parties_added, r.sanctions_added) == (1, 1)
+    r = apply_upload(eng, T, 1, [_acme(), _acme()], [_acc(), _acc()], now=NOW)
+    assert (r.sanctions_added, r.accounts_added, r.warnings) == (1, 1, [])
 
 
-@pytest.mark.parametrize(
-    "parties, sanctions, message",
-    [
-        ([_ravi(), _ravi(full_name="Other")], [], "Customer C1"),
-        ([_ravi()], [_loan(), _loan(sanctioned_amount=Decimal(1))], "Account"),
-        (
-            [_ravi()],
-            [
-                SanctionIn(
-                    "L1",
-                    parties=[
-                        SanctionPartyIn("C1", "GUARANTOR", {"control_percentage": 1}),
-                        SanctionPartyIn("C1", "guarantor"),
-                    ],
-                )
-            ],
-            "C1 as GUARANTOR",
-        ),
-        ([], [SanctionIn("L1", securities=[SecurityIn("S1"), SecurityIn("S1", {"currency": "INR"})])], "security S1"),
-        ([PartyIn(" ", "INDIVIDUAL")], [], "without a key"),
-    ],
-)
-def test_conflicts_inside_one_upload_block_it(eng, parties, sanctions, message) -> None:
-    with pytest.raises(UploadConflict, match=message):
-        apply_upload(eng, T, 1, parties, sanctions, now=NOW)
+def test_a_sanction_without_a_reference_blocks_the_upload(eng) -> None:
+    with pytest.raises(UploadConflict, match="without a key"):
+        apply_upload(eng, T, 1, [_acme(" ")], [], now=NOW)
+    assert _count(eng, dm_sanction) == 0
 
 
 def test_unknown_fields_are_refused(eng) -> None:
-    with pytest.raises(ValueError, match=r"unknown field.*shoe_size"):
-        apply_upload(eng, T, 1, [PartyIn("C1", "INDIVIDUAL", {"shoe_size": 9})], now=NOW)
+    with pytest.raises(ValueError, match="shoe_size"):
+        apply_upload(eng, T, 1, [SanctionIn("SR/1", PersonIn("ENTITY", {"shoe_size": 9}))], now=NOW)
 
 
-def test_sanction_numbers_keep_several_sanctions_of_one_account_apart(eng) -> None:
-    r = apply_upload(eng, T, 1, [], [SanctionIn("L1", "S-1"), SanctionIn("L1", "S-2"), SanctionIn("L2")], now=NOW)
-    assert r.sanctions_added == 3
-    apply_upload(eng, T, 2, [], [SanctionIn("L1", "S-1", {"remark": "x"})], now=NOW)
-    assert _log(eng) == [("dm_sanction", "L1/S-1", "remark", None, "x", 2)]
+def test_clearing_many_values_warns(eng) -> None:
+    many = [_acme(f"SR/{i}", short_name="A", hsn_code="1") for i in range(15)]
+    apply_upload(eng, T, 1, many, [], now=NOW)
+    r = apply_upload(eng, T, 2, [_acme(f"SR/{i}") for i in range(15)], [], now=NOW)
+    assert r.cleared == 30 and "clears 30" in r.warnings[0]
 
 
-def test_tenants_are_separate(eng) -> None:
-    apply_upload(eng, T, 1, [_ravi()], [], now=NOW)
-    r = apply_upload(eng, "other", 2, [_ravi(full_name="X")], [], now=NOW)
-    assert (r.parties_added, r.changes) == (1, 0)
-
-
-def test_mass_clearing_warns_but_applies(eng) -> None:
-    people = [_ravi() for _ in range(1)] + [
-        PartyIn(f"C{i}", "INDIVIDUAL", {"full_name": f"P{i}", "gender": "FEMALE"}) for i in range(2, 30)
-    ]
-    apply_upload(eng, T, 1, people, [], now=NOW)
-    blanks = [PartyIn(f"C{i}", "INDIVIDUAL") for i in range(2, 30)]
-    r = apply_upload(eng, T, 2, blanks, [], now=NOW)
-    assert r.cleared == 56 and len(r.warnings) == 1 and "clears 56 of 56" in r.warnings[0]
-    with eng.connect() as conn:
-        assert conn.execute(select(func.count()).where(dm_party.c.full_name.is_(None))).scalar_one() == 28
-
-
-def test_a_few_clears_do_not_warn(eng) -> None:
-    apply_upload(eng, T, 1, [_ravi()], [], now=NOW)
-    assert apply_upload(eng, T, 2, [_ravi(gender=None)], [], now=NOW).warnings == []
-
-
-def test_clearing_a_list_counts_as_a_clear(eng) -> None:
-    apply_upload(eng, T, 1, [_ravi()], [], now=NOW)
-    r = apply_upload(eng, T, 2, [PartyIn("C1", "INDIVIDUAL", _ravi().values)], [], now=NOW)
-    assert r.cleared == 1 and _count(eng, dm_party_phone) == 0
+def test_dates_survive(eng) -> None:
+    s = SanctionIn("L1", PersonIn("INDIVIDUAL", {"birth_date": date(1990, 1, 2)}))
+    apply_upload(eng, T, 1, [s], [], now=NOW)
+    assert _all(eng, dm_sanction)[0].birth_date == date(1990, 1, 2)
