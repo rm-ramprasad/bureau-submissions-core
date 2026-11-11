@@ -17,7 +17,7 @@ import logging
 import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from typing import BinaryIO
 
 from sqlalchemy import Engine, delete, insert, select, update
@@ -224,9 +224,12 @@ def load_workbook(
     loaded_by: str,
     batch_id: str | None = None,
     file_uri: str | None = None,
+    as_of_date: date | None = None,
     clock: Callable[[], datetime] = utcnow,
 ) -> LoadResult:
-    """Load one uploaded workbook. Always records an input_load row (LOADED or FAILED) and its issues."""
+    """Load one uploaded workbook. Always records an input_load row (LOADED or FAILED) and its issues. as_of_date: the
+    data's date (the request's, or the one given on the Uploads page); source views without a loan system view (MFI)
+    read it."""
     import openpyxl
     from openpyxl.utils.exceptions import InvalidFileException
 
@@ -244,6 +247,7 @@ def load_workbook(
                 status="FAILED",
                 loaded_by=loaded_by,
                 loaded_at=clock(),
+                as_of_date=as_of_date,
             )
         ).inserted_primary_key[0]
     loader, counts, status = _Loader(spec), {}, "FAILED"

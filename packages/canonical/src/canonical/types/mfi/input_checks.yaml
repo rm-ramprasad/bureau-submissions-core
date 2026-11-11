@@ -1,0 +1,159 @@
+# MFI, PROVISIONAL workbook (inputs.yaml): data-quality checks on the uploaded sheets, run on their staging rows
+# right after each upload, as for consumer / commercial (format: canonical/staging/checks.py).
+# severity block: the upload cannot be used until a corrected workbook passes; warn: reported only.
+# Coded columns hold MFI file codes (types/mfi/codes.yaml), checked with `code`. The bureau rules (types/mfi/rules.yaml)
+# run again on the snapshot; these checks catch the workbook's own mistakes at upload, where they are easiest to fix.
+
+sheets:
+  - sheet: Loans
+    checks:
+      # ---------------------------------------------------------------- double entries and consistency
+      - {id: DUPLICATE_ACCOUNT, check: duplicate, columns: [account_number], severity: block,
+         message: The same account number is listed twice}
+      - id: MEMBER_FIELDS_DIFFER
+        check: consistent
+        by: member_id
+        columns: [member_name, date_of_birth, gender, group_id, permanent_address, permanent_pin, voter_id, aadhaar]
+        severity: warn
+        message: The member's details differ between their loans (the first account's are used)
+      - {id: GROUP_NOT_IN_SHEET, check: in_sheet, columns: [group_id], other_sheet: Groups, other_column: group_id,
+         severity: warn, message: The group is not on the Groups sheet (an SHG loan needs its group)}
+
+      # ---------------------------------------------------------------- required
+      - id: REQUIRED
+        check: required
+        columns: [account_number, member_id, member_name, gender, loan_category, date_disbursed, disbursed_amount,
+                  current_balance, days_past_due]
+        severity: block
+        message: Required field is empty
+      - id: BIRTH_OR_AGE
+        check: any_of
+        columns: [date_of_birth, age]
+        severity: block
+        message: The member needs a date of birth or an age
+      - id: ID_OR_PHONE
+        check: any_of
+        columns: [voter_id, aadhaar, pan, ration_card, g_ram_g, ckyc, driving_licence, passport, mobile, landline]
+        severity: block
+        message: The member needs at least one identity document or phone number
+      - id: AN_ADDRESS
+        check: any_of
+        columns: [permanent_address, current_address]
+        severity: block
+        message: The member needs an address
+
+      # ---------------------------------------------------------------- formats
+      - {id: PAN_FORMAT, check: pattern, columns: [pan], pattern: "^[A-Z]{5}[0-9]{4}[A-Z]$", severity: warn,
+         message: PAN is not in the AAAAA9999A format}
+      - {id: AADHAAR_FORMAT, check: pattern, columns: [aadhaar], pattern: "^[2-9][0-9]{11}$", severity: warn,
+         message: Aadhaar is not 12 digits}
+      - {id: CKYC_FORMAT, check: pattern, columns: [ckyc], pattern: "^[0-9]{14}$", severity: warn,
+         message: CKYC number is not 14 digits}
+      - {id: MOBILE_FORMAT, check: pattern, columns: [mobile], pattern: "^[6-9][0-9]{9}$", severity: warn,
+         message: Mobile number is not 10 digits starting with 6-9}
+      - {id: EMAIL_FORMAT, check: pattern, columns: [email], pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]{2,}$",
+         severity: warn, message: E-mail address is not valid}
+      - {id: PIN_FORMAT, check: pattern, columns: [permanent_pin, current_pin], pattern: "^[1-9][0-9]{5}$",
+         severity: block, message: PIN code is not 6 digits}
+      - {id: NUMBER_FORMAT, check: pattern,
+         columns: [age, loan_cycle, instalments, days_past_due],
+         pattern: "^[0-9]+$", severity: block, message: Not a whole number}
+      - {id: AMOUNT_FORMAT, check: pattern,
+         columns: [family_income, family_expenses, applied_amount, sanctioned_amount, disbursed_amount,
+                   instalment_amount, current_balance, amount_overdue, write_off_amount, sum_assured,
+                   settlement_amount],
+         pattern: "^-?[0-9]+(\\.[0-9]{1,2})?$", severity: block,
+         message: "Amount is not a number (digits, optional decimals; no commas)"}
+      - id: DATE_FORMAT
+        check: date
+        columns: [date_of_birth, age_as_on, sanctioned_date, date_disbursed, date_closed, date_last_payment,
+                  write_off_date]
+        severity: block
+        message: Date is not valid
+
+      # ---------------------------------------------------------------- codes (types/mfi/codes.yaml)
+      - {id: GENDER_CODE, check: code, columns: [gender], code_list: gender, severity: block,
+         message: Gender is not an MFI code (F / M / T)}
+      - {id: STATE_CODE, check: code, columns: [permanent_state, current_state], code_list: state_code,
+         severity: block, message: State is not an MFI state code (Appendix C)}
+      - {id: MARITAL_CODE, check: code, columns: [marital_status], code_list: marital_status, severity: block,
+         message: Marital status is not an MFI code (M01-M06)}
+      - {id: RELATION_CODE, check: code,
+         columns: [key_person_relation, relative_1_relation, relative_2_relation, nominee_relation],
+         code_list: relation, severity: block, message: Relationship is not an MFI code (K01-K16)}
+      - {id: EDUCATION_CODE, check: code, columns: [education], code_list: education, severity: block,
+         message: Education is not an MFI code (Y01-Y05)}
+      - {id: OCCUPATION_CODE, check: code, columns: [occupation], code_list: occupation, severity: block,
+         message: Occupation is not an MFI code (Z01-Z06)}
+      - {id: RELIGION_CODE, check: code, columns: [religion], code_list: religion, severity: block,
+         message: Religion is not an MFI code (R01-R09)}
+      - {id: SOCIAL_CATEGORY_CODE, check: code, columns: [social_category], code_list: social_category,
+         severity: block, message: Social category is not an MFI code (V01-V09)}
+      - {id: MEMBER_ROLE_CODE, check: code, columns: [member_role], code_list: member_role, severity: block,
+         message: Member role is not an MFI code (L01-L04)}
+      - {id: MEMBER_STATUS_CODE, check: code, columns: [member_status], code_list: member_status, severity: block,
+         message: Member status is not an MFI code (W01-W04)}
+      - {id: LOAN_CATEGORY_CODE, check: code, columns: [loan_category], code_list: loan_category, severity: block,
+         message: Loan category is not an MFI code (T01-T08)}
+      - {id: LOAN_TYPE_CODE, check: code, columns: [loan_type], code_list: loan_type, severity: block,
+         message: Loan type is not an MFI code (C01 / C02)}
+      - {id: ACCOUNT_STATUS_CODE, check: code, columns: [account_status], code_list: credit_facility_status,
+         severity: block, message: "Account status is not an MFI code (S06, S08-S18; leave empty for current,
+         delinquent or closed: worked out from the dates and DPD)"}
+      - {id: FREQUENCY_CODE, check: code, columns: [repayment_frequency], code_list: payment_frequency,
+         severity: block, message: Repayment frequency is not an MFI code (F01-F12)}
+      - {id: WRITE_OFF_REASON_CODE, check: code, columns: [write_off_reason], code_list: write_off_reason,
+         severity: block, message: Write-off reason is not an MFI code (X01-X10)}
+      - {id: INSURANCE_CODE, check: code, columns: [insurance_indicator], code_list: yes_no, severity: block,
+         message: Insurance indicator is not Y or N}
+      - {id: INSURANCE_TYPE_CODE, check: code, columns: [insurance_type], code_list: insurance_type,
+         severity: block, message: Insurance type is not an MFI code (L01-L10)}
+
+      # ---------------------------------------------------------------- dates and PINs
+      - {id: PIN_STATE, check: pin_state, pin: permanent_pin, state: permanent_state, severity: warn,
+         message: PIN code does not belong to the state (permanent address)}
+      - {id: PIN_STATE_CURRENT, check: pin_state, pin: current_pin, state: current_state, severity: warn,
+         message: PIN code does not belong to the state (current address)}
+      - {id: UNDER_18, check: min_age, columns: [date_of_birth], years: 18, severity: warn,
+         message: Member is under 18 on the as-of date}
+      - {id: DATE_IN_FUTURE, check: not_after_as_of,
+         columns: [date_of_birth, sanctioned_date, date_disbursed, date_closed, date_last_payment, write_off_date],
+         severity: block, message: Date is after the as-of date}
+      - {id: CLOSED_BEFORE_OPENED, check: not_before, columns: [date_closed], other: date_disbursed, severity: block,
+         message: Date closed is before the date disbursed}
+
+  - sheet: Groups
+    checks:
+      - {id: DUPLICATE_GROUP, check: duplicate, columns: [group_id], severity: block,
+         message: The same group is listed twice}
+      - {id: GROUP_REQUIRED, check: required, columns: [group_id, group_name], severity: block,
+         message: Required field is empty}
+      - {id: GROUP_PIN_FORMAT, check: pattern, columns: [pin], pattern: "^[1-9][0-9]{5}$", severity: block,
+         message: PIN code is not 6 digits}
+      - {id: GROUP_AMOUNT_FORMAT, check: pattern,
+         columns: [disbursed_amount, current_balance, instalment_amount, amount_overdue, write_off_amount,
+                   bank_balance],
+         pattern: "^-?[0-9]+(\\.[0-9]{1,2})?$", severity: block,
+         message: "Amount is not a number (digits, optional decimals; no commas)"}
+      - {id: GROUP_NUMBER_FORMAT, check: pattern, columns: [instalments, days_past_due, loan_cycle],
+         pattern: "^[0-9]+$", severity: block, message: Not a whole number}
+      - {id: GROUP_DATE_FORMAT, check: date,
+         columns: [date_opened, date_closed, date_last_payment, formed_date, first_linkage_date, write_off_date],
+         severity: block, message: Date is not valid}
+      - {id: GROUP_STATE_CODE, check: code, columns: [state], code_list: state_code, severity: block,
+         message: State is not an MFI state code (Appendix C)}
+      - {id: GROUP_PHONE_TYPE_CODE, check: code, columns: [phone_type], code_list: phone_type, severity: block,
+         message: Phone type is not an MFI code (P01-P08)}
+      - {id: GROUP_FREQUENCY_CODE, check: code, columns: [repayment_frequency], code_list: payment_frequency,
+         severity: block, message: Repayment frequency is not an MFI code (F01-F12)}
+      - {id: GROUP_LOAN_TYPE_CODE, check: code, columns: [loan_type], code_list: loan_type, severity: block,
+         message: Loan type is not an MFI code (C01 / C02)}
+      - {id: GROUP_WRITE_OFF_REASON_CODE, check: code, columns: [write_off_reason], code_list: write_off_reason,
+         severity: block, message: Write-off reason is not an MFI code (X01-X10)}
+      - {id: GOVT_PROGRAM_CODE, check: code, columns: [govt_program], code_list: govt_program, severity: block,
+         message: Government program is not an MFI code (U01-U99)}
+      - {id: GROUP_PIN_STATE, check: pin_state, pin: pin, state: state, severity: warn,
+         message: PIN code does not belong to the state}
+      - {id: GROUP_DATE_IN_FUTURE, check: not_after_as_of,
+         columns: [date_opened, date_closed, date_last_payment, formed_date, first_linkage_date],
+         severity: block, message: Date is after the as-of date}

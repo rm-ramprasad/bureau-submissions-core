@@ -106,10 +106,8 @@ def upload(submission_type: str):
         log.exception("Storing the workbook failed")
         fail("The workbook could not be stored; try again.", 503)
     result = load_workbook(s.engine, kind, data, tenant_id=tenant_id, file_name=file_name, loaded_by=current_user(),
-                           batch_id=None, file_uri=uri)  # fmt: skip
+                           batch_id=None, file_uri=uri, as_of_date=as_of)  # fmt: skip
     t = input_load.c
-    with s.engine.begin() as conn:
-        conn.execute(update(input_load).where(t.load_id == result.load_id).values(as_of_date=as_of))
     checks = run_checks(s.engine, result.load_id, kind, as_of) if result.status == "LOADED" else None
     source = data_source(s.engine, tenant_id, kind)
     applied, summary, status = None, None, 201

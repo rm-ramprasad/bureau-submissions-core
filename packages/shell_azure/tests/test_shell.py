@@ -128,7 +128,7 @@ def test_users_job(engine):
 def test_migrate_job_seeds_reference_and_profiles(engine, monkeypatch):
     monkeypatch.setattr("canonical.migrate.apply_migrations", lambda e: ["007_x"])  # T-SQL files: SQL Server only
     out = run(engine, {"job": "migrate"})
-    assert out["applied"] == ["007_x"] and out["bureau_profiles_added"] == 8 and "reference" in out
+    assert out["applied"] == ["007_x"] and out["bureau_profiles_added"] == 12 and "reference" in out
     assert run(engine, {"job": "migrate"})["bureau_profiles_added"] == 0  # existing profiles are never changed
 
 

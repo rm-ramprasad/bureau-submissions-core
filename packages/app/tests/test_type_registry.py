@@ -54,13 +54,15 @@ def sample(tmp_path, monkeypatch):
 
 
 def test_the_product_types_come_from_their_folders():
-    assert [str(t) for t in SubmissionType] == ["CONSUMER", "COMMERCIAL"]
+    assert [str(t) for t in SubmissionType] == ["CONSUMER", "COMMERCIAL", "MFI"]
     assert SubmissionType("CONSUMER") is SubmissionType.CONSUMER and "NESL" not in SubmissionType
     with pytest.raises(ValueError, match="not a valid SubmissionType"):
         SubmissionType("NESL")
     assert (descriptor("CONSUMER").engine, descriptor("COMMERCIAL").engine) == ("tudf", "delimited")
     assert descriptor("CONSUMER").header_tag_required and not descriptor("COMMERCIAL").header_tag_required
-    assert [(d.submission_type, d.label) for d in types.planned_types()] == [("NESL", "NeSL"), ("MFI", "MFI")]
+    assert [(d.submission_type, d.label) for d in types.planned_types()] == [
+        ("NESL", "NeSL")
+    ]  # MFI runs since ADR 0003 step 6
     assert repr(SubmissionType.CONSUMER) == "SubmissionType('CONSUMER')" and SubmissionType.CONSUMER.value == "CONSUMER"
 
 
@@ -95,7 +97,7 @@ def test_two_folders_for_one_type_are_refused(tmp_path, monkeypatch):
 
 
 def test_a_new_type_folder_works_end_to_end(sample, make_api, worker, engine, requests_repo, bureau_repo):  # noqa: F811
-    assert [str(t) for t in SubmissionType] == ["CONSUMER", "COMMERCIAL", "SAMPLE"]
+    assert [str(t) for t in SubmissionType] == ["CONSUMER", "COMMERCIAL", "SAMPLE", "MFI"]
     seed_reference(engine)  # its code translations, as `migrate` seeds them
     seed_missing(bureau_repo, "nbfc_001")  # its bureau profiles, from the descriptor
     profile = bureau_repo.get("nbfc_001", B.CIBIL, sample)
@@ -113,7 +115,7 @@ def test_a_new_type_folder_works_end_to_end(sample, make_api, worker, engine, re
 
     api = make_api()
     listed = {t["value"]: t for t in api.get("/types")[1]["types"]}
-    assert list(listed) == ["CONSUMER", "COMMERCIAL", "SAMPLE", "NESL", "MFI"]  # planned types after the runnable
+    assert list(listed) == ["CONSUMER", "COMMERCIAL", "SAMPLE", "MFI", "NESL"]  # planned types after the runnable
     assert listed["NESL"] == {"value": "NESL", "label": "NeSL", "enabled": False, "planned": True}
     assert listed["SAMPLE"]["file_label"] == "Sample file" and listed["SAMPLE"]["label"] == "Sample"
     assert listed["SAMPLE"]["enabled"] and listed["SAMPLE"]["record_noun"] == "Things"

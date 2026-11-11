@@ -194,6 +194,7 @@ def upload_input(batch_id: str, submission_type: str):
         loaded_by=current_user(),
         batch_id=batch_id,
         file_uri=uri,
+        as_of_date=row.as_of_date,
     )
     checks = None
     if result.status == "LOADED":  # data-quality checks on the staged rows, for this date

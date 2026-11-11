@@ -95,8 +95,12 @@ engine capability, and then it is generic (usable by any format). Piece by piece
    test per rule; any new rule kind added generically to the shared engine.
 6. **Data in** for the new client: `canonical/types/mfi/inputs.yaml` (upload layout), `input_checks.yaml` (the
    data-quality phase) and the `vw_mfi_*` source views — once their data is known.
-7. **Switch on**: `planned: false`, bureau profiles, then a **CIC test submission**; fixes from the CIC's rejection
-   report before the first live file.
+   **Owner 2026-11-10: done first as a PROVISIONAL workbook** (Loans + Groups sheets, MFI file codes in coded
+   columns, loan figures in the workbook as there is no loan system view yet; sample from `python -m sources.samples
+   MFI`), with `planned: false` brought forward from step 7 so MFI is on the New Request page. Adjusted to the
+   client's real data when it arrives (an edit of inputs.yaml / mfi.sql plus a migration, as for any layout change).
+7. **Switch on**: bureau profiles (placeholders are added on deploy; real CIC member codes on the Admin page), then a
+   **CIC test submission**; fixes from the CIC's rejection report before the first live file.
 
 ## Open points
 

@@ -89,8 +89,8 @@ def validated(worker, submission_type="CONSUMER"):
     return row
 
 
-def test_consumer_and_commercial_are_enabled():
-    assert [str(t) for t in enabled_types()] == ["CONSUMER", "COMMERCIAL"]
+def test_consumer_commercial_and_mfi_are_enabled():
+    assert [str(t) for t in enabled_types()] == ["CONSUMER", "COMMERCIAL", "MFI"]
 
 
 def test_validate_then_generate_reuses_the_snapshot(worker, pipeline, engine):

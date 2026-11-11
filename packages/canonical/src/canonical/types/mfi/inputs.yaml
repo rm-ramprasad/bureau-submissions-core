@@ -1,0 +1,129 @@
+# MFI input workbook, PROVISIONAL (owner 2026-11-10, ADR 0003 step 6, option 2): drafted before the new client's data
+# source is known, so the MFI files can run end to end and the client gets a template to fill. To be adjusted to
+# the client's real data (an edit here plus a migration for the tables, as for consumer / commercial).
+# Two sheets into automn.stg_mfi_* (format: canonical/staging/spec.py). Headers must match row 1.
+#   Loans   one row per loan account: the member, their relatives, IDs, phones, addresses, household and the loan.
+#           A member with two loans has two rows (same Member ID; the member's details must agree, MEMBER_FIELDS_DIFFER).
+#   Groups  one row per SHG / JLG group: the group and, for SHG files, the group loan.
+# Coded columns hold the MFI file code from the spec (docs/specs/UCRF_MFI_v3.3.1.md section 8 / Appendix C, e.g.
+# gender F, state TN, loan category T05, relation K02): the views turn them into canonical values through
+# automn.ref_code_translation (vw_ref_code), as consumer's code columns do. No loan system view: the loan figures
+# (balance, overdue, DPD) are the workbook's, for the upload's as-of date. Sample: tools/mfi_sample_workbook.py.
+workbook: MFI submissions workbook (provisional)
+sheets:
+- sheet: Loans
+  table: stg_mfi_loan
+  key: account_number
+  columns:
+    account_number: Account Number
+    unique_reference: Unique Account Reference
+    member_id: Member ID
+    old_member_id: Old Member ID
+    branch_id: Branch ID
+    centre_id: Centre ID
+    group_id: Group ID
+    loan_officer: Loan Officer
+    member_name: Member Name
+    date_of_birth: Date of Birth
+    age: Age
+    age_as_on: Age As On
+    gender: Gender
+    marital_status: Marital Status
+    key_person_name: Key Person Name
+    key_person_relation: Key Person Relation
+    relative_1_name: Relative 1 Name
+    relative_1_relation: Relative 1 Relation
+    relative_2_name: Relative 2 Name
+    relative_2_relation: Relative 2 Relation
+    nominee_name: Nominee Name
+    nominee_relation: Nominee Relation
+    voter_id: Voter ID
+    aadhaar: Aadhaar
+    pan: PAN
+    ration_card: Ration Card
+    g_ram_g: G RAM G
+    ckyc: CKYC
+    driving_licence: Driving Licence
+    passport: Passport
+    mobile: Mobile
+    landline: Landline
+    email: Email
+    education: Education
+    occupation: Occupation
+    religion: Religion
+    social_category: Social Category
+    member_role: Member Role
+    member_status: Member Status
+    family_income: Family Monthly Income
+    family_expenses: Family Monthly Expenses
+    bank_name: Bank Name
+    bank_branch: Bank Branch
+    bank_account_number: Bank Account Number
+    permanent_address: Permanent Address
+    permanent_state: Permanent State
+    permanent_pin: Permanent PIN
+    current_address: Current Address
+    current_state: Current State
+    current_pin: Current PIN
+    loan_category: Loan Category
+    loan_cycle: Loan Cycle
+    loan_purpose: Loan Purpose
+    loan_type: Loan Type
+    account_status: Account Status
+    sanctioned_date: Sanctioned Date
+    date_disbursed: Date Disbursed
+    date_closed: Date Closed
+    date_last_payment: Date of Last Payment
+    applied_amount: Applied Amount
+    sanctioned_amount: Sanctioned Amount
+    disbursed_amount: Disbursed Amount
+    instalments: Number of Instalments
+    repayment_frequency: Repayment Frequency
+    instalment_amount: Instalment Amount
+    current_balance: Current Balance
+    amount_overdue: Amount Overdue
+    days_past_due: Days Past Due
+    write_off_amount: Write-off Amount
+    write_off_date: Write-off Date
+    write_off_reason: Write-off Reason
+    insurance_indicator: Insurance Indicator
+    insurance_type: Insurance Type
+    sum_assured: Sum Assured
+    settlement_amount: Settlement Amount
+    old_unique_reference: Old Unique Account Reference
+    old_account_number: Old Account Number
+- sheet: Groups
+  table: stg_mfi_group
+  key: group_id
+  columns:
+    group_id: Group ID
+    group_name: Group Name
+    group_account_number: Group Loan Account Number
+    disbursed_amount: Disbursed Amount
+    current_balance: Current Balance
+    date_opened: Date Opened
+    date_closed: Date Closed
+    date_last_payment: Date of Last Payment
+    instalments: Number of Instalments
+    repayment_frequency: Repayment Frequency
+    instalment_amount: Instalment Amount
+    amount_overdue: Amount Overdue
+    days_past_due: Days Past Due
+    loan_cycle: Loan Cycle
+    loan_type: Loan Type
+    write_off_amount: Write-off Amount
+    write_off_date: Write-off Date
+    write_off_reason: Write-off Reason
+    address: Address
+    state: State
+    pin: PIN
+    phone_type: Phone Type
+    phone: Phone
+    bank_name: Bank Name
+    bank_branch: Bank Branch
+    bank_account_number: Bank Account Number
+    bank_balance: Bank Balance
+    formed_date: Formed Date
+    first_linkage_date: First Linkage Date
+    govt_group_id: Government Group ID
+    govt_program: Government Program

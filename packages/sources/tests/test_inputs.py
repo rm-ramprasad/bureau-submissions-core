@@ -103,7 +103,9 @@ def test_packaged_layouts():
     assert all(s.key == "sanction_reference_number" for s in commercial.sheets)  # every sheet links by reference
     sanction = next(s for s in commercial.sheets if s.sheet == "Sanction")
     assert {"sanction_reference_number", "loan_account_no", "credit_type_label"} <= set(sanction.columns)
-    assert set(STAGING_TABLES) == {"CONSUMER", "COMMERCIAL"}
+    assert set(STAGING_TABLES) == {"CONSUMER", "COMMERCIAL", "MFI"}
+    mfi = load_spec("MFI")  # provisional (ADR 0003 step 6): Loans by account, Groups by group
+    assert [(s.sheet, s.key) for s in mfi.sheets] == [("Loans", "account_number"), ("Groups", "group_id")]
 
 
 # ---------------------------------------------------------------- loading
