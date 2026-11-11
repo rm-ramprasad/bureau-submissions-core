@@ -123,6 +123,9 @@ def upload(submission_type: str):
             res = load_upload(s.engine, s.engine, tenant_id, kind, as_of, result.load_id)  # views in the app database
         except UploadConflict as exc:
             text, status = f"{file_name} passed the checks but was not loaded into the customer tables: {exc}", 422
+            with s.engine.begin() as conn:  # kept with the upload, so the list shows why (not only the message)
+                conn.execute(update(input_load).where(t.load_id == result.load_id)
+                             .values(apply_summary=f"Not saved: {exc}"[:1000]))  # fmt: skip
         else:
             applied = utcnow()
             summary = (f"customers {res.parties_added} added, {res.parties_updated} updated; accounts "
