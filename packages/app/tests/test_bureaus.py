@@ -13,7 +13,7 @@ NBFC1, NBFC2 = "nbfc_001", "nbfc_002"
 
 
 def test_seed_loads_four_bureaus_per_tenant_and_type(bureau_repo):
-    assert seed(bureau_repo, [NBFC1, NBFC2]) == 16
+    assert seed(bureau_repo, [NBFC1, NBFC2]) == 24  # 2 NBFCs x 3 types x 4 bureaus
     assert {p.bureau_code for p in bureau_repo.list(NBFC1, T.CONSUMER)} == set(B)
     commercial = bureau_repo.list(NBFC1, T.COMMERCIAL)
     assert {p.bureau_code for p in commercial} == set(B)
@@ -24,6 +24,12 @@ def test_seed_loads_four_bureaus_per_tenant_and_type(bureau_repo):
         == "Commercial-ME-30092026-CIBC000001-093000.txt"
     )
     assert cibil.file_name(datetime(2026, 10, 5, 9, 30), date(2026, 9, 30)).startswith("Commercial-AH-")
+    mfi = bureau_repo.get(NBFC1, "CIBIL", "MFI")  # MFI 1.3: MFI-<cycle>-<date>-<member>-<SHG|JLG>
+    assert (mfi.member_id, mfi.header_segment_tag) == ("CIBM000001", "")
+    assert (
+        mfi.file_name(datetime(2026, 10, 5), date(2026, 9, 30), "ME", file="SHG")
+        == "MFI-ME-30092026-CIBM000001-SHG.txt"
+    )
 
 
 def test_seed_missing_adds_new_types_and_keeps_real_values(bureau_repo):
@@ -31,7 +37,7 @@ def test_seed_missing_adds_new_types_and_keeps_real_values(bureau_repo):
         bureau_repo.upsert(p)
     real = replace(bureau_repo.get(NBFC1, "CIBIL", "CONSUMER"), member_id="REAL123456")
     bureau_repo.upsert(real)
-    assert seed_missing(bureau_repo, NBFC1) == 4  # the four commercial profiles
+    assert seed_missing(bureau_repo, NBFC1) == 8  # the four commercial and four MFI profiles
     assert bureau_repo.get(NBFC1, "CIBIL", "CONSUMER").member_id == "REAL123456"
     assert seed_missing(bureau_repo, NBFC1) == 0
 
@@ -39,7 +45,7 @@ def test_seed_missing_adds_new_types_and_keeps_real_values(bureau_repo):
 def test_seed_is_rerunnable(bureau_repo):
     seed(bureau_repo, [NBFC1])
     seed(bureau_repo, [NBFC1])
-    assert len(bureau_repo.list(NBFC1)) == 8
+    assert len(bureau_repo.list(NBFC1)) == 12
 
 
 def test_member_ids_are_per_tenant(bureau_repo):

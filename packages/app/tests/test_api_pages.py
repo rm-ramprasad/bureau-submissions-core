@@ -37,7 +37,7 @@ def test_dashboard_api_switches_type(make_api, worker, requests_repo):  # noqa: 
     requests_repo.create_batch("nbfc_001", AS_OF, M.VALIDATE, [T.CONSUMER], draft=True)
     _, consumer = api.get("/dashboard", period="all", tenant="nbfc_001")
     assert consumer["type"] == "CONSUMER" and consumer["raised"] == 1  # default: the first type
-    assert [t["value"] for t in consumer["types"]] == ["CONSUMER", "COMMERCIAL"]
+    assert [t["value"] for t in consumer["types"]] == ["CONSUMER", "COMMERCIAL", "MFI"]
     _, commercial = api.get("/dashboard", period="all", tenant="nbfc_001", type="COMMERCIAL")
     assert commercial["type"] == "COMMERCIAL" and commercial["records"] > 0
     assert {s["value"]: s["count"] for s in commercial["stages"]}["VALIDATED"] == 1

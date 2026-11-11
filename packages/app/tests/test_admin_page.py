@@ -27,8 +27,8 @@ def actions(engine) -> list[str]:
 
 def test_the_settings_page_lists_switches_and_cycles(api):
     status, data = api.get("/admin/settings")
-    assert status == 200 and [t["value"] for t in data["types"]] == ["CONSUMER", "COMMERCIAL"]
-    assert data["bureaus"] == ["CIBIL", "CRIF_HIGHMARK", "EQUIFAX", "EXPERIAN"] and len(data["switches"]) == 8
+    assert status == 200 and [t["value"] for t in data["types"]] == ["CONSUMER", "COMMERCIAL", "MFI"]
+    assert data["bureaus"] == ["CIBIL", "CRIF_HIGHMARK", "EQUIFAX", "EXPERIAN"] and len(data["switches"]) == 12
     assert all(s["is_active"] for s in data["switches"]) and all(c["enabled"] for c in data["cycles"])
     assert [c["value"] for c in data["cycles"]] == [c.value for c in ReportingCycle]
 
@@ -91,6 +91,7 @@ def test_the_data_source_is_switched_per_type_and_can_be_switched_back(api, engi
     assert [(d["submission_type"], d["source"]) for d in data["data_sources"]] == [
         ("CONSUMER", "views"),
         ("COMMERCIAL", "views"),
+        ("MFI", "views"),
     ]
     path = "/admin/data-source/CONSUMER"
     assert api.post(path, source="master")[0] == 400  # needs a reason

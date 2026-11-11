@@ -33,6 +33,7 @@ MIGRATIONS = [
     "015_sanction_payment_fallback",
     "016_mfi_data_model",
     "017_upload_page",
+    "018_mfi_input_workbook",
 ]
 
 
@@ -90,6 +91,7 @@ def test_view_files_run_functions_first(dialect: str) -> None:
         "commercial.sql",
         "consumer.sql",
         "labels.sql",
+        "mfi.sql",
         "position.sql",
     ]
 

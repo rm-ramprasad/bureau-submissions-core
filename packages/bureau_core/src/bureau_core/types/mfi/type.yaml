@@ -1,5 +1,11 @@
-# Planned type: see nesl/type.yaml. Needs the CIC's MFI specification first (requirements.md 10.3).
+# Type descriptor: see consumer/type.yaml. MFI UCRF 3.3.1 (docs/specs/UCRF_MFI_v3.3.1.md, ADR 0003). Switched on in
+# step 6 (owner 2026-11-10: on the New Request page with a provisional workbook, before the client's data is known).
 submission_type: MFI
 label: MFI
 order: 40
-planned: true
+engine: delimited
+file_label: MFI file
+record_noun: Loans
+header_tag_required: false
+# UCRF MFI 1.3: MFI-<cycle>-<reported date>-<member code>-<internal ref>; {file} = SHG / JLG (layout.yaml files)
+default_file_name: "MFI-{cycle}-{as_of:%d%m%Y}-{member_id}-{file}.txt"

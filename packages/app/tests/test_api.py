@@ -70,7 +70,7 @@ def test_meta_lists_choices(api):
     status, meta = api.get("/meta")
     assert status == 200 and {t["tenant_id"] for t in meta["tenants"]} == {"nbfc_001", "nbfc_002"}
     types = {t["value"]: t["enabled"] for t in meta["submission_types"]}
-    assert types == {"CONSUMER": True, "COMMERCIAL": True, "NESL": False, "MFI": False}  # NeSL, MFI: planned
+    assert types == {"CONSUMER": True, "COMMERCIAL": True, "MFI": True, "NESL": False}  # NeSL: planned
     assert {o["value"] for o in meta["override_fields"]} >= {"days_past_due", "settlement_amount"}
     dates = [d["value"] for d in meta["as_of_dates"]]
     assert meta["default_as_of"] == dates[0] and dates == sorted(dates, reverse=True)
@@ -729,7 +729,7 @@ def test_bureau_profiles_are_listed_for_all_and_changed_by_admins(grouped, engin
     api = grouped(tenant="nbfc_001")
     user, admin = bearer(groups=[USERS_GROUP], preferred_username="ravi.s@company.in"), bearer(groups=[ADMINS_GROUP])
     status, data = api.get("/bureaus", headers=user)
-    assert status == 200 and len(data["profiles"]) == 8  # 4 bureaus x consumer, commercial
+    assert status == 200 and len(data["profiles"]) == 12  # 4 bureaus x consumer, commercial, MFI
     cibil = next(p for p in data["profiles"] if p["bureau_code"] == "CIBIL" and p["submission_type"] == "CONSUMER")
     assert cibil["placeholder"] is True and cibil["example_file_name"].startswith(cibil["member_id"])
     change = {

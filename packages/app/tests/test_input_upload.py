@@ -195,7 +195,7 @@ def test_an_upload_on_the_uploads_page_is_checked_and_kept_for_its_date(api, eng
     assert load.batch_id is None and load.as_of_date == date(2026, 9, 30)
     _, listed = api.get("/uploads", tenant_id="nbfc_001")
     assert [x["load_id"] for x in listed["uploads"]] == [u["load_id"]]
-    assert {t["submission_type"] for t in listed["types"]} == {"CONSUMER", "COMMERCIAL"}
+    assert {t["submission_type"] for t in listed["types"]} == {"CONSUMER", "COMMERCIAL", "MFI"}
     with engine.connect() as conn:
         assert conn.execute(select(audit_event.c.action).where(audit_event.c.action == "DATA_UPLOADED")).scalar()
 

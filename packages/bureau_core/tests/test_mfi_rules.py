@@ -1,6 +1,6 @@
 """MFI step 5 (ADR 0003): the MFI rule pack (types/mfi/rules.yaml) run by the shared validation engine on sample
-data. A clean batch passes; each rule is shown firing on one change. MFI is still a planned type, so its pack is
-checked with its own type files (check_files), as every pack is before its type goes live."""
+data. A clean batch passes; each rule is shown firing on one change. MFI is a registered type (step 6), so its pack,
+parameters and translations come from the registry, as for consumer and commercial."""
 
 import copy
 from datetime import date
@@ -11,7 +11,7 @@ import pytest
 import yaml
 
 from bureau_core.contract import CanonicalBatch
-from bureau_core.types import TypeDefinition, check_files
+from bureau_core.types import type_definition
 from bureau_core.validation.engine import run_validation
 from bureau_core.validation.parameters import parse_parameters
 from bureau_core.validation.rules import load_pack_file
@@ -23,17 +23,9 @@ AS_OF = date(2027, 7, 31)
 
 @pytest.fixture(scope="module")
 def mfi():
-    name, translations, groups, required = check_files(MFI)
-    tdef = TypeDefinition(name, MFI, translations, groups, required)  # type: ignore[arg-type]  (planned: no enum)
-    pack = load_pack_file(MFI / "rules.yaml", tdef)
+    pack = load_pack_file(MFI / "rules.yaml", type_definition("MFI"))
     params = {n: p.default for n, p in parse_parameters(yaml.safe_load((MFI / "rules.yaml").read_text())).items()}
-    reference = packaged_reference()
-    reference["ref_code_translation"] = reference["ref_code_translation"] + [
-        dict(submission_type="MFI", code_list=lst, code=v, output_code=t.output_code, is_active=t.active)
-        for lst, values in translations.items()
-        for v, t in values.items()
-    ]
-    return pack, params, reference
+    return pack, params, packaged_reference()  # the MFI translations are in it now
 
 
 def batch() -> dict:
