@@ -228,6 +228,24 @@ def test_blocking_checks_or_a_bad_file_save_nothing(api, engine):
         assert conn.execute(select(dm_sanction)).first() is None
 
 
+def test_an_upload_the_customer_tables_refuse_keeps_the_reason(api, engine, monkeypatch):
+    from app.configstore import settings as S
+    from canonical.master.apply import UploadConflict
+
+    def refuse(*_a, **_k):
+        raise UploadConflict("Customer C1 appears twice in the upload with different values")
+
+    monkeypatch.setattr("sources.master_load.load_upload", refuse)
+    S.put(engine, "nbfc_001", "data_source", {"CONSUMER": "master"}, "admin")
+    status, data = upload_page(api, GOOD)
+    assert status == 422 and "appears twice" in data["message"] and not data["upload"]["applied_at"]
+    _, listed = api.get("/uploads", tenant_id="nbfc_001")
+    assert (
+        listed["uploads"][0]["apply_summary"]
+        == "Not saved: Customer C1 appears twice in the upload with different values"
+    )
+
+
 @pytest.mark.parametrize(
     ("kwargs", "message"),
     [
