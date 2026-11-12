@@ -13,6 +13,9 @@ consumer and commercial, keyed by the SANCTION REFERENCE NUMBER.
    +- dm_sanction_account        the loan accounts of the sanction (one or more), keyed by account number: the link to
                                  the LMS position (L2b, per account and date) and the account's static fields
 
+The reference key between all these tables is sanction_ref_key (owner 2026-11-11): the sanction reference number in
+upper case, letters and digits only (F012/2025-26 -> F012202526, as automn.fn_ref_key matches the workbook to the
+LMS); dm_sanction keeps the number as written too. sanction_id is the internal row number the foreign keys use.
 Consumer: the sanction reference number is the account number (rarfincare's consumer data has no sanction number).
 Overwrite by key: the newest upload wins completely (a blank clears), lists are replaced per sanction, nothing is
 deleted (is_active). L1 staging is the history; dm_change_log keeps overwritten values.
@@ -109,10 +112,11 @@ dm_sanction = Table(
     metadata,
     Column("sanction_id", _PK, primary_key=True, autoincrement=True),
     Column("tenant_id", Unicode(30), nullable=False),
-    Column("sanction_reference_number", Unicode(KEY_LENGTH), nullable=False),
+    Column("sanction_reference_number", Unicode(KEY_LENGTH), nullable=False),  # as written (shown, reported)
+    Column("sanction_ref_key", Unicode(KEY_LENGTH), nullable=False),  # the key: letters and digits, upper case
     *_person(),  # the borrower
     *_versioned(),
-    UniqueConstraint("tenant_id", "sanction_reference_number", name="uq_dm_sanction_ref"),
+    UniqueConstraint("tenant_id", "sanction_ref_key", name="uq_dm_sanction_ref_key"),
 )
 
 
@@ -122,6 +126,7 @@ def _sanction_list(name: str, *columns: Column, holder: bool = False) -> Table:
         name,
         metadata,
         Column("sanction_id", _PK, ForeignKey("automn.dm_sanction.sanction_id"), primary_key=True),
+        Column("sanction_ref_key", Unicode(KEY_LENGTH), nullable=False),  # the sanction's key (migration 020)
         *keys,
         Column("seq", Integer, primary_key=True, autoincrement=False),
         *columns,
@@ -133,6 +138,7 @@ dm_sanction_holder = Table(
     "dm_sanction_holder",
     metadata,
     Column("sanction_id", _PK, ForeignKey("automn.dm_sanction.sanction_id"), primary_key=True),
+    Column("sanction_ref_key", Unicode(KEY_LENGTH), nullable=False),  # the sanction's key (migration 020)
     Column("holder_seq", Integer, primary_key=True, autoincrement=False),  # 1, 2, ... (0 = the borrower)
     Column("role", Unicode(30), nullable=False),  # CO_BORROWER / GUARANTOR
     *_person(),
@@ -184,7 +190,7 @@ dm_sanction_account = Table(
     Column("tenant_id", Unicode(30), nullable=False),
     Column("account_number", Unicode(KEY_LENGTH), nullable=False),  # links to L2b (the LMS position)
     Column("sanction_id", _PK, ForeignKey("automn.dm_sanction.sanction_id"), nullable=False),
-    Column("sanction_reference_number", Unicode(KEY_LENGTH), nullable=False),  # the sanction's (migration 020)
+    Column("sanction_ref_key", Unicode(KEY_LENGTH), nullable=False),  # the sanction's key (migration 020)
     # the account's static fields (the LMS figures for a date are L2b, not stored here)
     Column("account_type", _code()),
     Column("date_opened", Date),
@@ -221,6 +227,7 @@ dm_sanction_account = Table(
     *_versioned(),
     UniqueConstraint("tenant_id", "account_number", name="uq_dm_sanction_account"),
     Index("ix_dm_sanction_account_sanction", "sanction_id"),
+    Index("ix_dm_sanction_account_ref_key", "tenant_id", "sanction_ref_key"),
 )
 
 dm_change_log = Table(
@@ -229,7 +236,7 @@ dm_change_log = Table(
     Column("change_id", _PK, primary_key=True, autoincrement=True),
     Column("tenant_id", Unicode(30), nullable=False),
     Column("entity", _code(), nullable=False),  # dm_sanction, dm_sanction_address, dm_sanction_account, ...
-    Column("entity_key", Unicode(150), nullable=False),  # sanction reference number or account number
+    Column("entity_key", Unicode(150), nullable=False),  # sanction_ref_key or account number
     Column("field", Unicode(60), nullable=False),  # column, or '*list*' when a list was replaced
     Column("old_value", Unicode(1000)),
     Column("new_value", Unicode(1000)),
