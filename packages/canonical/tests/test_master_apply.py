@@ -71,8 +71,17 @@ def test_one_sanction_with_its_lists_and_several_accounts(eng) -> None:
     (s,) = _all(eng, dm_sanction)
     assert (s.sanction_reference_number, s.party_kind, s.full_name, s.first_load_id) == ("SR/1", "ENTITY",
                                                                                           "Acme Traders", 1)  # fmt: skip
-    assert {(a.account_number, a.sanction_id) for a in _all(eng, dm_sanction_account)} == {("A1", s.sanction_id),
-                                                                                          ("A2", s.sanction_id)}  # fmt: skip
+    assert {(a.account_number, a.sanction_id, a.sanction_ref_key) for a in _all(eng, dm_sanction_account)} == {
+        ("A1", s.sanction_id, "SR1"), ("A2", s.sanction_id, "SR1")}  # fmt: skip
+    assert s.sanction_ref_key == "SR1"
+    for t in (
+        dm_sanction_phone,
+        dm_sanction_address,
+        dm_sanction_guarantor,
+        dm_sanction_relationship,
+        dm_sanction_security,
+    ):
+        assert {r.sanction_ref_key for r in _all(eng, t)} == {"SR1"}, t.name  # the key on every table
     assert [(p.holder_seq, p.seq, p.phone_number) for p in _all(eng, dm_sanction_phone)] == [(0, 1, "9000000001")]
     assert [a.pin_code for a in _all(eng, dm_sanction_address)] == ["600001"]
     assert [g.pan for g in _all(eng, dm_sanction_guarantor)] == ["ABCPR1234F"]
@@ -94,7 +103,7 @@ def test_newest_wins_and_a_blank_clears_with_change_log(eng) -> None:
     assert (r.sanctions_updated, r.accounts_updated, r.cleared) == (1, 1, 1)
     s = _all(eng, dm_sanction)[0]
     assert (s.full_name, s.legal_constitution, s.last_load_id) == ("Acme Traders Pvt", None, 2)
-    assert ("dm_sanction", "SR/1", "full_name", "Acme Traders", "Acme Traders Pvt") in _log(eng)
+    assert ("dm_sanction", "SR1", "full_name", "Acme Traders", "Acme Traders Pvt") in _log(eng)
     assert ("dm_sanction_account", "A1", "sanctioned_amount", "100000.00", "90000.00") in _log(eng)
 
 
@@ -146,7 +155,7 @@ def test_an_account_of_an_unknown_sanction_is_left_out_with_a_warning(eng) -> No
 def test_the_same_key_with_different_values_uses_the_first_and_warns(eng) -> None:
     r = apply_upload(eng, T, 1, [_acme(), _acme(full_name="Other")], [_acc(), _acc(remark="x")], now=NOW)
     assert _all(eng, dm_sanction)[0].full_name == "Acme Traders"
-    assert any("Sanction(s)" in w and "SR/1" in w for w in r.warnings)
+    assert any("Sanction(s)" in w and "SR1" in w for w in r.warnings)
     assert any("Account(s)" in w and "A1" in w for w in r.warnings)
 
 
@@ -171,6 +180,16 @@ def test_clearing_many_values_warns(eng) -> None:
     apply_upload(eng, T, 1, many, [], now=NOW)
     r = apply_upload(eng, T, 2, [_acme(f"SR/{i}") for i in range(15)], [], now=NOW)
     assert r.cleared == 30 and "clears 30" in r.warnings[0]
+
+
+def test_the_same_sanction_written_differently_is_one_sanction(eng) -> None:
+    """F012/2025-26 and F012-2025-26 are one sanction: the key keeps letters and digits only."""
+    apply_upload(eng, T, 1, [_acme("F012/2025-26")], [_acc("A1", "F012/2025-26")], now=NOW)
+    r = apply_upload(eng, T, 2, [_acme("f012-2025 26")], [_acc("A2", "F012.2025.26")], now=NOW)
+    assert (r.sanctions_added, r.accounts_added) == (0, 1) and _count(eng, dm_sanction) == 1
+    (s,) = _all(eng, dm_sanction)
+    assert (s.sanction_ref_key, s.sanction_reference_number) == ("F012202526", "f012-2025 26")  # newest as written
+    assert {a.sanction_id for a in _all(eng, dm_sanction_account)} == {s.sanction_id}
 
 
 def test_dates_survive(eng) -> None:

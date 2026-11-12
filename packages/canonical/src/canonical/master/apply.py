@@ -17,6 +17,7 @@ Everything happens in one transaction: an upload is applied completely or not at
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -41,7 +42,16 @@ LIST_FIELD = "*list*"
 LOG_VALUE_LENGTH = 1000
 EXAMPLES = 5
 
-_SYSTEM = {"is_active", "first_load_id", "last_load_id", "updated_at", "load_id", "seq", "holder_seq"}
+_SYSTEM = {
+    "is_active",
+    "first_load_id",
+    "last_load_id",
+    "updated_at",
+    "load_id",
+    "seq",
+    "holder_seq",
+    "sanction_ref_key",
+}
 
 
 def _fields(table: Table, *keys: str) -> tuple[str, ...]:
@@ -53,6 +63,11 @@ HOLDER_FIELDS = _fields(dm_sanction_holder, "sanction_id", "role", "party_kind")
 ACCOUNT_FIELDS = _fields(dm_sanction_account, "account_id", "tenant_id", "account_number", "sanction_id")
 HOLDER_LIST_FIELDS = {name: _fields(t, "sanction_id") for name, t in HOLDER_LISTS.items()}
 SANCTION_LIST_FIELDS = {name: _fields(t, "sanction_id") for name, t in SANCTION_LISTS.items()}
+
+
+def ref_key(ref: str | None) -> str:
+    """The reference key of a sanction number: upper case, letters and digits only (as automn.fn_ref_key)."""
+    return re.sub(r"[^A-Z0-9]", "", (ref or "").upper())
 
 
 class UploadConflict(ValueError):
@@ -135,7 +150,8 @@ def _items(rows: Iterable[Mapping[str, Any]], allowed: tuple[str, ...], what: st
 
 @dataclass(frozen=True)
 class _Sanction:
-    ref: str
+    key: str  # sanction_ref_key
+    ref: str  # as written
     row: dict[str, Any]  # party_kind + PERSON_FIELDS
     holders: tuple[tuple[Any, ...], ...]  # (holder_seq, role, party_kind, *HOLDER_FIELDS)
     holder_lists: dict[str, tuple[tuple[Any, ...], ...]]  # name -> (holder_seq, seq, *fields)
@@ -144,6 +160,7 @@ class _Sanction:
 
 def _sanction(s: SanctionIn) -> _Sanction:
     ref = _key(s.sanction_reference_number, "A sanction")
+    key = _key(ref_key(ref), f"Sanction {ref}: a reference key (letters or digits)")
     b = s.borrower
     row = {"party_kind": _key(b.party_kind, f"Sanction {ref}: party kind"), **_row(b.values, PERSON_FIELDS, ref)}
     holders: list[tuple[Any, ...]] = []
@@ -163,7 +180,7 @@ def _sanction(s: SanctionIn) -> _Sanction:
         )
         for name in SANCTION_LISTS
     }
-    return _Sanction(ref, row, tuple(holders), {k: tuple(v) for k, v in holder_lists.items()}, lists)
+    return _Sanction(key, ref, row, tuple(holders), {k: tuple(v) for k, v in holder_lists.items()}, lists)
 
 
 def _first_wins[K, V](items: Iterable[V], key: Any, what: str, warnings: list[str]) -> dict[K, V]:
@@ -247,7 +264,7 @@ class _Applier:
         return ids
 
     def _replace(self, table: Table, sanction_id: int, cols: tuple[str, ...], new: tuple[tuple[Any, ...], ...],
-                 label: str) -> None:  # fmt: skip
+                 label: str, key: str) -> None:  # fmt: skip
         """Replace one sanction's rows of a list table (cols in key order first) if they differ."""
         query = select(*(table.c[c] for c in cols)).where(table.c.sanction_id == sanction_id)
         old = tuple(sorted((tuple(r) for r in self.conn.execute(query)), key=lambda t: t[:2]))
@@ -260,43 +277,47 @@ class _Applier:
             self._change(table.name, label, LIST_FIELD, old, new)
         self.conn.execute(delete(table).where(table.c.sanction_id == sanction_id))
         if new:
-            self.conn.execute(insert(table), [{"sanction_id": sanction_id, **dict(zip(cols, item, strict=True)),
+            self.conn.execute(insert(table), [{"sanction_id": sanction_id, "sanction_ref_key": key,
+                                               **dict(zip(cols, item, strict=True)),
                                                "load_id": self.load_id} for item in new])  # fmt: skip
 
     def run(self, sanctions: Sequence[SanctionIn], accounts: Sequence[AccountIn]) -> ApplyResult:
         res = self.result
-        ss: dict[str, _Sanction] = _first_wins([_sanction(s) for s in sanctions], lambda s: s.ref, "Sanction(s)",
+        ss: dict[str, _Sanction] = _first_wins([_sanction(s) for s in sanctions], lambda s: s.key, "Sanction(s)",
                                                res.warnings)  # fmt: skip
-        sanction_ids = self._upsert(dm_sanction, "sanction_id", "sanction_reference_number",
-                                    {k: s.row for k, s in ss.items()})  # fmt: skip
+        sanction_ids = self._upsert(dm_sanction, "sanction_id", "sanction_ref_key",
+                                    {k: {"sanction_reference_number": s.ref, **s.row} for k, s in ss.items()})  # fmt: skip
         res.sanctions_added, res.sanctions_updated, res.sanctions_unchanged = self._counts
-        for ref, s in ss.items():
-            sid = sanction_ids[ref]
+        for key, s in ss.items():
+            sid = sanction_ids[key]
             self._replace(dm_sanction_holder, sid, ("holder_seq", "role", "party_kind", *HOLDER_FIELDS), s.holders,
-                          ref)  # fmt: skip
+                          key, key)  # fmt: skip
             for name, table in HOLDER_LISTS.items():
-                self._replace(table, sid, ("holder_seq", "seq", *HOLDER_LIST_FIELDS[name]), s.holder_lists[name], ref)
+                self._replace(table, sid, ("holder_seq", "seq", *HOLDER_LIST_FIELDS[name]), s.holder_lists[name], key,
+                              key)  # fmt: skip
             for name, table in SANCTION_LISTS.items():
-                self._replace(table, sid, ("seq", *SANCTION_LIST_FIELDS[name]), s.lists[name], ref)
+                self._replace(table, sid, ("seq", *SANCTION_LIST_FIELDS[name]), s.lists[name], key, key)
 
         accs: dict[str, tuple[str, str, tuple[Any, ...]]] = _first_wins(
-            [(_key(a.account_number, "An account"), _key(a.sanction_reference_number, f"Account {a.account_number}: "
-              "a sanction"), tuple(_row(a.values, ACCOUNT_FIELDS, a.account_number).values())) for a in accounts],
+            [(_key(a.account_number, "An account"), _key(ref_key(a.sanction_reference_number), f"Account "
+              f"{a.account_number}: a sanction"), tuple(_row(a.values, ACCOUNT_FIELDS, a.account_number).values()))
+             for a in accounts],
             lambda a: a[0], "Account(s)", res.warnings,
         )  # fmt: skip
-        refs = sorted({a[1] for a in accs.values()} - set(sanction_ids))
-        for part in _chunks(refs):
-            q = select(dm_sanction.c.sanction_reference_number, dm_sanction.c.sanction_id).where(
-                dm_sanction.c.tenant_id == self.tenant_id, dm_sanction.c.sanction_reference_number.in_(part)
+        keys = sorted({a[1] for a in accs.values()} - set(sanction_ids))
+        for part in _chunks(keys):
+            q = select(dm_sanction.c.sanction_ref_key, dm_sanction.c.sanction_id).where(
+                dm_sanction.c.tenant_id == self.tenant_id, dm_sanction.c.sanction_ref_key.in_(part)
             )
-            sanction_ids.update({r.sanction_reference_number: r.sanction_id for r in self.conn.execute(q)})
+            sanction_ids.update({r.sanction_ref_key: r.sanction_id for r in self.conn.execute(q)})
         unknown = sorted({a[0] for a in accs.values() if a[1] not in sanction_ids})
         if unknown:
             more = f" and {len(unknown) - EXAMPLES} more" if len(unknown) > EXAMPLES else ""
             res.warnings.append(f"{len(unknown)} account(s) belong to a sanction with no borrower; not saved: "
                                 f"{', '.join(unknown[:EXAMPLES])}{more}")  # fmt: skip
-        rows = {k: {"sanction_id": sanction_ids[ref], **dict(zip(ACCOUNT_FIELDS, values, strict=True))}
-                for k, (_, ref, values) in accs.items() if ref in sanction_ids}  # fmt: skip
+        rows = {k: {"sanction_id": sanction_ids[key], "sanction_ref_key": key,
+                    **dict(zip(ACCOUNT_FIELDS, values, strict=True))}
+                for k, (_, key, values) in accs.items() if key in sanction_ids}  # fmt: skip
         self._upsert(dm_sanction_account, "account_id", "account_number", rows)
         res.accounts_added, res.accounts_updated, res.accounts_unchanged = self._counts
 

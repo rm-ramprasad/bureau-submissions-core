@@ -28,14 +28,14 @@ def eng(tmp_path):
     return engine
 
 
-def test_migration_019_creates_every_master_table() -> None:
-    sql = (AZURE_MIGRATIONS / "019_sanction_master.sql").read_text() + (
-        AZURE_MIGRATIONS / "010_demographics_master.sql"
-    ).read_text()  # dm_change_log is from 010
+def test_migrations_019_and_020_create_every_master_table_and_column() -> None:
+    sql = "".join((AZURE_MIGRATIONS / f).read_text() for f in ("010_demographics_master.sql",  # dm_change_log
+                                                               "019_sanction_master.sql", "020_sanction_ref_key.sql"))  # fmt: skip
     for table in MASTER_TABLES:
         assert f"CREATE TABLE automn.{table.name} (" in sql
         for col in table.columns:
-            assert f"\t{col.name} " in sql, f"{table.name}.{col.name}"
+            assert f"\t{col.name} " in sql or f"automn.{table.name} ADD {col.name} " in sql, f"{table.name}.{col.name}"
+    assert "UNIQUE (tenant_id, sanction_ref_key)" in sql
 
 
 def test_master_columns_are_as_wide_as_the_snapshot_columns_they_feed() -> None:
@@ -61,11 +61,14 @@ def test_master_columns_are_as_wide_as_the_snapshot_columns_they_feed() -> None:
 def test_sanction_account_round_trip(eng) -> None:
     with eng.begin() as conn:
         sid = conn.execute(
-            dm_sanction.insert().values(tenant_id="t", sanction_reference_number="SR/1", party_kind="ENTITY", **LOAD)
+            dm_sanction.insert().values(
+                tenant_id="t", sanction_reference_number="SR/1", sanction_ref_key="SR1", party_kind="ENTITY", **LOAD
+            )
         ).inserted_primary_key[0]
         conn.execute(dm_sanction_account.insert().values(tenant_id="t", account_number="A1", sanction_id=sid,
+                                                          sanction_ref_key="SR1",
                                                           sanctioned_amount=Decimal("1000.50"), **LOAD))  # fmt: skip
-        conn.execute(dm_sanction_phone.insert().values(sanction_id=sid, holder_seq=0, seq=1, phone_number="9999999999",
+        conn.execute(dm_sanction_phone.insert().values(sanction_id=sid, sanction_ref_key="SR1", holder_seq=0, seq=1, phone_number="9999999999",
                                                         load_id=1))  # fmt: skip
         a = conn.execute(select(dm_sanction_account)).one()
         s = conn.execute(select(dm_sanction)).one()
@@ -75,7 +78,7 @@ def test_sanction_account_round_trip(eng) -> None:
 
 
 def test_sanction_reference_and_account_are_unique_per_tenant(eng) -> None:
-    row = dict(tenant_id="t", sanction_reference_number="SR/1", party_kind="ENTITY", **LOAD)
+    row = dict(tenant_id="t", sanction_reference_number="SR/1", sanction_ref_key="SR1", party_kind="ENTITY", **LOAD)
     with eng.begin() as conn:
         conn.execute(dm_sanction.insert().values(**row))
         conn.execute(dm_sanction.insert().values(**{**row, "tenant_id": "u"}))
