@@ -16,8 +16,9 @@
   <div class="page-head">
     <div>
       <h1>Uploads</h1>
-      <p class="subtitle">Upload a workbook once: it is checked, and for types on the customer tables (Admin settings,
-        data source) saved in them straight away. Requests of those types then need no workbook of their own.</p>
+      <p class="subtitle">Upload a workbook whenever it changes: it is checked, and for types on the customer tables
+        (Admin settings, data source) saved in them. A request uses the customer tables as they are then, with the loan
+        system's figures for the request's as-of date.</p>
     </div>
   </div>
 
@@ -27,9 +28,8 @@
         <template x-for="t in data?.types || []" :key="t.submission_type">
           <option :value="t.submission_type" x-text="F.title(t.submission_type) + (t.source === 'master' ? ' (customer tables)' : ' (source views)')"></option>
         </template></select></div>
-    <div><label for="asof">Data as of</label><input type="date" id="asof" x-model="asOf" required></div>
     <div><label for="wb">Workbook (.xlsx)</label><input type="file" id="wb" accept=".xlsx" @change="file = $event.target.files[0] || null"></div>
-    <div><button type="submit" :disabled="busy || !file || !type || !asOf"
+    <div><button type="submit" :disabled="busy || !file || !type"
                  x-text="busy ? 'Uploading…' : 'Upload &amp; check'"></button></div>
   </form>
   <p class="muted" x-show="current()?.source === 'views'">This type is on the source views: the upload is checked here,
@@ -38,10 +38,10 @@
   <div class="panel flush">
     <div class="panel-head"><h2>Uploads</h2></div>
     <div class="table-wrap" x-show="data?.uploads.length || sending"><table>
-      <thead><tr><th>Uploaded</th><th>Type</th><th>As of</th><th>File</th><th>Checks</th><th>Customer tables</th><th></th></tr></thead>
+      <thead><tr><th>Uploaded</th><th>Type</th><th>File</th><th>Checks</th><th>Customer tables</th><th></th></tr></thead>
       <tbody>
         <tr x-show="sending">
-          <td>now</td><td x-text="F.title(type)"></td><td x-text="F.d(asOf)"></td>
+          <td>now</td><td x-text="F.title(type)"></td>
           <td class="mono" x-text="sending?.file_name"></td>
           <td colspan="3"><span class="badge b-RUNNING" x-text="`Uploading ${sending?.pct || 0}%`"></span>
             <div class="progress"><div :style="`width: ${sending?.pct || 0}%`"></div></div></td>
@@ -50,7 +50,6 @@
           <tr class="clickable" @click="open(u)" title="Open the upload's details">
             <td><span x-text="F.dt(u.loaded_at)"></span><div class="hint" x-text="u.loaded_by"></div></td>
             <td x-text="F.title(u.submission_type)"></td>
-            <td x-text="F.d(u.as_of_date)"></td>
             <td class="mono" x-text="u.file_name"></td>
             <td x-show="running(u)" colspan="2"><span class="badge b-RUNNING" x-text="stageText(u) + '…'"></span>
               <div class="hint">since <span x-text="F.dt(u.stage_at)"></span></div></td>

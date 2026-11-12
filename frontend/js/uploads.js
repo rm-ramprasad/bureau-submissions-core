@@ -7,7 +7,6 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("uploadsPage", () => ({
     data: null,
     type: "",
-    asOf: "",
     file: null,
     busy: false,
     sending: null,          // {file_name, pct} while the file is being sent
@@ -56,7 +55,7 @@ document.addEventListener("alpine:init", () => {
       this.sending = { file_name: this.file.name, pct: 0 };
       try {
         const out = await Api.uploadWithProgress(`/uploads/${this.type}`, this.file,
-                                                 { as_of_date: this.asOf, tenant_id: this.$store.app.tenant || "" },
+                                                 { tenant_id: this.$store.app.tenant || "" },
                                                  (pct) => { this.sending.pct = pct; });
         this.sending = null;
         const u = out.upload;

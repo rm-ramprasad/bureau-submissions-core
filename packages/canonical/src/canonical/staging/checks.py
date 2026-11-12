@@ -423,10 +423,12 @@ def run_checks(
     as_of_date: date,
     source_engine: Engine | None = None,
     record: bool = True,
+    skip_kinds: tuple[str, ...] = (),
 ) -> CheckResult:
     """Run the type's checks on one loaded workbook. Records the problems (input_issue) and marks the load DQ_FAILED
     if any blocking check fails; record=False only computes (read-only preview). A type without input_checks.yaml
-    passes."""
+    passes. skip_kinds: check kinds not run (the Uploads page: in_source, the loan system for a date, which only a
+    request has; owner 2026-11-12)."""
     result = CheckResult(load_id)
     checks = load_checks(submission_type)
     if checks is None:
@@ -447,6 +449,8 @@ def run_checks(
     for block in checks.sheets:
         run = _Run(rows_of(block.sheet), as_of_date, source_engine or engine, engine, submission_type, rows_of)
         for c in block.checks:
+            if c.check in skip_kinds:
+                continue
             found = list(run.run(c))
             result.by_check[c.id] = len(found)
             if not found:

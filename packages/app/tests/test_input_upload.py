@@ -189,10 +189,11 @@ def test_an_upload_on_the_uploads_page_is_checked_and_kept_for_its_date(api, eng
     status, data = upload_page(api, GOOD)
     assert status == 202 and "source views" in data["message"]  # consumer is still on the source views
     u = data["upload"]
-    assert (u["status"], u["as_of_date"], u["applied_at"], u["source"]) == ("LOADED", "2026-09-30", None, "views")
+    today = date.today().isoformat()  # no date asked: the upload date (owner 2026-11-12)
+    assert (u["status"], u["as_of_date"], u["applied_at"], u["source"]) == ("LOADED", today, None, "views")
     with engine.connect() as conn:
         load = conn.execute(select(input_load)).one()
-    assert load.batch_id is None and load.as_of_date == date(2026, 9, 30)
+    assert load.batch_id is None and load.as_of_date == date.today()
     _, listed = api.get("/uploads", tenant_id="nbfc_001")
     assert [x["load_id"] for x in listed["uploads"]] == [u["load_id"]]
     assert {t["submission_type"] for t in listed["types"]} == {"CONSUMER", "COMMERCIAL", "MFI"}
@@ -362,8 +363,6 @@ def test_a_failed_save_is_an_item_on_the_details_page(api, engine, monkeypatch):
 @pytest.mark.parametrize(
     ("kwargs", "message"),
     [
-        ({"as_of": "2999-01-01"}, "cannot be in the future"),
-        ({"as_of": "31-10-2026"}, "as-of date"),
         ({"name": "Consumer.csv"}, ".xlsx"),
         ({"submission_type": "NOPE"}, "has no input workbook"),
     ],

@@ -86,6 +86,12 @@ def _columns(conn: Connection, view: str) -> set[str]:
     return {r[0].lower() for r in conn.execute(text(sql), {"s": SCHEMA, "v": view})}
 
 
+def has_view(engine: Engine, view: str) -> bool:
+    """True if the automn view exists."""
+    with engine.connect() as conn:
+        return view.lower() in _views(conn, view.lower())
+
+
 def has_views(engine: Engine, submission_type: str) -> bool:
     """True if the type's required views exist (it can run from views)."""
     with engine.connect() as conn:
@@ -93,8 +99,9 @@ def has_views(engine: Engine, submission_type: str) -> bool:
     return all(view_name(submission_type, e) in found for e in REQUIRED_ENTITIES)
 
 
-def compile_views(engine: Engine, submission_type: str) -> CompiledViews:
-    """The per-entity SELECTs over the type's views, filtered on :load_id and :as_of_date."""
+def compile_views(engine: Engine, submission_type: str, *, dated: bool = True) -> CompiledViews:
+    """The per-entity SELECTs over the type's views, filtered on :load_id and :as_of_date (dated=False: on :load_id
+    only, for what does not depend on a date: the customer tables' load, owner 2026-11-12)."""
     with engine.connect() as conn:
         found = _views(conn, f"vw_{str(submission_type).lower()}_")
         missing = [
@@ -123,7 +130,9 @@ def compile_views(engine: Engine, submission_type: str) -> CompiledViews:
                 else f"CAST(NULL AS {table.c[c.name].type.compile(dialect=conn.dialect)}) AS {c.name}"
                 for c in definition.columns
             ]
-            where = "v.load_id = :load_id" + (" AND v.as_of_date = :as_of_date" if "as_of_date" in have else "")
+            where = "v.load_id = :load_id" + (
+                " AND v.as_of_date = :as_of_date" if dated and "as_of_date" in have else ""
+            )
             sql[entity] = f"SELECT {', '.join(cols)}\nFROM {SCHEMA}.{view} v\nWHERE {where}"
             fingerprint.append(f"{view}\n{found[view]}")
     version = "views-" + hashlib.sha256("\n".join(fingerprint).encode()).hexdigest()[:16]

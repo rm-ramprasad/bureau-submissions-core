@@ -665,3 +665,47 @@ WHERE
     c.cheque_issue_date,
     c.reason_for_dishonour
   ) IS NULL;
+
+-- ---------------------------------------------------------------- the account's workbook fields, no date (owner
+-- 2026-11-12): what the customer tables keep for each loan account of an upload: from the reference's first Sanction
+-- row (credit type, repayment frequency, suit) and BS row (branches). The LMS's fields are read at request time, by
+-- the request's as-of date (vw_pos_account_position). Read by sources.master_load.
+CREATE OR REPLACE VIEW automn.vw_commercial_account_static AS
+SELECT
+  u.load_id,
+  CAST(u.AccountNumber AS CHAR(50)) AS account_key,
+  CAST(u.AccountNumber AS CHAR(50)) AS account_number,
+  b.member_branch_code AS branch_code,
+  b.previous_member_branch_code AS previous_branch_code,
+  COALESCE(l_type.code, NULLIF(LTRIM(RTRIM(n.credit_type_label)), '')) AS account_type,
+  COALESCE(l_freq.code, NULLIF(LTRIM(RTRIM(n.repayment_frequency_label)), '')) AS payment_frequency,
+  COALESCE(c_suit.code, NULLIF(LTRIM(RTRIM(n.suit_filed_status)), '')) AS suit_filed_status,
+  n.suit_reference_number AS suit_reference,
+  automn.fn_amount(n.suit_amount_in_rupees) AS suit_amount,
+  automn.fn_date(n.date_of_suit_filing) AS suit_date
+FROM automn.vw_commercial_upload_account AS u
+JOIN (
+  SELECT
+    x.*,
+    automn.fn_ref_key(x.sanction_reference_number) AS ref_key,
+    ROW_NUMBER() OVER (
+      PARTITION BY x.load_id, automn.fn_ref_key(x.sanction_reference_number)
+      ORDER BY x.source_row
+    ) AS rn
+  FROM automn.stg_commercial_sanction AS x
+) AS n
+  ON n.load_id = u.source_load_id AND n.ref_key = u.ref_key AND n.rn = 1
+LEFT JOIN automn.vw_commercial_bs_first AS b
+  ON b.load_id = u.source_load_id AND b.ref_key = u.ref_key
+LEFT JOIN automn.vw_ref_label AS l_type
+  ON l_type.submission_type = 'COMMERCIAL'
+  AND l_type.code_list = 'account_type'
+  AND l_type.label_key = UPPER(LTRIM(RTRIM(n.credit_type_label)))
+LEFT JOIN automn.vw_ref_label AS l_freq
+  ON l_freq.submission_type = 'COMMERCIAL'
+  AND l_freq.code_list = 'payment_frequency'
+  AND l_freq.label_key = UPPER(LTRIM(RTRIM(n.repayment_frequency_label)))
+LEFT JOIN automn.vw_ref_code AS c_suit
+  ON c_suit.submission_type = 'COMMERCIAL'
+  AND c_suit.code_list = 'suit_filed_status'
+  AND c_suit.code_key = UPPER(NULLIF(LTRIM(RTRIM(n.suit_filed_status)), ''));

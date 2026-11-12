@@ -49,6 +49,24 @@ POSITION_COLUMNS: dict[str, str] = {
     "wilful_default_date": DATE,
     "ufce_amount": AMOUNT,
     "ufce_date": DATE,
+    # the account's sanction terms as the LMS has them on the date (owner 2026-11-12: read at request time, by the
+    # request's as-of date; the customer tables keep only what the workbook gives)
+    "date_opened": DATE,
+    "sanctioned_amount": AMOUNT,
+    "currency": CODE,
+    "rate_of_interest": AMOUNT,
+    "repayment_tenure": NUMBER,
+    "emi_amount": AMOUNT,
+    "maturity_date": DATE,
+    "renewal_date": DATE,
+    "previous_account_number": KEY,
+    "restructured_notional_amount": AMOUNT,
+    "restructuring_reason": CODE,
+    "security_coverage": CODE,
+    "guarantee_coverage": CODE,
+    "other_lenders": CODE,
+    "dispute_id": KEY,
+    "remark": CODE,
     "source": CODE,  # VIEW (an LMS view) / UPLOAD (an LMS Excel upload)
     "source_load_id": ID,  # the upload (automn.input_load), UPLOAD only
     "lms_type": CODE,  # the LMS view's format (CONSUMER / COMMERCIAL); '' = an upload, for every format
