@@ -239,11 +239,55 @@ def test_an_upload_the_customer_tables_refuse_keeps_the_reason(api, engine, monk
     S.put(engine, "nbfc_001", "data_source", {"CONSUMER": "master"}, "admin")
     status, data = upload_page(api, GOOD)
     assert status == 422 and "appears twice" in data["message"] and not data["upload"]["applied_at"]
+    assert "not saved in the customer tables" in data["message"]
     _, listed = api.get("/uploads", tenant_id="nbfc_001")
     assert (
         listed["uploads"][0]["apply_summary"]
         == "Not saved: Customer C1 appears twice in the upload with different values"
     )
+
+
+def test_a_database_error_while_saving_is_shown_and_kept_in_plain_words(api, engine, monkeypatch):
+    """Upload 50 (2026-11-12): the database refused an account row; the page said nothing. Now it says why."""
+    from app.configstore import settings as S
+
+    class DBError(Exception):
+        orig = Exception(
+            "23000",
+            "[23000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Cannot insert the "
+            "value NULL into column 'x', table 'rarfinmisdb.automn.dm_sanction_account'; column does not "
+            "allow nulls. INSERT fails. (515) (SQLExecDirectW)",
+        )  # fmt: skip (as pyodbc gives it)
+
+    def fail(*_a, **_k):
+        raise DBError("wrapped")
+
+    monkeypatch.setattr("sources.master_load.load_upload", fail)
+    S.put(engine, "nbfc_001", "data_source", {"CONSUMER": "master"}, "admin")
+    status, data = upload_page(api, GOOD)
+    reason = ("Cannot insert the value NULL into column 'x', table 'rarfinmisdb.automn.dm_sanction_account'; "
+              "column does not allow nulls. INSERT fails.")  # fmt: skip
+    assert status == 422 and data["message"].endswith(reason) and "not saved in the customer tables" in data["message"]
+    _, listed = api.get("/uploads", tenant_id="nbfc_001")
+    assert listed["uploads"][0]["apply_summary"] == f"Not saved: {reason}"
+    with engine.connect() as conn:
+        details = conn.execute(select(audit_event.c.details).where(audit_event.c.action == "DATA_UPLOADED")).scalar()
+    assert reason in details  # the audit trail has it too
+
+
+def test_an_upload_that_never_finished_shows_as_interrupted(api, engine):
+    from datetime import datetime, timedelta
+
+    from sqlalchemy import update
+
+    from app.configstore import settings as S
+
+    upload_page(api, GOOD)  # on the source views: nothing to save
+    S.put(engine, "nbfc_001", "data_source", {"CONSUMER": "master"}, "admin")
+    with engine.begin() as conn:  # as if the request had stopped before saving, 20 minutes ago
+        conn.execute(update(input_load).values(loaded_at=datetime.now() - timedelta(minutes=20)))
+    _, listed = api.get("/uploads", tenant_id="nbfc_001")
+    assert "interrupted" in listed["uploads"][0]["apply_summary"]
 
 
 @pytest.mark.parametrize(

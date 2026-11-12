@@ -25,7 +25,14 @@ document.addEventListener("alpine:init", () => {
                                      { as_of_date: this.asOf, tenant_id: this.$store.app.tenant || "" });
         App.flash(out.message, out.rejected ? "error" : "ok");
         await this.load();
-      } catch (e) { App.error(e); } finally { this.busy = false; }
+      } catch (e) {
+        // the request ended without an answer (time limit, network, restart): the list says what happened
+        if (!e.status || [502, 503, 504].includes(e.status)) {
+          App.flash("No answer from the server while saving (it may still be working). The list below shows the "
+                    + "result; if it says 'Not saved', upload the workbook again.", "error");
+          await this.load();
+        } else App.error(e);
+      } finally { this.busy = false; }
     },
   }));
 });
