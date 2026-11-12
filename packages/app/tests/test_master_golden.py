@@ -284,6 +284,13 @@ def install_keyed_views(engine, batch: dict) -> None:
             conn.execute(insert(table), [typed(entity, {c: r.get(c) for c in columns}) for r in rows])
             conn.execute(text(f"CREATE VIEW automn.vw_{t}_{entity} AS SELECT 1 AS load_id, '{AS_OF}' AS as_of_date, "
                               f"{', '.join(columns)} FROM automn.src_{t}_{entity}"))  # fmt: skip
+    if batch["entities"].get("account"):  # the account's workbook fields, no date (owner 2026-11-12): the rest is LMS
+        workbook = [c.name for c in MODEL.entities["account"].columns
+                    if c.name in ("account_key", "account_number", "actual_payment_amount")  # the workbook fallback
+                    or c.name not in POSITION_COLUMNS]  # fmt: skip
+        with engine.begin() as conn:
+            conn.execute(text(f"CREATE VIEW automn.vw_{t}_account_static AS SELECT 1 AS load_id, {', '.join(workbook)} "
+                              f"FROM automn.src_{t}_account"))  # fmt: skip
     if t == "commercial":  # account -> sanction (the golden borrower)
         with engine.begin() as conn:
             conn.execute(text("CREATE VIEW automn.vw_commercial_account_ref AS SELECT 1 AS load_id, account_key AS "

@@ -15,6 +15,7 @@
 -- only the client's own). lms_type says which LMS view a row came from (CONSUMER / COMMERCIAL; '' for an upload): the
 -- same account can be in both of rarfincare's LMS views, and each format reads its own (2026-11-10, parity report). Every column is CAST so the parts line up. No tenant column: one client per database, as in
 -- the other source views. sanction_number is '' for LMS views until the mapping names a column (ADR open point).
+-- 2026-11-12 (owner): the account's sanction terms (date opened ... remark) are read here too, by the request's date.
 CREATE OR REPLACE VIEW automn.vw_pos_lms_consumer AS
 SELECT
   CAST(v.AccountNumber AS CHAR(50)) AS account_number,
@@ -47,6 +48,22 @@ SELECT
   CAST(NULL AS DATE) AS wilful_default_date,
   CAST(NULL AS DECIMAL(20, 2)) AS ufce_amount,
   CAST(NULL AS DATE) AS ufce_date,
+  automn.fn_date(CAST(v.TL_DateDisbursed AS CHAR(40))) AS date_opened,
+  CAST(NULL AS DECIMAL(20, 2)) AS sanctioned_amount,
+  CAST(NULL AS CHAR(40)) AS currency,
+  CAST(v.TL_RateofInterest AS DECIMAL(20, 4)) AS rate_of_interest,
+  CAST(v.TL_RepaymentTenure AS SIGNED) AS repayment_tenure,
+  CAST(v.TL_EMIAmount AS DECIMAL(20, 2)) AS emi_amount,
+  CAST(NULL AS DATE) AS maturity_date,
+  CAST(NULL AS DATE) AS renewal_date,
+  CAST(NULL AS CHAR(50)) AS previous_account_number,
+  CAST(NULL AS DECIMAL(20, 2)) AS restructured_notional_amount,
+  CAST(NULL AS CHAR(40)) AS restructuring_reason,
+  CAST(NULL AS CHAR(40)) AS security_coverage,
+  CAST(NULL AS CHAR(40)) AS guarantee_coverage,
+  CAST(NULL AS CHAR(200)) AS other_lenders,
+  CAST(NULL AS CHAR(50)) AS dispute_id,
+  CAST(NULL AS CHAR(40)) AS remark,
   CAST('VIEW' AS CHAR(10)) AS source,
   CAST(NULL AS SIGNED) AS source_load_id,
   CAST('CONSUMER' AS CHAR(20)) AS lms_type
@@ -109,6 +126,22 @@ SELECT
   automn.fn_date(l.wilful_date_text) AS wilful_default_date,
   CAST(l.`UFCE Amount` AS DECIMAL(20, 2)) AS ufce_amount,
   automn.fn_date(l.ufce_date_text) AS ufce_date,
+  automn.fn_date(CAST(l.`Sanction Date` AS CHAR(40))) AS date_opened,
+  CAST(l.`Sanctioned Amount` AS DECIMAL(20, 2)) AS sanctioned_amount,
+  CAST(l.`Currency Code` AS CHAR(40)) AS currency,
+  CAST(NULL AS DECIMAL(20, 4)) AS rate_of_interest,
+  CAST(l.Tenure AS SIGNED) AS repayment_tenure,
+  CAST(l.`Installment Amount` AS DECIMAL(20, 2)) AS emi_amount,
+  automn.fn_date(CAST(l.`Maturity Date` AS CHAR(40))) AS maturity_date,
+  automn.fn_date(l.renewal_text) AS renewal_date,
+  CAST(l.`Previous Account Number` AS CHAR(50)) AS previous_account_number,
+  CAST(l.`Notional Amount of Outstanding Restructured Contracts` AS DECIMAL(20, 2)) AS restructured_notional_amount,
+  CAST(COALESCE(c_restr.code, l.restructuring_code) AS CHAR(40)) AS restructuring_reason,
+  CAST(COALESCE(c_seccov.code, l.security_coverage_code) AS CHAR(40)) AS security_coverage,
+  CAST(COALESCE(c_guarcov.code, l.guarantee_coverage_code) AS CHAR(40)) AS guarantee_coverage,
+  CAST(l.OTHER_BK AS CHAR(200)) AS other_lenders,
+  CAST(l.`Dispute ID No.` AS CHAR(50)) AS dispute_id,
+  CAST(l.`Bank Remark Code` AS CHAR(40)) AS remark,
   CAST('VIEW' AS CHAR(10)) AS source,
   CAST(NULL AS SIGNED) AS source_load_id,
   CAST('COMMERCIAL' AS CHAR(20)) AS lms_type
@@ -140,7 +173,41 @@ FROM (
       )
     END AS ufce_date_text,
     NULLIF(LTRIM(RTRIM(CAST(y.`Asset Classification` AS CHAR(40)))), '') AS asset_code,
-    NULLIF(LTRIM(RTRIM(CAST(y.`Account Status` AS CHAR(40)))), '') AS status_code
+    NULLIF(LTRIM(RTRIM(CAST(y.`Account Status` AS CHAR(40)))), '') AS status_code,
+    CASE
+      WHEN NOT y.`Loan Renewal Date` IS NULL
+      THEN RIGHT(
+        CAST(CONCAT(COALESCE('0', ''), COALESCE(CAST(y.`Loan Renewal Date` AS CHAR(8)), '')) AS CHAR),
+        8
+      )
+    END AS renewal_text,
+    CASE
+      WHEN NOT y.`Major reasons for Restructuring` IS NULL
+      THEN RIGHT(
+        CAST(CONCAT(
+          COALESCE('0', ''),
+          COALESCE(CAST(y.`Major reasons for Restructuring` AS CHAR(2)), '')
+        ) AS CHAR),
+        2
+      )
+    END AS restructuring_code,
+    CASE
+      WHEN NOT y.`Asset based Security coverage` IS NULL
+      THEN RIGHT(
+        CAST(CONCAT(
+          COALESCE('0', ''),
+          COALESCE(CAST(y.`Asset based Security coverage` AS CHAR(2)), '')
+        ) AS CHAR),
+        2
+      )
+    END AS security_coverage_code,
+    CASE
+      WHEN NOT y.`Guarantee Coverage` IS NULL
+      THEN RIGHT(
+        CAST(CONCAT(COALESCE('0', ''), COALESCE(CAST(y.`Guarantee Coverage` AS CHAR(2)), '')) AS CHAR),
+        2
+      )
+    END AS guarantee_coverage_code
   FROM wip.VwCommercialSubmissionCR AS y
 ) AS l
 LEFT JOIN automn.vw_ref_code AS c_asset
@@ -150,7 +217,19 @@ LEFT JOIN automn.vw_ref_code AS c_asset
 LEFT JOIN automn.vw_ref_code AS c_status
   ON c_status.submission_type = 'COMMERCIAL'
   AND c_status.code_list = 'credit_facility_status'
-  AND c_status.code_key = UPPER(l.status_code);
+  AND c_status.code_key = UPPER(l.status_code)
+LEFT JOIN automn.vw_ref_code AS c_restr
+  ON c_restr.submission_type = 'COMMERCIAL'
+  AND c_restr.code_list = 'restructuring_reason'
+  AND c_restr.code_key = l.restructuring_code
+LEFT JOIN automn.vw_ref_code AS c_seccov
+  ON c_seccov.submission_type = 'COMMERCIAL'
+  AND c_seccov.code_list = 'coverage'
+  AND c_seccov.code_key = l.security_coverage_code
+LEFT JOIN automn.vw_ref_code AS c_guarcov
+  ON c_guarcov.submission_type = 'COMMERCIAL'
+  AND c_guarcov.code_list = 'coverage'
+  AND c_guarcov.code_key = l.guarantee_coverage_code;
 
 -- ---------------------------------------------------------------- B: LMS Excel uploads (newest per account and date)
 CREATE OR REPLACE VIEW automn.vw_pos_upload AS
@@ -185,6 +264,22 @@ SELECT
   automn.fn_date(x.wilful_default_date) AS wilful_default_date,
   automn.fn_amount(x.ufce_amount) AS ufce_amount,
   automn.fn_date(x.ufce_date) AS ufce_date,
+  automn.fn_date(x.date_opened) AS date_opened,
+  automn.fn_amount(x.sanctioned_amount) AS sanctioned_amount,
+  CAST(NULLIF(LTRIM(RTRIM(x.currency)), '') AS CHAR(40)) AS currency,
+  CAST(automn.fn_percent(x.rate_of_interest) AS DECIMAL(20, 4)) AS rate_of_interest,
+  automn.fn_int(x.repayment_tenure) AS repayment_tenure,
+  automn.fn_amount(x.emi_amount) AS emi_amount,
+  automn.fn_date(x.maturity_date) AS maturity_date,
+  automn.fn_date(x.renewal_date) AS renewal_date,
+  CAST(NULLIF(LTRIM(RTRIM(x.previous_account_number)), '') AS CHAR(50)) AS previous_account_number,
+  automn.fn_amount(x.restructured_notional_amount) AS restructured_notional_amount,
+  CAST(NULLIF(LTRIM(RTRIM(x.restructuring_reason)), '') AS CHAR(40)) AS restructuring_reason,
+  CAST(NULLIF(LTRIM(RTRIM(x.security_coverage)), '') AS CHAR(40)) AS security_coverage,
+  CAST(NULLIF(LTRIM(RTRIM(x.guarantee_coverage)), '') AS CHAR(40)) AS guarantee_coverage,
+  CAST(NULLIF(LTRIM(RTRIM(x.other_lenders)), '') AS CHAR(200)) AS other_lenders,
+  CAST(NULLIF(LTRIM(RTRIM(x.dispute_id)), '') AS CHAR(50)) AS dispute_id,
+  CAST(NULLIF(LTRIM(RTRIM(x.remark)), '') AS CHAR(40)) AS remark,
   CAST('UPLOAD' AS CHAR(10)) AS source,
   CAST(x.load_id AS SIGNED) AS source_load_id,
   CAST('' AS CHAR(20)) AS lms_type

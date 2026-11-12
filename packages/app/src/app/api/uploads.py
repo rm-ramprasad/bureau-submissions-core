@@ -118,7 +118,7 @@ def upload_status(load_id: int):
 
 @bp.post("/uploads/<submission_type>")
 def upload(submission_type: str):
-    """Upload one workbook: {file, as_of_date, tenant_id}. Kept and recorded at once (202); loading, checks and saving
+    """Upload one workbook: {file, tenant_id}. Kept and recorded at once (202), dated today; loading, checks and saving
     into the customer tables run in the background (app.uploadjobs), the page follows GET /uploads/<load_id>."""
     s = svc()
     request.max_content_length = MAX_UPLOAD  # this route only
@@ -126,12 +126,7 @@ def upload(submission_type: str):
     if not needs_workbook(kind):
         fail(f"{kind} has no input workbook", 404)
     tenant_id = _tenant(request.form.get("tenant_id"))
-    try:
-        as_of = date.fromisoformat(request.form.get("as_of_date") or "")
-    except ValueError:
-        fail("Give the as-of date of the data (YYYY-MM-DD).")
-    if as_of > date.today():
-        fail("The as-of date cannot be in the future.")
+    as_of = date.today()  # the upload date (owner 2026-11-12: no date asked; a request gives the LMS date)
     upload_file = request.files.get("file")
     if upload_file is None or not upload_file.filename:
         fail("Choose the workbook (.xlsx) to upload.")

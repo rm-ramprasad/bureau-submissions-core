@@ -29,6 +29,7 @@ from sources.excel import load_workbook
 
 log = logging.getLogger(__name__)
 
+DATED_CHECKS = ("in_source",)  # need the loan system for a date: a request's checks, not the Uploads page's
 RECEIVED, LOADING, CHECKING, SAVING, DONE = "RECEIVED", "LOADING", "CHECKING", "SAVING", "DONE"
 INTERRUPTED_AFTER = timedelta(minutes=10)  # a stage that has not moved for this long: the processing stopped
 INTERRUPTED = "Not saved: the upload was interrupted (the server stopped while processing it). Upload it again."
@@ -123,14 +124,16 @@ def process_upload(engine: Engine, store: FileStore, load_id: int) -> Processed:
             message, ok = "The workbook was not loaded: " + "; ".join(i.message for i in result.errors), False
         else:
             _stage(engine, load_id, CHECKING)
-            checks = run_checks(engine, load_id, kind, as_of)
+            checks = run_checks(engine, load_id, kind, as_of, skip_kinds=DATED_CHECKS)
             if not checks.passed:
                 message, ok = (f"{name}: {checks.blocking} row(s) fail blocking data-quality checks. Fix the workbook "
                                "and upload it again."), False  # fmt: skip
             elif data_source(engine, row.tenant_id, kind) == "master":
                 _stage(engine, load_id, SAVING)
                 try:
-                    res = load_upload(engine, engine, row.tenant_id, kind, as_of, load_id)  # views in the app database
+                    res = load_upload(
+                        engine, engine, row.tenant_id, kind, None, load_id
+                    )  # no date: LMS at request time  # views in the app database
                 except Exception as exc:  # nothing was saved (one transaction): say why, kept with the upload
                     reason = str(exc) if isinstance(exc, UploadConflict) else db_reason(exc)
                     if not isinstance(exc, UploadConflict):

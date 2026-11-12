@@ -11,7 +11,8 @@ related parties, securities, cheque dishonours). entities_to_master groups them 
   Number). One borrower per sanction (BS), with its IDs, phones, addresses (AS), guarantors (GS), related parties (RS),
   securities (SS) and cheque dishonours (CD): the rows of all its accounts, each once (the views repeat a sanction's
   rows on every account).
-- loan accounts: the account rows the views give for the upload's date (static fields; the LMS figures are L2b).
+- loan accounts: automn.vw_<type>_account_static, no date: the workbook's fields (owner 2026-11-12). The LMS's
+  fields (dates, amounts, tenure, figures) are read at request time, by the request's as-of date (L2b).
 """
 
 from __future__ import annotations
@@ -133,16 +134,57 @@ def entities_to_master(
 
 
 def rows_from_views(
-    source_engine: Engine, submission_type: str, as_of_date: date, load_id: int
+    source_engine: Engine,
+    submission_type: str,
+    as_of_date: date | None,
+    load_id: int,
+    *,
+    skip: tuple[str, ...] = (),
+    only: tuple[str, ...] = (),
 ) -> dict[str, list[dict[str, Any]]]:
     """One upload as the type's source views give it (no exclusions or overrides: the master holds the source)."""
-    compiled = compile_views(source_engine, submission_type)
+    compiled = compile_views(source_engine, submission_type, dated=as_of_date is not None)
     out: dict[str, list[dict[str, Any]]] = {}
     with source_engine.connect() as conn:
         for entity, sql in compiled.sql.items():
+            if entity in skip or (only and entity not in only):
+                continue
             params = bind_params(sql, {"as_of_date": as_of_date, "load_id": load_id})
             out[entity] = [dict(r._mapping) for r in conn.execute(text(sql), params)]
     return out
+
+
+def static_accounts(source_engine: Engine, submission_type: str, load_id: int) -> list[dict[str, Any]] | None:
+    """The upload's accounts with their workbook fields, no date (automn.vw_<type>_account_static); None when the
+    view does not exist (then the account view is read for a date, as before)."""
+    from sources.views import has_view
+
+    view = f"vw_{str(submission_type).lower()}_account_static"
+    if not has_view(source_engine, view):
+        return None
+    sql = f"SELECT * FROM {SCHEMA}.{view} WHERE load_id = :l"  # noqa: S608 (names from code, value bound)
+    with source_engine.connect() as conn:
+        return [
+            {k: v for k, v in r._mapping.items() if k != "load_id"} for r in conn.execute(text(sql), {"l": load_id})
+        ]
+
+
+def master_inputs(
+    source_engine: Engine, submission_type: str, load_id: int, as_of_date: date | None = None
+) -> tuple[list[SanctionIn], list[AccountIn]]:
+    """One upload as the customer tables take it (owner 2026-11-12: no date at upload): borrowers, holders and lists
+    from the type's source views (they have no date), accounts and their workbook fields from the static view. The
+    LMS's fields are read at request time, by the request's as-of date. as_of_date: only where a client has no static
+    view yet (then the account view is read for that date)."""
+    rows = rows_from_views(source_engine, submission_type, as_of_date, load_id, skip=("account",))
+    static = static_accounts(source_engine, submission_type, load_id)
+    if static is not None:
+        rows["account"] = static
+    elif as_of_date is not None:
+        rows["account"] = rows_from_views(source_engine, submission_type, as_of_date, load_id, only=("account",))[
+            "account"
+        ]
+    return entities_to_master(rows, submission_type, account_refs(source_engine, submission_type, load_id))
 
 
 def account_refs(source_engine: Engine, submission_type: str, load_id: int) -> dict[str, str]:
@@ -155,10 +197,14 @@ def account_refs(source_engine: Engine, submission_type: str, load_id: int) -> d
 
 
 def load_upload(
-    app_engine: Engine, source_engine: Engine, tenant_id: str, submission_type: str, as_of_date: date, load_id: int
+    app_engine: Engine,
+    source_engine: Engine,
+    tenant_id: str,
+    submission_type: str,
+    as_of_date: date | None,
+    load_id: int,
 ) -> ApplyResult:
-    """Apply one upload to the tenant's customer tables through its source views (one transaction)."""
-    rows = rows_from_views(source_engine, submission_type, as_of_date, load_id)
-    sanctions, accounts = entities_to_master(rows, submission_type, account_refs(source_engine, submission_type,
-                                                                                  load_id))  # fmt: skip
+    """Apply one upload to the tenant's customer tables through its source views (one transaction). No date needed
+    (as_of_date only for a client without the static account view)."""
+    sanctions, accounts = master_inputs(source_engine, submission_type, load_id, as_of_date)
     return apply_upload(app_engine, tenant_id, load_id, sanctions, accounts)

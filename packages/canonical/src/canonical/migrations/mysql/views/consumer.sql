@@ -413,3 +413,50 @@ LEFT JOIN automn.vw_ref_label AS l_res
   AND l_res.label_key = UPPER(LTRIM(RTRIM(a.residence_label)))
 WHERE
   NOT NULLIF(LTRIM(RTRIM(a.address_line_1)), '') IS NULL;
+
+-- ---------------------------------------------------------------- the account's workbook fields, no date (owner
+-- 2026-11-12): what the customer tables keep for each account of an upload. The LMS's fields (dates, amounts, tenure)
+-- are read at request time, by the request's as-of date (vw_pos_account_position). Read by sources.master_load.
+CREATE OR REPLACE VIEW automn.vw_consumer_account_static AS
+SELECT
+  s.load_id,
+  s.curr_new_account_no AS account_key,
+  s.curr_new_account_no AS account_number,
+  COALESCE(c_type.code, NULLIF(LTRIM(RTRIM(s.account_type)), '')) AS account_type,
+  COALESCE(l_suit.code, NULLIF(LTRIM(RTRIM(s.suit_filed_wilful_default_label)), '')) AS suit_filed_status,
+  automn.fn_amount(s.value_of_collateral) AS collateral_value,
+  COALESCE(l_coll.code, NULLIF(LTRIM(RTRIM(s.type_of_collateral_label)), '')) AS collateral_type,
+  COALESCE(l_freq.code, NULLIF(LTRIM(RTRIM(s.payment_frequency_label)), '')) AS payment_frequency,
+  automn.fn_amount(s.actual_payment_amt) AS actual_payment_amount,
+  s.old_mbr_code AS old_member_code,
+  s.old_mbr_short_name AS old_member_short_name,
+  s.old_acc_no AS old_account_number,
+  COALESCE(c_oldtype.code, NULLIF(LTRIM(RTRIM(s.old_acc_type)), '')) AS old_account_type,
+  COALESCE(c_oldown.code, NULLIF(LTRIM(RTRIM(s.old_ownership_indicator)), '')) AS old_ownership_indicator
+FROM automn.vw_consumer_borrower AS s
+LEFT JOIN automn.vw_ref_code AS c_type
+  ON c_type.submission_type = 'CONSUMER'
+  AND c_type.code_list = 'account_type'
+  AND c_type.code_key = UPPER(LTRIM(RTRIM(s.account_type)))
+LEFT JOIN automn.vw_ref_label AS l_suit
+  ON l_suit.submission_type = 'CONSUMER'
+  AND l_suit.code_list = 'suit_filed_status'
+  AND l_suit.label_key = UPPER(LTRIM(RTRIM(s.suit_filed_wilful_default_label)))
+LEFT JOIN automn.vw_ref_label AS l_coll
+  ON l_coll.submission_type = 'CONSUMER'
+  AND l_coll.code_list = 'collateral_type'
+  AND l_coll.label_key = UPPER(LTRIM(RTRIM(s.type_of_collateral_label)))
+LEFT JOIN automn.vw_ref_label AS l_freq
+  ON l_freq.submission_type = 'CONSUMER'
+  AND l_freq.code_list = 'payment_frequency'
+  AND l_freq.label_key = UPPER(LTRIM(RTRIM(s.payment_frequency_label)))
+LEFT JOIN automn.vw_ref_code AS c_oldtype
+  ON c_oldtype.submission_type = 'CONSUMER'
+  AND c_oldtype.code_list = 'account_type'
+  AND c_oldtype.code_key = UPPER(LTRIM(RTRIM(s.old_acc_type)))
+LEFT JOIN automn.vw_ref_code AS c_oldown
+  ON c_oldown.submission_type = 'CONSUMER'
+  AND c_oldown.code_list = 'ownership_indicator'
+  AND c_oldown.code_key = UPPER(LTRIM(RTRIM(s.old_ownership_indicator)))
+WHERE
+  s.rn = 1;
