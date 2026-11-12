@@ -50,7 +50,9 @@ def _fields(table: Table, *keys: str) -> tuple[str, ...]:
 
 PERSON_FIELDS = _fields(dm_sanction, "sanction_id", "tenant_id", "sanction_reference_number", "party_kind")
 HOLDER_FIELDS = _fields(dm_sanction_holder, "sanction_id", "role", "party_kind")
-ACCOUNT_FIELDS = _fields(dm_sanction_account, "account_id", "tenant_id", "account_number", "sanction_id")
+ACCOUNT_FIELDS = _fields(
+    dm_sanction_account, "account_id", "tenant_id", "account_number", "sanction_id", "sanction_reference_number"
+)
 HOLDER_LIST_FIELDS = {name: _fields(t, "sanction_id") for name, t in HOLDER_LISTS.items()}
 SANCTION_LIST_FIELDS = {name: _fields(t, "sanction_id") for name, t in SANCTION_LISTS.items()}
 
@@ -295,7 +297,8 @@ class _Applier:
             more = f" and {len(unknown) - EXAMPLES} more" if len(unknown) > EXAMPLES else ""
             res.warnings.append(f"{len(unknown)} account(s) belong to a sanction with no borrower; not saved: "
                                 f"{', '.join(unknown[:EXAMPLES])}{more}")  # fmt: skip
-        rows = {k: {"sanction_id": sanction_ids[ref], **dict(zip(ACCOUNT_FIELDS, values, strict=True))}
+        rows = {k: {"sanction_id": sanction_ids[ref], "sanction_reference_number": ref,
+                    **dict(zip(ACCOUNT_FIELDS, values, strict=True))}
                 for k, (_, ref, values) in accs.items() if ref in sanction_ids}  # fmt: skip
         self._upsert(dm_sanction_account, "account_id", "account_number", rows)
         res.accounts_added, res.accounts_updated, res.accounts_unchanged = self._counts

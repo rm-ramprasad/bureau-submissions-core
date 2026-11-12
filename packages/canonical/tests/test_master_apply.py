@@ -71,8 +71,8 @@ def test_one_sanction_with_its_lists_and_several_accounts(eng) -> None:
     (s,) = _all(eng, dm_sanction)
     assert (s.sanction_reference_number, s.party_kind, s.full_name, s.first_load_id) == ("SR/1", "ENTITY",
                                                                                           "Acme Traders", 1)  # fmt: skip
-    assert {(a.account_number, a.sanction_id) for a in _all(eng, dm_sanction_account)} == {("A1", s.sanction_id),
-                                                                                          ("A2", s.sanction_id)}  # fmt: skip
+    assert {(a.account_number, a.sanction_id, a.sanction_reference_number) for a in _all(eng, dm_sanction_account)} == {
+        ("A1", s.sanction_id, "SR/1"), ("A2", s.sanction_id, "SR/1")}  # fmt: skip
     assert [(p.holder_seq, p.seq, p.phone_number) for p in _all(eng, dm_sanction_phone)] == [(0, 1, "9000000001")]
     assert [a.pin_code for a in _all(eng, dm_sanction_address)] == ["600001"]
     assert [g.pan for g in _all(eng, dm_sanction_guarantor)] == ["ABCPR1234F"]

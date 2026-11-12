@@ -184,6 +184,7 @@ dm_sanction_account = Table(
     Column("tenant_id", Unicode(30), nullable=False),
     Column("account_number", Unicode(KEY_LENGTH), nullable=False),  # links to L2b (the LMS position)
     Column("sanction_id", _PK, ForeignKey("automn.dm_sanction.sanction_id"), nullable=False),
+    Column("sanction_reference_number", Unicode(KEY_LENGTH), nullable=False),  # the sanction's (migration 020)
     # the account's static fields (the LMS figures for a date are L2b, not stored here)
     Column("account_type", _code()),
     Column("date_opened", Date),

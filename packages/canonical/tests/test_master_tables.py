@@ -29,9 +29,13 @@ def eng(tmp_path):
 
 
 def test_migration_019_creates_every_master_table() -> None:
-    sql = (AZURE_MIGRATIONS / "019_sanction_master.sql").read_text() + (
-        AZURE_MIGRATIONS / "010_demographics_master.sql"
-    ).read_text()  # dm_change_log is from 010
+    sql = "".join(
+        (AZURE_MIGRATIONS / f).read_text() for f in ("019_sanction_master.sql", "020_account_sanction_ref.sql")
+    )
+    sql = (
+        sql.replace("ALTER TABLE automn.dm_sanction_account ADD\n", "CREATE TABLE automn.dm_sanction_account_020 (\n")
+        + (AZURE_MIGRATIONS / "010_demographics_master.sql").read_text()
+    )  # dm_change_log is from 010
     for table in MASTER_TABLES:
         assert f"CREATE TABLE automn.{table.name} (" in sql
         for col in table.columns:
@@ -64,6 +68,7 @@ def test_sanction_account_round_trip(eng) -> None:
             dm_sanction.insert().values(tenant_id="t", sanction_reference_number="SR/1", party_kind="ENTITY", **LOAD)
         ).inserted_primary_key[0]
         conn.execute(dm_sanction_account.insert().values(tenant_id="t", account_number="A1", sanction_id=sid,
+                                                          sanction_reference_number="SR/1",
                                                           sanctioned_amount=Decimal("1000.50"), **LOAD))  # fmt: skip
         conn.execute(dm_sanction_phone.insert().values(sanction_id=sid, holder_seq=0, seq=1, phone_number="9999999999",
                                                         load_id=1))  # fmt: skip
