@@ -97,6 +97,8 @@ def test_the_data_source_is_switched_per_type_and_can_be_switched_back(api, engi
     assert api.post(path, source="master")[0] == 400  # needs a reason
     assert api.post(path, source="lake", reason="r")[0] == 400
     assert api.post("/admin/data-source/NOPE", source="master", reason="r")[0] == 404
+    status, out = api.post("/admin/data-source/MFI", source="master", reason="r")
+    assert status == 400 and "cannot use the customer tables" in out["error"]
     status, out = api.post(path, source="master", reason="parity identical on uploads 30 and 31")
     assert status == 200 and "customer tables" in out["message"]
     assert S.get_all(engine, "nbfc_001") == {"data_source": {"CONSUMER": "master"}}

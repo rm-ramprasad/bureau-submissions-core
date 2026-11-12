@@ -128,8 +128,8 @@ def upload(submission_type: str):
                              .values(apply_summary=f"Not saved: {exc}"[:1000]))  # fmt: skip
         else:
             applied = utcnow()
-            summary = (f"customers {res.parties_added} added, {res.parties_updated} updated; accounts "
-                       f"{res.sanctions_added} added, {res.sanctions_updated} updated; {res.changes} values changed"
+            summary = (f"sanctions {res.sanctions_added} added, {res.sanctions_updated} updated; accounts "
+                       f"{res.accounts_added} added, {res.accounts_updated} updated; {res.changes} values changed"
                        + (f". {' '.join(res.warnings)}" if res.warnings else ""))  # fmt: skip
             with s.engine.begin() as conn:
                 conn.execute(update(input_load).where(t.load_id == result.load_id)

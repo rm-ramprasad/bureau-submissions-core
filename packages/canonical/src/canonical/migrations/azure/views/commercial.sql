@@ -85,6 +85,20 @@ FROM automn.vw_commercial_upload_ref u
 JOIN automn.vw_commercial_ref_account ra ON ra.ref_key = u.ref_key;
 GO
 
+-- Each upload's loan accounts and their Sanction Reference Number (as written in the reference's first Sanction row
+-- of its newest upload), no date: the customer tables keep one borrower per sanction and link its accounts
+-- (owner 2026-11-11; read by sources.master_load, not a snapshot entity).
+CREATE OR ALTER VIEW automn.vw_commercial_account_ref AS
+SELECT DISTINCT u.load_id, CAST(u.AccountNumber AS VARCHAR(50)) AS account_number,
+       CAST(n.sanction_reference_number AS VARCHAR(100)) AS sanction_reference_number
+FROM automn.vw_commercial_upload_account u
+JOIN (SELECT x.load_id, x.sanction_reference_number, automn.fn_ref_key(x.sanction_reference_number) AS ref_key,
+             ROW_NUMBER() OVER (PARTITION BY x.load_id, automn.fn_ref_key(x.sanction_reference_number)
+                                ORDER BY x.source_row) AS rn
+      FROM automn.stg_commercial_sanction x) n
+  ON n.load_id = u.source_load_id AND n.ref_key = u.ref_key AND n.rn = 1;
+GO
+
 -- ---------------------------------------------------------------- CR: the loan line
 -- The inner select prepares the view's coded values: numbers padded to their code width (5 -> 05; 1012025 -> 01012025,
 -- the dates the view holds as numbers), NULL kept as NULL.

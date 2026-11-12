@@ -1,16 +1,17 @@
-"""Apply an upload to the L2a demographics master through the client's existing source views (ADR 0002 PR 6, owner
-2026-11-09: rarfincare's data enters the master through the views it already runs; a configured mapping comes when a
-second client needs one).
+"""Apply an upload to the L2a customer tables through the client's source views (ADR 0002 PR 6; sanction model, owner
+2026-11-11: one data model for consumer and commercial, keyed by the sanction reference number).
 
 The views give canonical snapshot rows (party, identifiers, phones, e-mails, addresses, account, holders, guarantors,
-related parties, securities, cheque dishonours). entities_to_master splits them the way the master holds them:
+related parties, securities, cheque dishonours). entities_to_master groups them per sanction:
 
-- a party per party_key (the customer key; rarfincare has no customer ID, so the views' key stays: consumer
-  <account>-<row>, commercial the loan account), its lists replaced as a whole;
-- a sanction per account number, with its static fields (the loan system's daily figures are L2b, not stored here);
-- links party + role: consumer holders GUARANTOR (ownership GUARANTOR), BORROWER (the first other holder, in any row
-  order), CO_BORROWER (the rest);
-  commercial holders BORROWER, guarantors GUARANTOR, related parties RELATED on each of the borrower's sanctions.
+- consumer: the sanction reference number is the account number (rarfincare's consumer data has no sanction number).
+  The account's holders in workbook order: the first that is not a guarantor is the borrower (on the sanction), the
+  others are holders (GUARANTOR or CO_BORROWER).
+- commercial: each loan account belongs to a sanction (automn.vw_commercial_account_ref: account -> Sanction Reference
+  Number). One borrower per sanction (BS), with its IDs, phones, addresses (AS), guarantors (GS), related parties (RS),
+  securities (SS) and cheque dishonours (CD): the rows of all its accounts, each once (the views repeat a sanction's
+  rows on every account).
+- loan accounts: the account rows the views give for the upload's date (static fields; the LMS figures are L2b).
 """
 
 from __future__ import annotations
@@ -21,45 +22,26 @@ from typing import Any
 
 from sqlalchemy import Engine, text
 
+from canonical.db import SCHEMA
 from canonical.master.apply import (
+    ACCOUNT_FIELDS,
+    HOLDER_LIST_FIELDS,
+    PERSON_FIELDS,
+    SANCTION_LIST_FIELDS,
+    AccountIn,
     ApplyResult,
-    GroupIn,
-    PartyIn,
+    PersonIn,
     SanctionIn,
-    SanctionPartyIn,
-    SecurityIn,
     apply_upload,
 )
-from canonical.master.tables import dm_sanction
 from canonical.schema import MODEL
 from sources.extract import coerce
-from sources.master import ID_COLUMNS
 from sources.views import bind_params, compile_views
 
 Rows = Mapping[str, Iterable[Mapping[str, Any]]]
-# a field both the master and the position hold (actual_payment_amount) is stored too: the LMS wins, this is the fallback
-SANCTION_FIELDS = frozenset(dm_sanction.c.keys()) - {
-    "sanction_id", "tenant_id", "is_active", "first_load_id", "last_load_id", "updated_at",
-}  # fmt: skip
-PERSON = (
-    "full_name",
-    "name_prefix",
-    "business_category",
-    "industry_type",
-    "gender",
-    "birth_date",
-    "incorporation_date",
-)
-ADDRESS = (
-    "address_line_1",
-    "address_line_2",
-    "address_line_3",
-    "city",
-    "district",
-    "state_code",
-    "pin_code",
-    "country",
-)
+ACCOUNT_REF_VIEW = "vw_commercial_account_ref"  # commercial: account -> sanction reference number, per upload
+LISTS = {"identifiers": "party_identifier", "phones": "party_phone", "emails": "party_email",
+         "addresses": "party_address"}  # fmt: skip
 
 
 def typed(entity: str, row: Mapping[str, Any]) -> dict[str, Any]:
@@ -68,117 +50,86 @@ def typed(entity: str, row: Mapping[str, Any]) -> dict[str, Any]:
     return {k: coerce(cols[k], v) if k in cols else v for k, v in row.items()}
 
 
-def _without(row: Mapping[str, Any], *keys: str) -> dict[str, Any]:
-    return {k: v for k, v in row.items() if k not in keys and k != "row_id" and k != "snapshot_id"}
+def _pick(row: Mapping[str, Any], allowed: tuple[str, ...]) -> dict[str, Any]:
+    return {k: row.get(k) for k in allowed if k in row}
 
 
-def related_party(entity: str, row: Mapping[str, Any]) -> PartyIn:
-    """A guarantor / related party from its flattened row: fields, identifiers by type, address, phones."""
-    t = typed(entity, row)
-    phones = [
-        {"phone_number": t.get("mobile"), "phone_type": "MOBILE"},
-        {"phone_number": t.get("telephone"), "area_code": t.get("telephone_area_code"), "phone_type": "OFFICE"},
-        {"phone_number": t.get("fax"), "area_code": t.get("fax_area_code"), "phone_type": "FAX"},
-    ]
-    address = {k: t.get(k) for k in ADDRESS}
-    return PartyIn(
-        str(t["related_key"]),
-        "INDIVIDUAL" if "INDIVIDUAL" in str(t.get("related_type") or "") else "ENTITY",
-        {k: t.get(k) for k in PERSON} | {"party_type": t.get("related_type")},
-        identifiers=[{"id_type": i, "id_number": t[c]} for c, i in ID_COLUMNS.items() if t.get(c)],
-        phones=[p for p in phones if p["phone_number"]],
-        addresses=[address] if any(v is not None for v in address.values()) else [],
-    )
+def _row_no(party_key: str) -> int:
+    """The workbook row of a consumer holder (<account>-<row>), for ordering; 0 when the key has none."""
+    tail = str(party_key).rsplit("-", 1)[-1]
+    return int(tail) if tail.isdigit() else 0
 
 
-def entities_to_master(entities: Rows, submission_type: str) -> tuple[list[PartyIn], list[SanctionIn]]:
-    """Snapshot-shaped rows (one upload) -> the master's parties and sanctions."""
+def entities_to_master(
+    entities: Rows, submission_type: str, account_refs: Mapping[str, str] | None = None
+) -> tuple[list[SanctionIn], list[AccountIn]]:
+    """Snapshot-shaped rows (one upload) -> sanctions and accounts. account_refs: account -> sanction reference
+    number (commercial; consumer uses the account number)."""
     e = {k: [typed(k, r) for r in v] for k, v in entities.items()}
-    consumer = str(submission_type).upper() == "CONSUMER"
+    commercial = str(submission_type).upper() == "COMMERCIAL"
+    refs = dict(account_refs or {})
 
-    def of_party(entity: str) -> dict[str, list[dict[str, Any]]]:
+    def ref_of(account: str) -> str | None:
+        return refs.get(account) if commercial else account
+
+    def by(entity: str, key: str) -> dict[str, list[dict[str, Any]]]:
         out: dict[str, list[dict[str, Any]]] = {}
         for r in e.get(entity, []):
-            out.setdefault(str(r["party_key"]), []).append(_without(r, "party_key"))
+            out.setdefault(str(r[key]), []).append(r)
         return out
 
-    def of_account(entity: str) -> dict[str, list[dict[str, Any]]]:
-        out: dict[str, list[dict[str, Any]]] = {}
-        for r in e.get(entity, []):
-            out.setdefault(str(r["account_key"]), []).append(r)
-        return out
+    parties, lists = by("party", "party_key"), {name: by(entity, "party_key") for name, entity in LISTS.items()}
 
-    list_entities = {"identifiers": "party_identifier", "phones": "party_phone", "emails": "party_email",
-                     "addresses": "party_address", "relatives": "party_relative"}  # fmt: skip
-    lists = {name: of_party(entity) for name, entity in list_entities.items()}
-    kind = "ENTITY" if str(submission_type).upper() == "COMMERCIAL" else "INDIVIDUAL"  # consumer and MFI: people
-    parties = [
-        PartyIn(
-            str(p["party_key"]),
-            kind,
-            _without(p, "party_key"),
-            **{name: lists[name].get(str(p["party_key"]), []) for name in lists},
-        )
-        for p in e.get("party", [])
-    ]
-    related: dict[str, PartyIn] = {}
-    for entity in ("relationship", "guarantor"):
-        for r in e.get(entity, []):
-            related.setdefault(str(r["related_key"]), related_party(entity, r))
+    def person(party_key: str, role: str, ownership: Any, kind: str) -> PersonIn:
+        p = (parties.get(party_key) or [{}])[0]
+        values = _pick(p, PERSON_FIELDS) | {"ownership_indicator": ownership}
+        return PersonIn(kind, values, role=role, **{
+            name: [_pick(r, HOLDER_LIST_FIELDS[name]) for r in lists[name].get(party_key, [])] for name in LISTS
+        })  # fmt: skip
 
-    holders, guarantors = of_account("account_holder"), of_account("guarantor")
-    securities, cheques = of_account("security"), of_account("cheque_dishonour")
-    borrower_of: dict[str, list[str]] = {}
-    links: dict[str, list[SanctionPartyIn]] = {}
-    for a in e.get("account", []):
-        key = str(a["account_key"])
-        out = links.setdefault(key, [])
-        has_borrower = False
-        for h in holders.get(key, []):  # the first holder that is not a guarantor is the borrower, in any row order
-            own = h.get("ownership_indicator")
-            if consumer and own == "GUARANTOR":
-                role = "GUARANTOR"
-            elif consumer and has_borrower:
-                role = "CO_BORROWER"
-            else:
-                role, has_borrower = "BORROWER", True
-            out.append(SanctionPartyIn(str(h["party_key"]), role, {"ownership_indicator": own}))
-            if role == "BORROWER":
-                borrower_of.setdefault(str(h["party_key"]), []).append(key)
-        for g in guarantors.get(key, []):
-            out.append(SanctionPartyIn(str(g["related_key"]), "GUARANTOR",
-                                       {"guarantee_invocation_date": g.get("guarantee_invocation_date")}))  # fmt: skip
-    for r in e.get("relationship", []):  # a related party is linked on each of the borrower's sanctions
-        for key in borrower_of.get(str(r["party_key"]), []):
-            values = {
-                "relationship_type": r.get("relationship_type"),
-                "control_percentage": r.get("control_percentage"),
-            }
-            links[key].append(SanctionPartyIn(str(r["related_key"]), "RELATED", values))
+    # the holders of each sanction, in account order (commercial: the sanction's first account gives them)
+    holders_of: dict[str, list[dict[str, Any]]] = {}
+    accounts_of: dict[str, list[str]] = {}
+    for account, hs in sorted(by("account_holder", "account_key").items()):
+        ref = ref_of(account)
+        if ref is None:
+            continue
+        accounts_of.setdefault(ref, []).append(account)
+        holders_of.setdefault(ref, sorted(hs, key=lambda h: _row_no(h["party_key"])))
 
-    sanctions = [
-        SanctionIn(
-            str(a["account_number"] or a["account_key"]),
-            "",
-            {k: v for k, v in a.items() if k in SANCTION_FIELDS and k not in ("account_number", "sanction_number")},
-            links[str(a["account_key"])],
-            [
-                SecurityIn(f"S{i:04d}", _without(s, "account_key"))
-                for i, s in enumerate(securities.get(str(a["account_key"]), []))
-            ],
-            [_without(c, "account_key") for c in cheques.get(str(a["account_key"]), [])],
-        )
+    def of_sanction(rows: dict[str, list[dict[str, Any]]], ref: str, name: str) -> list[dict[str, Any]]:
+        """The sanction's rows from all its accounts, each once (the views repeat a sanction's rows per account)."""
+        out = [_pick(r, SANCTION_LIST_FIELDS[name]) for a in accounts_of[ref] for r in rows.get(a, [])]
+        return [dict(t) for t in dict.fromkeys(tuple(r.items()) for r in out)]
+
+    kind = "ENTITY" if commercial else "INDIVIDUAL"
+    guarantors, relationships = by("guarantor", "account_key"), by("relationship", "party_key")
+    securities, cheques = by("security", "account_key"), by("cheque_dishonour", "account_key")
+    sanctions = []
+    for ref, hs in holders_of.items():
+        borrower = next((h for h in hs if h.get("ownership_indicator") != "GUARANTOR"), hs[0])
+        others = [
+            person(str(h["party_key"]), "GUARANTOR" if h.get("ownership_indicator") == "GUARANTOR" else "CO_BORROWER",
+                   h.get("ownership_indicator"), kind)
+            for h in hs if h is not borrower
+        ]  # fmt: skip
+        b_key = str(borrower["party_key"])
+        sanctions.append(SanctionIn(
+            ref,
+            person(b_key, "BORROWER", borrower.get("ownership_indicator"), kind),
+            others,
+            guarantors=of_sanction(guarantors, ref, "guarantors"),
+            relationships=[_pick(r, SANCTION_LIST_FIELDS["relationships"]) for r in relationships.get(b_key, [])],
+            securities=of_sanction(securities, ref, "securities"),
+            cheques=of_sanction(cheques, ref, "cheques"),
+        ))  # fmt: skip
+
+    accounts = [
+        AccountIn(str(a["account_number"] or a["account_key"]), ref, _pick(a, ACCOUNT_FIELDS))
         for a in e.get("account", [])
+        if (ref := ref_of(str(a["account_key"]))) is not None
     ]
-    return parties + list(related.values()), sanctions
-
-
-def groups_of(entities: Rows) -> list[GroupIn]:
-    """The borrower groups (SHG / JLG, MFI) in snapshot-shaped rows."""
-    return [
-        GroupIn(str(g["group_key"]), _without(typed("borrower_group", g), "group_key"))
-        for g in entities.get("borrower_group", [])
-    ]
+    return sanctions, accounts
 
 
 def rows_from_views(
@@ -194,10 +145,20 @@ def rows_from_views(
     return out
 
 
+def account_refs(source_engine: Engine, submission_type: str, load_id: int) -> dict[str, str]:
+    """Commercial: each account of the upload -> its sanction reference number (automn.vw_commercial_account_ref)."""
+    if str(submission_type).upper() != "COMMERCIAL":
+        return {}
+    sql = f"SELECT account_number, sanction_reference_number FROM {SCHEMA}.{ACCOUNT_REF_VIEW} WHERE load_id = :l"  # noqa: S608 (names from code, value bound)
+    with source_engine.connect() as conn:
+        return {str(a): str(r) for a, r in conn.execute(text(sql), {"l": load_id}) if a and r}
+
+
 def load_upload(
     app_engine: Engine, source_engine: Engine, tenant_id: str, submission_type: str, as_of_date: date, load_id: int
 ) -> ApplyResult:
-    """Apply one upload to the tenant's master through its source views (one transaction)."""
+    """Apply one upload to the tenant's customer tables through its source views (one transaction)."""
     rows = rows_from_views(source_engine, submission_type, as_of_date, load_id)
-    parties, sanctions = entities_to_master(rows, submission_type)
-    return apply_upload(app_engine, tenant_id, load_id, parties, sanctions, groups_of(rows))
+    sanctions, accounts = entities_to_master(rows, submission_type, account_refs(source_engine, submission_type,
+                                                                                  load_id))  # fmt: skip
+    return apply_upload(app_engine, tenant_id, load_id, sanctions, accounts)

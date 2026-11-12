@@ -34,6 +34,7 @@ MIGRATIONS = [
     "016_mfi_data_model",
     "017_upload_page",
     "018_mfi_input_workbook",
+    "019_sanction_master",
 ]
 
 

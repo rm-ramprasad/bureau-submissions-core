@@ -28,7 +28,10 @@ INSERT INTO @tables (name) VALUES
     ('out_submission'), ('out_file'),
     ('reconciliation_mismatch'), ('reconciliation_column'), ('reconciliation_summary'), ('reconciliation_check'),
     ('extract_snapshot'), ('submission_adjustment'), ('submission_request'),
-    -- customer tables
+    -- customer tables (019: keyed by sanction reference number; older names are skipped when absent)
+    ('dm_sanction_identifier'), ('dm_sanction_phone'), ('dm_sanction_email'), ('dm_sanction_address'),
+    ('dm_sanction_holder'), ('dm_sanction_guarantor'), ('dm_sanction_relationship'), ('dm_sanction_security'),
+    ('dm_sanction_cheque'), ('dm_sanction_account'),
     ('dm_change_log'), ('dm_sanction_party'), ('dm_security'), ('dm_cheque_dishonour'), ('dm_party_relative'),
     ('dm_party_address'), ('dm_party_email'), ('dm_party_identifier'), ('dm_party_phone'),
     ('dm_sanction'), ('dm_party'), ('dm_group'),
