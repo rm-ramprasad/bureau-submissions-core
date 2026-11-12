@@ -1,31 +1,28 @@
 """Uploads page (ADR 0002 PR 7; owner 2026-11-10: a separate Uploads page): a workbook uploaded once, not inside a
-request. It is stored, loaded into staging and checked (the type's input_checks.yaml, for the data's as-of date), and,
-when nothing blocks and the type is on the customer tables (Admin page, data source), loaded into them at once.
+request. It is kept and recorded at once, then loaded into staging, checked (the type's input_checks.yaml) and, when
+nothing blocks and the type is on the customer tables (Admin page, data source), saved in them, in the background
+(app.uploadjobs; owner 2026-11-12: progress on screen).
 Requests of such a type then need no workbook of their own; types on the source views keep the in-request upload.
 
-Routes on the API blueprint: GET /api/uploads, POST /api/uploads/<submission_type>.
+Routes on the API blueprint: GET /api/uploads, GET /api/uploads/<load_id>, POST /api/uploads/<submission_type>.
 """
 
 from __future__ import annotations
 
 import logging
-import re
-from datetime import date, datetime, timedelta
+from datetime import date
 
 from flask import jsonify, request
-from sqlalchemy import select, update
+from sqlalchemy import select
 
-from app import audit
 from app.api.auth import current_user
 from app.api.common import bp, fail, svc
 from app.api.inputs import ISSUES_SHOWN, MAX_UPLOAD, XLSX, _load_json, needs_workbook
 from app.configstore.settings import data_source
 from app.enums import SubmissionType
-from canonical.db import utcnow
-from canonical.staging.checks import run_checks
+from app.uploadjobs import DONE, INTERRUPTED, interrupted, process_upload, record_upload
 from canonical.staging.tables import input_load
 from canonical.tenants import InactiveTenantError, TenantNotFoundError
-from sources.excel import load_workbook
 
 log = logging.getLogger(__name__)
 PAGE = 50
@@ -40,32 +37,20 @@ def _tenant(given: str | None) -> str:
     raise AssertionError  # fail() raises
 
 
-INTERRUPTED_AFTER = timedelta(minutes=10)  # longer than any upload request may run (Azure: about 4 minutes)
-INTERRUPTED = "Not saved: the upload was interrupted (it took too long or the server restarted). Upload it again."
-
-
-def db_reason(exc: BaseException) -> str:
-    """A database or code error in a line the page can show: the driver's message without its codes and prefixes."""
-    orig = getattr(exc, "orig", None)  # the driver's error (pyodbc: args = (sqlstate, message))
-    text = str(orig.args[-1]) if orig is not None and orig.args else str(orig or exc)
-    text = re.sub(r"\[[^\]]*\]", "", text)  # [23000] [Microsoft][ODBC Driver 18 ...][SQL Server]
-    text = re.sub(r"\(\d+\) \(SQL\w+\)", "", text).strip(" ('\")")
-    return " ".join(text.split())[:400] or type(exc).__name__
-
-
 def _row_json(engine, r) -> dict:
     base = _load_json(engine, dict(r._mapping)) or {}
     source = data_source(engine, r.tenant_id, r.submission_type)
-    summary = r.apply_summary
-    if (source == "master" and r.status == "LOADED" and not r.applied_at and not summary
-            and r.loaded_at and utcnow() - r.loaded_at > INTERRUPTED_AFTER):  # fmt: skip
-        summary = INTERRUPTED  # the request ended before saving (no reason was written)
+    summary, stage = r.apply_summary, r.stage
+    if interrupted(r):
+        summary, stage = summary or INTERRUPTED, DONE  # the processing stopped (server restart, time limit)
     return base | {
         "submission_type": r.submission_type,
         "as_of_date": r.as_of_date,
         "applied_at": r.applied_at,
         "apply_summary": summary,
         "source": source,
+        "stage": stage or DONE,  # uploads before migration 021 were processed in the request: done
+        "stage_at": r.stage_at,
     }
 
 
@@ -90,13 +75,23 @@ def list_uploads():
                    issues_shown=ISSUES_SHOWN)  # fmt: skip
 
 
+@bp.get("/uploads/<int:load_id>")
+def upload_status(load_id: int):
+    """One upload, for the page to follow its progress."""
+    s = svc()
+    tenant_id = _tenant(request.args.get("tenant_id"))
+    with s.engine.connect() as conn:
+        row = conn.execute(select(input_load).where(input_load.c.load_id == load_id,
+                                                     input_load.c.tenant_id == tenant_id)).one_or_none()  # fmt: skip
+    if row is None:
+        fail(f"No upload {load_id}", 404)
+    return jsonify(upload=_row_json(s.engine, row))
+
+
 @bp.post("/uploads/<submission_type>")
 def upload(submission_type: str):
-    """Upload one workbook: {file, as_of_date, tenant_id}. Stored; loaded into staging; checked for the as-of date;
-    loaded into the customer tables when nothing blocks and the type is on them."""
-    from canonical.master.apply import UploadConflict
-    from sources.master_load import load_upload
-
+    """Upload one workbook: {file, as_of_date, tenant_id}. Kept and recorded at once (202); loading, checks and saving
+    into the customer tables run in the background (app.uploadjobs), the page follows GET /uploads/<load_id>."""
     s = svc()
     request.max_content_length = MAX_UPLOAD  # this route only
     kind = submission_type.upper()
@@ -118,55 +113,24 @@ def upload(submission_type: str):
     data = upload_file.read()
     if not data:
         fail("The file is empty.")
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     try:
-        uri = s.store.put(f"{tenant_id}/uploads/{kind.lower()}-{as_of:%Y%m%d}-{stamp}.xlsx", data, XLSX)
+        load_id = record_upload(s.engine, s.store, tenant_id=tenant_id, submission_type=kind, data=data,
+                                file_name=file_name, loaded_by=current_user(), as_of_date=as_of, content_type=XLSX)  # fmt: skip
     except Exception:
         log.exception("Storing the workbook failed")
         fail("The workbook could not be stored; try again.", 503)
-    result = load_workbook(s.engine, kind, data, tenant_id=tenant_id, file_name=file_name, loaded_by=current_user(),
-                           batch_id=None, file_uri=uri, as_of_date=as_of)  # fmt: skip
-    t = input_load.c
-    checks = run_checks(s.engine, result.load_id, kind, as_of) if result.status == "LOADED" else None
-    source = data_source(s.engine, tenant_id, kind)
-    applied, summary, status, error = None, None, 201, None
-    if result.status != "LOADED":
-        text = "The workbook was not loaded: " + "; ".join(i.message for i in result.errors)
-        status = 422
-    elif checks is not None and not checks.passed:
-        text = (f"{file_name} loaded, but {checks.blocking} row(s) fail blocking data-quality checks (see below). "
-                "Fix the workbook and upload it again.")  # fmt: skip
-        status = 422
-    elif source == "master":
+    dispatch = getattr(s.dispatcher, "dispatch_upload", None)
+    queued = False
+    if dispatch is not None:
         try:
-            res = load_upload(s.engine, s.engine, tenant_id, kind, as_of, result.load_id)  # views in the app database
-        except Exception as exc:  # any failure: nothing was saved (one transaction); say why, on the page and kept
-            reason = str(exc) if isinstance(exc, UploadConflict) else db_reason(exc)
-            if not isinstance(exc, UploadConflict):
-                log.exception("Saving upload %s in the customer tables failed", result.load_id)
-            text, status = f"{file_name} passed the checks but was not saved in the customer tables: {reason}", 422
-            error = reason
-            with s.engine.begin() as conn:  # kept with the upload, so the list shows why (not only the message)
-                conn.execute(update(input_load).where(t.load_id == result.load_id)
-                             .values(apply_summary=f"Not saved: {reason}"[:1000]))  # fmt: skip
-        else:
-            applied = utcnow()
-            summary = (f"sanctions {res.sanctions_added} added, {res.sanctions_updated} updated; accounts "
-                       f"{res.accounts_added} added, {res.accounts_updated} updated; {res.changes} values changed"
-                       + (f". {' '.join(res.warnings)}" if res.warnings else ""))  # fmt: skip
-            with s.engine.begin() as conn:
-                conn.execute(update(input_load).where(t.load_id == result.load_id)
-                             .values(applied_at=applied, apply_summary=summary[:1000]))  # fmt: skip
-            text = f"{file_name} loaded, checked and saved in the customer tables: {summary}."
-    else:
-        text = (f"{file_name} loaded and checked. {kind.title()} is on the source views (Admin page, data source): "
-                "attach the workbook to a request as before.")  # fmt: skip
-    audit.record(
-        s.engine, current_user(), "DATA_UPLOADED", tenant_id=tenant_id, target=result.load_id, submission_type=kind,
-        as_of_date=as_of.isoformat(), file_name=file_name, status=result.status, rows=result.row_counts,
-        dq_blocking=checks.blocking if checks else None, dq_warnings=checks.warnings if checks else None,
-        applied=bool(applied), error=error,
-    )  # fmt: skip
+            dispatch(load_id)
+            queued = True
+        except Exception:  # no queue: process it now (slower answer, same result)
+            log.exception("Queueing upload %s failed; processing it in the request", load_id)
+    if queued:
+        message = f"{file_name} received; it is being loaded and checked (follow it in the list)."
+    else:  # local runs and tests: no queue, processed now
+        message = process_upload(s.engine, s.store, load_id).message
     with s.engine.connect() as conn:
-        row = conn.execute(select(input_load).where(t.load_id == result.load_id)).one()
-    return jsonify(message=text, upload=_row_json(s.engine, row)), status
+        row = conn.execute(select(input_load).where(input_load.c.load_id == load_id)).one()
+    return jsonify(message=message, upload=_row_json(s.engine, row)), 202

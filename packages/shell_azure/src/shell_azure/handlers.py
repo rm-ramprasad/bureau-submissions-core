@@ -20,7 +20,7 @@ from sqlalchemy import Engine
 
 from app.logs import configure_logging
 from app.ports.files import Exports, FileStore
-from app.ports.jobs import Dispatcher, request_id_from_message
+from app.ports.jobs import Dispatcher, request_id_from_message, upload_id_from_message
 from app.worker.runner import Worker
 from shell_azure import admin
 from shell_azure.settings import Settings
@@ -114,6 +114,12 @@ def worker(message_body: str) -> dict[str, Any]:
     """Run one dispatched request. A malformed message raises (and ends in the poison queue). A request whose
     snapshot another run is building is put back on its queue with a delay instead of failing: a raised error would
     spend one of the message's dequeue attempts."""
+    upload_id = upload_id_from_message(message_body)
+    if upload_id is not None:  # an Uploads-page upload (app.uploadjobs)
+        from app.uploadjobs import process_upload
+
+        done = process_upload(engine(), store(), upload_id)
+        return {"ok": True, "upload_id": upload_id, "ran": done.ran, "result": done.message}
     request_id = request_id_from_message(message_body)
     log.info("Running request %s", request_id)
     w = _worker()

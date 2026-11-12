@@ -45,6 +45,20 @@ def job_message(req: SubmissionRequest) -> str:
     return json.dumps({"request_id": req.request_id, "run_mode": str(req.run_mode)})
 
 
+def upload_message(load_id: int) -> str:
+    """An Uploads-page upload to process in the background (sent on the validate queue: no new queue needed)."""
+    return json.dumps({"upload_id": load_id})
+
+
+def upload_id_from_message(body: str) -> int | None:
+    """The upload a message is for, or None when it is a request message."""
+    try:
+        value = json.loads(body).get("upload_id")
+    except ValueError, TypeError, AttributeError:
+        return None
+    return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
+
+
 def request_id_from_message(body: str) -> int:
     """A job message -> request_id."""
     try:

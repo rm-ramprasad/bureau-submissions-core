@@ -187,7 +187,7 @@ def upload_page(api, data, as_of="2026-09-30", name="Consumer.xlsx", submission_
 
 def test_an_upload_on_the_uploads_page_is_checked_and_kept_for_its_date(api, engine):
     status, data = upload_page(api, GOOD)
-    assert status == 201 and "source views" in data["message"]  # consumer is still on the source views
+    assert status == 202 and "source views" in data["message"]  # consumer is still on the source views
     u = data["upload"]
     assert (u["status"], u["as_of_date"], u["applied_at"], u["source"]) == ("LOADED", "2026-09-30", None, "views")
     with engine.connect() as conn:
@@ -206,7 +206,8 @@ def test_a_type_on_the_customer_tables_saves_the_upload_and_its_requests_need_no
 
     S.put(engine, "nbfc_001", "data_source", {"CONSUMER": "master"}, "admin")
     status, data = upload_page(api, GOOD)
-    assert status == 201 and "saved in the customer tables" in data["message"], data
+    assert status == 202 and "saved in the customer tables" in data["message"], data
+    assert data["upload"]["stage"] == "DONE"
     assert data["upload"]["applied_at"] and "accounts" in data["upload"]["apply_summary"]
     with engine.connect() as conn:
         assert conn.execute(select(dm_sanction)).first() is not None
@@ -222,8 +223,9 @@ def test_blocking_checks_or_a_bad_file_save_nothing(api, engine):
 
     S.put(engine, "nbfc_001", "data_source", {"CONSUMER": "master"}, "admin")
     status, data = upload_page(api, FAILS_CHECKS)
-    assert status == 422 and "blocking data-quality checks" in data["message"] and not data["upload"]["applied_at"]
-    assert upload_page(api, BAD)[0] == 422
+    assert status == 202 and "blocking data-quality checks" in data["message"] and not data["upload"]["applied_at"]
+    status, data = upload_page(api, BAD)
+    assert status == 202 and data["upload"]["status"] == "FAILED" and "not loaded" in data["message"]
     with engine.connect() as conn:
         assert conn.execute(select(dm_sanction)).first() is None
 
@@ -238,7 +240,7 @@ def test_an_upload_the_customer_tables_refuse_keeps_the_reason(api, engine, monk
     monkeypatch.setattr("sources.master_load.load_upload", refuse)
     S.put(engine, "nbfc_001", "data_source", {"CONSUMER": "master"}, "admin")
     status, data = upload_page(api, GOOD)
-    assert status == 422 and "appears twice" in data["message"] and not data["upload"]["applied_at"]
+    assert status == 202 and "appears twice" in data["message"] and not data["upload"]["applied_at"]
     assert "not saved in the customer tables" in data["message"]
     _, listed = api.get("/uploads", tenant_id="nbfc_001")
     assert (
@@ -267,7 +269,7 @@ def test_a_database_error_while_saving_is_shown_and_kept_in_plain_words(api, eng
     status, data = upload_page(api, GOOD)
     reason = ("Cannot insert the value NULL into column 'x', table 'rarfinmisdb.automn.dm_sanction_account'; "
               "column does not allow nulls. INSERT fails.")  # fmt: skip
-    assert status == 422 and data["message"].endswith(reason) and "not saved in the customer tables" in data["message"]
+    assert status == 202 and data["message"].endswith(reason) and "not saved in the customer tables" in data["message"]
     _, listed = api.get("/uploads", tenant_id="nbfc_001")
     assert listed["uploads"][0]["apply_summary"] == f"Not saved: {reason}"
     with engine.connect() as conn:
@@ -282,12 +284,39 @@ def test_an_upload_that_never_finished_shows_as_interrupted(api, engine):
 
     from app.configstore import settings as S
 
-    upload_page(api, GOOD)  # on the source views: nothing to save
+    upload_page(api, GOOD)
     S.put(engine, "nbfc_001", "data_source", {"CONSUMER": "master"}, "admin")
-    with engine.begin() as conn:  # as if the request had stopped before saving, 20 minutes ago
-        conn.execute(update(input_load).values(loaded_at=datetime.now() - timedelta(minutes=20)))
+    with engine.begin() as conn:  # as if the worker had stopped while saving, 20 minutes ago
+        conn.execute(update(input_load).values(stage="SAVING", stage_at=datetime.now() - timedelta(minutes=20)))
     _, listed = api.get("/uploads", tenant_id="nbfc_001")
-    assert "interrupted" in listed["uploads"][0]["apply_summary"]
+    u = listed["uploads"][0]
+    assert "interrupted" in u["apply_summary"] and u["stage"] == "DONE"
+
+
+def test_a_queued_upload_is_received_at_once_and_processed_by_the_worker(api, engine, dispatcher, tmp_path,
+                                                                        monkeypatch):  # fmt: skip
+    """With a queue (Azure), the request only records the upload; the worker loads, checks and saves it, and the page
+    follows its stage."""
+    from app.ports.files import LocalFileStore
+    from app.ports.jobs import upload_id_from_message, upload_message
+    from app.uploadjobs import process_upload
+
+    sent: list[int] = []
+    monkeypatch.setattr(type(dispatcher), "dispatch_upload", lambda self, load_id: sent.append(load_id),
+                        raising=False)  # fmt: skip
+    store = LocalFileStore(tmp_path)  # the API's store (make_api)
+    status, data = upload_page(api, GOOD)
+    u = data["upload"]
+    assert status == 202 and sent == [u["load_id"]] and u["stage"] == "RECEIVED" and "received" in data["message"]
+    _, one = api.get(f"/uploads/{u['load_id']}", tenant_id="nbfc_001")
+    assert one["upload"]["stage"] == "RECEIVED"
+    assert upload_id_from_message(upload_message(u["load_id"])) == u["load_id"]
+    done = process_upload(engine, store, u["load_id"])  # the worker
+    assert done.ran and done.ok
+    assert not process_upload(engine, store, u["load_id"]).ran  # a second delivery does nothing
+    _, one = api.get(f"/uploads/{u['load_id']}", tenant_id="nbfc_001")
+    assert (one["upload"]["stage"], one["upload"]["status"]) == ("DONE", "LOADED")
+    assert api.get("/uploads/999999", tenant_id="nbfc_001")[0] == 404
 
 
 @pytest.mark.parametrize(
