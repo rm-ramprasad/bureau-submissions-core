@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0               # the previous tag, for the release notes
-      - uses: actions/setup-python@v5   # GitHub's Python, not uv's download (timed out 2026-11-08)
+      - uses: actions/setup-python@v7   # GitHub's Python, not uv's download (timed out 2026-11-08)
         with:
           python-version: "3.14"
       - uses: astral-sh/setup-uv@v7
