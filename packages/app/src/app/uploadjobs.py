@@ -24,7 +24,7 @@ from app.configstore.settings import data_source
 from app.ports.files import FileStore
 from canonical.db import utcnow
 from canonical.staging.checks import run_checks
-from canonical.staging.tables import input_load
+from canonical.staging.tables import input_load, input_save_item
 from sources.excel import load_workbook
 
 log = logging.getLogger(__name__)
@@ -77,6 +77,18 @@ def _stage(engine: Engine, load_id: int, stage: str, **values: Any) -> None:
                      .values(stage=stage, stage_at=utcnow(), **values))  # fmt: skip
 
 
+def _items(engine: Engine, load_id: int, items: list[dict[str, Any]]) -> None:
+    """What the save left out or noted, one row each (input_save_item; the upload's details page lists them)."""
+    if not items:
+        return
+    with engine.begin() as conn:
+        conn.execute(insert(input_save_item), [
+            {"load_id": load_id, "code": i["code"], "sanction_reference_number": i.get("sanction_reference_number"),
+             "account_number": i.get("account_number"), "message": str(i["message"])[:1000]}
+            for i in items
+        ])  # fmt: skip
+
+
 @dataclass(frozen=True)
 class Processed:
     load_id: int
@@ -125,11 +137,16 @@ def process_upload(engine: Engine, store: FileStore, load_id: int) -> Processed:
                         log.exception("Saving upload %s in the customer tables failed", load_id)
                     error = reason
                     _stage(engine, load_id, SAVING, apply_summary=f"Not saved: {reason}"[:1000])
+                    _items(engine, load_id, [{"code": "SAVE_FAILED", "message": f"Nothing was saved: {reason}"}])
                     message, ok = f"{name} passed the checks but was not saved in the customer tables: {reason}", False
                 else:
+                    left_out = sum(1 for i in res.items if i["code"] == "NO_BORROWER")
                     summary = (f"sanctions {res.sanctions_added} added, {res.sanctions_updated} updated; accounts "
                                f"{res.accounts_added} added, {res.accounts_updated} updated; {res.changes} values "
-                               "changed" + (f". {' '.join(res.warnings)}" if res.warnings else ""))  # fmt: skip
+                               "changed" + (f"; {left_out} account(s) not saved" if left_out else "")
+                               + ("; many values cleared" if any(i["code"] == "MANY_CLEARED" for i in res.items)
+                                  else ""))  # fmt: skip
+                    _items(engine, load_id, res.items)
                     _stage(engine, load_id, SAVING, applied_at=utcnow(), apply_summary=summary[:1000])
                     applied, message, ok = True, f"{name} saved in the customer tables: {summary}.", True
             else:

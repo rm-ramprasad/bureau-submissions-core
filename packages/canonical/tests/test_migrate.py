@@ -37,6 +37,7 @@ MIGRATIONS = [
     "019_sanction_master",
     "020_sanction_ref_key",
     "021_upload_stage",
+    "022_upload_save_items",
 ]
 
 

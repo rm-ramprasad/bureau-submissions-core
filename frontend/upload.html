@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Upload · Open Terrace Analytics</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="app.css">
+  <script defer src="vendor/oidc-client-ts.min.js"></script>
+  <script defer src="js/core.js"></script>
+  <script defer src="js/upload.js"></script>
+  <script defer src="vendor/alpine.min.js"></script>
+</head>
+<body data-nav="uploads" data-crumb='<a href="uploads.html">Uploads</a> <span>/</span> Upload'>
+<main class="content" x-data="uploadPage">
+  <div class="page-head">
+    <div>
+      <h1 x-text="u ? u.file_name : 'Upload'"></h1>
+      <p class="subtitle" x-show="u"
+         x-text="u && `${F.title(u.submission_type)} · uploaded ${F.dt(u.loaded_at)} by ${u.loaded_by} · upload ${u.load_id}`"></p>
+    </div>
+    <div><a class="button secondary" href="uploads.html">Back to uploads</a></div>
+  </div>
+
+  <template x-if="u">
+    <div>
+      <!-- ---------------------------------------------------------------- how it ended -->
+      <div class="panel">
+        <div class="panel-head"><h2>Result</h2></div>
+        <div class="panel-body">
+          <p x-show="running()"><span class="badge b-RUNNING" x-text="stageText() + '…'"></span>
+            <span class="muted">this page refreshes until it is done</span></p>
+          <dl class="facts" x-show="!running()">
+            <dt>Loading</dt>
+            <dd><span class="badge" :class="'b-' + u.status" x-text="u.status === 'LOADED' ? 'Loaded' : 'Not loaded'"></span>
+              <span x-show="u.status === 'LOADED'" x-text="rowCounts()"></span>
+              <span class="error" x-show="u.status !== 'LOADED'" x-text="u.error_message || ''"></span></dd>
+            <dt>Data-quality checks</dt>
+            <dd><span x-show="u.dq_errors" class="error" x-text="`${F.num(u.dq_errors)} blocking row(s)`"></span>
+              <span x-show="u.dq_warnings" x-text="`${u.dq_errors ? ' · ' : ''}${F.num(u.dq_warnings)} warning row(s)`"></span>
+              <span x-show="u.status === 'LOADED' && !u.dq_errors && !u.dq_warnings">no issues</span>
+              <span x-show="u.status !== 'LOADED'" class="muted">not run</span></dd>
+            <dt>Customer tables</dt>
+            <dd>
+              <template x-if="u.applied_at"><span><span class="badge b-SUCCEEDED">Saved</span>
+                <span x-text="`${F.dt(u.applied_at)}: ${u.apply_summary}`"></span></span></template>
+              <template x-if="!u.applied_at && u.source === 'master'"><span><span class="badge b-FAILED">Not saved</span>
+                <span x-text="(u.apply_summary || (u.dq_errors ? 'blocking checks failed' : 'not loaded')).replace(/^Not saved: /, '')"></span></span></template>
+              <span class="muted" x-show="!u.applied_at && u.source !== 'master'">this type is on the source views: the
+                workbook is used in a request</span>
+            </dd>
+          </dl>
+        </div>
+      </div>
+
+      <!-- ---------------------------------------------------------------- what the save left out -->
+      <div class="panel flush" x-show="(u.save_items || []).length">
+        <div class="panel-head"><h2>Saving: left out or noted</h2>
+          <button class="secondary" @click="csv('save')">Download (CSV)</button></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>What</th><th>Sanction</th><th>Account</th><th>Details</th></tr></thead>
+          <tbody>
+            <template x-for="(i, n) in u.save_items" :key="n">
+              <tr><td x-text="itemTitle(i.code)"></td><td class="mono" x-text="i.sanction_reference_number || ''"></td>
+                <td class="mono" x-text="i.account_number || ''"></td><td x-text="i.message"></td></tr>
+            </template>
+          </tbody>
+        </table></div>
+      </div>
+
+      <!-- ---------------------------------------------------------------- data-quality issues -->
+      <div class="panel flush" x-show="(u.all_issues || []).length">
+        <div class="panel-head"><h2>Data-quality issues</h2>
+          <div class="row">
+            <select x-model="severity"><option value="">All</option><option value="ERROR">Blocking</option>
+              <option value="WARN">Warnings</option></select>
+            <button class="secondary" @click="csv('issues')">Download (CSV)</button>
+          </div></div>
+        <div class="panel-body" x-show="(u.summary || []).length">
+          <template x-for="g in u.summary" :key="g.code + g.sheet + g.column">
+            <div :class="g.severity === 'ERROR' ? 'error' : ''"
+                 x-text="`${g.severity === 'ERROR' ? 'Blocks' : 'Warning'}: ${g.title} (${F.num(g.count)} row(s), ${g.sheet || ''})`"></div>
+          </template>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Severity</th><th>Check</th><th>Sheet</th><th>Row</th><th>Column</th><th>Message</th></tr></thead>
+          <tbody>
+            <template x-for="(i, n) in issues()" :key="n">
+              <tr><td><span class="badge" :class="i.severity === 'ERROR' ? 'b-FAILED' : 'b-PENDING'"
+                            x-text="i.severity === 'ERROR' ? 'Blocking' : 'Warning'"></span></td>
+                <td class="mono" x-text="i.code"></td><td x-text="i.sheet || ''"></td>
+                <td x-text="i.source_row || ''"></td><td class="mono" x-text="i.column_name || ''"></td>
+                <td x-text="i.message"></td></tr>
+            </template>
+          </tbody>
+        </table></div>
+        <div class="panel-body muted" x-show="u.all_issues.length >= u.detail_limit"
+             x-text="`Showing the first ${F.num(u.detail_limit)} issues.`"></div>
+      </div>
+    </div>
+  </template>
+</main>
+</body>
+</html>

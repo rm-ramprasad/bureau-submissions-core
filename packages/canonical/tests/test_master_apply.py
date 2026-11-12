@@ -150,6 +150,8 @@ def test_an_account_may_link_a_sanction_from_an_earlier_upload(eng) -> None:
 def test_an_account_of_an_unknown_sanction_is_left_out_with_a_warning(eng) -> None:
     r = apply_upload(eng, T, 1, [_acme()], [_acc("A1"), _acc("A2", "SR/9")], now=NOW)
     assert r.accounts_added == 1 and "no borrower" in r.warnings[0] and "A2" in r.warnings[0]
+    assert [(i["code"], i["account_number"], i["sanction_reference_number"]) for i in r.items] == [
+        ("NO_BORROWER", "A2", "SR/9")]  # fmt: skip
 
 
 def test_the_same_key_with_different_values_uses_the_first_and_warns(eng) -> None:
@@ -157,6 +159,8 @@ def test_the_same_key_with_different_values_uses_the_first_and_warns(eng) -> Non
     assert _all(eng, dm_sanction)[0].full_name == "Acme Traders"
     assert any("Sanction(s)" in w and "SR1" in w for w in r.warnings)
     assert any("Account(s)" in w and "A1" in w for w in r.warnings)
+    assert {(i["code"], i.get("sanction_reference_number") or i.get("account_number")) for i in r.items} == {
+        ("LISTED_TWICE", "SR1"), ("LISTED_TWICE", "A1")}  # fmt: skip
 
 
 def test_an_exact_repeat_counts_once(eng) -> None:
