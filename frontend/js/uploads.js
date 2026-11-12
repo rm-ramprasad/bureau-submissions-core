@@ -18,6 +18,12 @@ document.addEventListener("alpine:init", () => {
     current() { return (this.data?.types || []).find((t) => t.submission_type === this.type); },
     stageText(u) { return STAGE_TEXT[u.stage] || u.stage; },
     running(u) { return u.stage && u.stage !== "DONE"; },
+    open(u) { location.href = `upload.html?id=${u.load_id}`; },
+    shortReason(u) {
+      const r = (u.apply_summary || "").replace(/^Not saved: /, "");
+      if (!r) return u.dq_errors ? "blocking checks failed" : u.status !== "LOADED" ? "not loaded" : "see details";
+      return r.length > 90 ? r.slice(0, 90) + "…" : r;
+    },
 
     async load() {
       try {

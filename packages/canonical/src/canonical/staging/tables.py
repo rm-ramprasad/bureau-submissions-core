@@ -50,6 +50,19 @@ input_issue = Table(
 )
 
 
+input_save_item = Table(  # migration 022: what saving an upload into the customer tables left out or noted
+    "input_save_item",
+    metadata,
+    Column("item_id", _PK, primary_key=True, autoincrement=True),
+    Column("load_id", _PK, ForeignKey("automn.input_load.load_id"), nullable=False),
+    Column("code", String(40), nullable=False),  # NO_BORROWER, LISTED_TWICE, MANY_CLEARED, SAVE_FAILED
+    Column("sanction_reference_number", Unicode(100)),
+    Column("account_number", Unicode(100)),
+    Column("message", Unicode(1000), nullable=False),
+    Index("ix_input_save_item_load", "load_id"),
+)
+
+
 def staging_table(spec_sheet) -> Table:
     """The staging table of one sheet: (load_id, source_row) + one text column per listed header."""
     key = f"{SCHEMA}.{spec_sheet.table}"

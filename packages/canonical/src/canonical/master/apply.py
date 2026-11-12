@@ -117,6 +117,7 @@ class ApplyResult:
     cleared: int = 0  # previously filled values made blank
     clearable: int = 0  # previously filled values the upload could have cleared
     warnings: list[str] = field(default_factory=list)
+    items: list[dict[str, Any]] = field(default_factory=list)  # one per item left out / noted (input_save_item)
 
 
 # ---------------------------------------------------------------------------------------------------- normalising
@@ -183,13 +184,20 @@ def _sanction(s: SanctionIn) -> _Sanction:
     return _Sanction(key, ref, row, tuple(holders), {k: tuple(v) for k, v in holder_lists.items()}, lists)
 
 
-def _first_wins[K, V](items: Iterable[V], key: Any, what: str, warnings: list[str]) -> dict[K, V]:
+def _first_wins[K, V](
+    items: Iterable[V], key: Any, what: str, warnings: list[str], details: list[dict[str, Any]] | None = None
+) -> dict[K, V]:
     out: dict[K, V] = {}
     differ: list[str] = []
     for item in items:
         k = key(item)
         if out.setdefault(k, item) != item and str(k) not in differ:
             differ.append(str(k))
+    if details is not None:
+        field_name = "account_number" if what.startswith("Account") else "sanction_reference_number"
+        details.extend({"code": "LISTED_TWICE", field_name: k,
+                        "message": f"{what[:-3]} listed more than once with different values; the first is used"}
+                       for k in differ)  # fmt: skip
     if differ:
         more = f" and {len(differ) - EXAMPLES} more" if len(differ) > EXAMPLES else ""
         warnings.append(f"{what} listed more than once with different values (the first is used): "
@@ -284,7 +292,7 @@ class _Applier:
     def run(self, sanctions: Sequence[SanctionIn], accounts: Sequence[AccountIn]) -> ApplyResult:
         res = self.result
         ss: dict[str, _Sanction] = _first_wins([_sanction(s) for s in sanctions], lambda s: s.key, "Sanction(s)",
-                                               res.warnings)  # fmt: skip
+                                               res.warnings, res.items)  # fmt: skip
         sanction_ids = self._upsert(dm_sanction, "sanction_id", "sanction_ref_key",
                                     {k: {"sanction_reference_number": s.ref, **s.row} for k, s in ss.items()})  # fmt: skip
         res.sanctions_added, res.sanctions_updated, res.sanctions_unchanged = self._counts
@@ -302,8 +310,9 @@ class _Applier:
             [(_key(a.account_number, "An account"), _key(ref_key(a.sanction_reference_number), f"Account "
               f"{a.account_number}: a sanction"), tuple(_row(a.values, ACCOUNT_FIELDS, a.account_number).values()))
              for a in accounts],
-            lambda a: a[0], "Account(s)", res.warnings,
+            lambda a: a[0], "Account(s)", res.warnings, res.items,
         )  # fmt: skip
+        raw_ref = {a.account_number.strip(): a.sanction_reference_number for a in accounts}
         keys = sorted({a[1] for a in accs.values()} - set(sanction_ids))
         for part in _chunks(keys):
             q = select(dm_sanction.c.sanction_ref_key, dm_sanction.c.sanction_id).where(
@@ -311,6 +320,9 @@ class _Applier:
             )
             sanction_ids.update({r.sanction_ref_key: r.sanction_id for r in self.conn.execute(q)})
         unknown = sorted({a[0] for a in accs.values() if a[1] not in sanction_ids})
+        res.items.extend({"code": "NO_BORROWER", "account_number": a, "sanction_reference_number": raw_ref.get(a),
+                          "message": "Not saved: its sanction has no borrower (no BS row in the workbook)"}
+                         for a in unknown)  # fmt: skip
         if unknown:
             more = f" and {len(unknown) - EXAMPLES} more" if len(unknown) > EXAMPLES else ""
             res.warnings.append(f"{len(unknown)} account(s) belong to a sanction with no borrower; not saved: "
@@ -327,6 +339,7 @@ class _Applier:
         if res.cleared >= CLEAR_WARN_MIN and res.cleared >= CLEAR_WARN_SHARE * res.clearable:
             res.warnings.append(f"This upload clears {res.cleared} of {res.clearable} previously filled values. "
                                 "Is the file complete? (applied; the change log has the old values)")  # fmt: skip
+            res.items.append({"code": "MANY_CLEARED", "message": res.warnings[-1]})
         return res
 
 

@@ -13,7 +13,7 @@ import logging
 from datetime import date
 
 from flask import jsonify, request
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.api.auth import current_user
 from app.api.common import bp, fail, svc
@@ -21,7 +21,7 @@ from app.api.inputs import ISSUES_SHOWN, MAX_UPLOAD, XLSX, _load_json, needs_wor
 from app.configstore.settings import data_source
 from app.enums import SubmissionType
 from app.uploadjobs import DONE, INTERRUPTED, interrupted, process_upload, record_upload
-from canonical.staging.tables import input_load
+from canonical.staging.tables import input_issue, input_load, input_save_item
 from canonical.tenants import InactiveTenantError, TenantNotFoundError
 
 log = logging.getLogger(__name__)
@@ -37,8 +37,24 @@ def _tenant(given: str | None) -> str:
     raise AssertionError  # fail() raises
 
 
+DETAIL_ROWS = 20000  # issues / items sent to the details page (and its CSV)
+
+
+def _save_items(engine, load_id: int, limit: int | None = None) -> list[dict]:
+    c = input_save_item.c
+    q = select(c.code, c.sanction_reference_number, c.account_number, c.message).where(c.load_id == load_id)
+    q = q.order_by(c.item_id)
+    with engine.connect() as conn:
+        return [dict(r._mapping) for r in conn.execute(q.limit(limit) if limit else q)]
+
+
 def _row_json(engine, r) -> dict:
     base = _load_json(engine, dict(r._mapping)) or {}
+    groups = base.get("summary") or []
+    with engine.connect() as conn:
+        not_saved = conn.execute(select(func.count()).select_from(input_save_item).where(
+            input_save_item.c.load_id == r.load_id, input_save_item.c.code.in_(("NO_BORROWER", "SAVE_FAILED")))
+        ).scalar_one()  # fmt: skip
     source = data_source(engine, r.tenant_id, r.submission_type)
     summary, stage = r.apply_summary, r.stage
     if interrupted(r):
@@ -51,6 +67,9 @@ def _row_json(engine, r) -> dict:
         "source": source,
         "stage": stage or DONE,  # uploads before migration 021 were processed in the request: done
         "stage_at": r.stage_at,
+        "dq_errors": sum(g["count"] for g in groups if g["severity"] == "ERROR"),
+        "dq_warnings": sum(g["count"] for g in groups if g["severity"] != "ERROR"),
+        "not_saved": not_saved,
     }
 
 
@@ -85,7 +104,16 @@ def upload_status(load_id: int):
                                                      input_load.c.tenant_id == tenant_id)).one_or_none()  # fmt: skip
     if row is None:
         fail(f"No upload {load_id}", 404)
-    return jsonify(upload=_row_json(s.engine, row))
+    out = _row_json(s.engine, row)
+    if request.args.get("details"):  # the upload's details page: every issue and save item (CSV made in the page)
+        i = input_issue.c
+        with s.engine.connect() as conn:
+            issues = [dict(x._mapping) for x in conn.execute(
+                select(i.severity, i.code, i.sheet, i.source_row, i.column_name, i.message)
+                .where(i.load_id == load_id).order_by(i.issue_id).limit(DETAIL_ROWS))]  # fmt: skip
+        out |= {"all_issues": issues, "save_items": _save_items(s.engine, load_id, DETAIL_ROWS),
+                "detail_limit": DETAIL_ROWS}  # fmt: skip
+    return jsonify(upload=out)
 
 
 @bp.post("/uploads/<submission_type>")

@@ -435,3 +435,10 @@ table.bureaus tr.off td:not(:last-child) { color: var(--muted); }
 /* Uploads page: the file being sent */
 .progress { height: 4px; background: var(--run-bg); border-radius: 2px; margin-top: 6px; overflow: hidden; }
 .progress > div { height: 100%; background: var(--run); transition: width 0.2s; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--run-bg); }
+/* Upload details: label / value pairs; red text */
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 8px 20px; margin: 0; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; }
+.error { color: var(--bad); }

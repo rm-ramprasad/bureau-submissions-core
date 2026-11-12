@@ -319,6 +319,46 @@ def test_a_queued_upload_is_received_at_once_and_processed_by_the_worker(api, en
     assert api.get("/uploads/999999", tenant_id="nbfc_001")[0] == 404
 
 
+def test_the_details_page_lists_every_issue_and_what_the_save_left_out(api, engine, monkeypatch):
+    from app.configstore import settings as S
+    from canonical.master.apply import ApplyResult
+
+    def saved(*_a, **_k):
+        return ApplyResult(sanctions_added=2, accounts_added=3, items=[
+            {"code": "NO_BORROWER", "account_number": "A9", "sanction_reference_number": "SR/9",
+             "message": "Not saved: its sanction has no borrower (no BS row in the workbook)"}])  # fmt: skip
+
+    monkeypatch.setattr("sources.master_load.load_upload", saved)
+    S.put(engine, "nbfc_001", "data_source", {"CONSUMER": "master"}, "admin")
+    _, data = upload_page(api, GOOD)
+    u = data["upload"]
+    assert u["applied_at"] and "1 account(s) not saved" in u["apply_summary"] and u["not_saved"] == 1
+    _, listed = api.get("/uploads", tenant_id="nbfc_001")
+    row = listed["uploads"][0]
+    assert {"dq_errors", "dq_warnings", "not_saved"} <= set(row) and "all_issues" not in row  # the list stays small
+    _, one = api.get(f"/uploads/{u['load_id']}", tenant_id="nbfc_001", details=1)
+    d = one["upload"]
+    assert d["save_items"] == [{"code": "NO_BORROWER", "sanction_reference_number": "SR/9", "account_number": "A9",
+                                "message": "Not saved: its sanction has no borrower (no BS row in the workbook)"}]  # fmt: skip
+    assert isinstance(d["all_issues"], list) and d["detail_limit"] == 20000
+
+
+def test_a_failed_save_is_an_item_on_the_details_page(api, engine, monkeypatch):
+    from app.configstore import settings as S
+
+    def fail(*_a, **_k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("sources.master_load.load_upload", fail)
+    S.put(engine, "nbfc_001", "data_source", {"CONSUMER": "master"}, "admin")
+    _, data = upload_page(api, GOOD)
+    _, one = api.get(f"/uploads/{data['upload']['load_id']}", tenant_id="nbfc_001", details=1)
+    assert one["upload"]["not_saved"] == 1
+    assert [(i["code"], i["message"]) for i in one["upload"]["save_items"]] == [
+        ("SAVE_FAILED", "Nothing was saved: boom")
+    ]
+
+
 @pytest.mark.parametrize(
     ("kwargs", "message"),
     [
