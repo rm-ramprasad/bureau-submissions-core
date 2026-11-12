@@ -1,7 +1,7 @@
 -- RESET RUN DATA (owner 2026-11-10: clear all past runs; one-off, run by hand; never run by deploy or migrate).
 -- Deletes every past upload, request and result in automn, for all NBFCs:
 --   staging (stg_*), upload issues; upload headers (input_load);
---   customer tables (dm_*);
+--   customer tables (dm_sanction and its lists and accounts, dm_change_log; migration 019);
 --   requests, snapshots (c_*), validation results, adjustments, reconciliation, output files (out_*).
 -- KEEPS settings and history of who did what: tenant, app_user, audit_event, client_setting, config_version,
 --   bureau_profile, ref_*, validation_rule / _parameter / _policy, schema_migration. The views are not touched.
@@ -28,13 +28,10 @@ INSERT INTO @tables (name) VALUES
     ('out_submission'), ('out_file'),
     ('reconciliation_mismatch'), ('reconciliation_column'), ('reconciliation_summary'), ('reconciliation_check'),
     ('extract_snapshot'), ('submission_adjustment'), ('submission_request'),
-    -- customer tables (019: keyed by sanction reference number; older names are skipped when absent)
+    -- customer tables (migration 019, keyed by sanction reference number): lists and accounts first, then sanctions
     ('dm_sanction_identifier'), ('dm_sanction_phone'), ('dm_sanction_email'), ('dm_sanction_address'),
     ('dm_sanction_holder'), ('dm_sanction_guarantor'), ('dm_sanction_relationship'), ('dm_sanction_security'),
-    ('dm_sanction_cheque'), ('dm_sanction_account'),
-    ('dm_change_log'), ('dm_sanction_party'), ('dm_security'), ('dm_cheque_dishonour'), ('dm_party_relative'),
-    ('dm_party_address'), ('dm_party_email'), ('dm_party_identifier'), ('dm_party_phone'),
-    ('dm_sanction'), ('dm_party'), ('dm_group'),
+    ('dm_sanction_cheque'), ('dm_sanction_account'), ('dm_sanction'), ('dm_change_log'),
     -- staging, then the upload headers
     ('stg_consumer'), ('stg_commercial_bs'), ('stg_commercial_as'), ('stg_commercial_rs'), ('stg_commercial_gs'),
     ('stg_commercial_ss'), ('stg_commercial_sanction'), ('stg_commercial_nesl_security'), ('stg_commercial_cd'),
