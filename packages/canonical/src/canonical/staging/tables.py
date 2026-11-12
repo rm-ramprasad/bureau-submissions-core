@@ -29,6 +29,8 @@ input_load = Table(
     Column("as_of_date", Date),  # Uploads page: the data's as-of date (migration 017)
     Column("applied_at", DateTime),  # when it went into the customer tables (Uploads page)
     Column("apply_summary", Unicode(1000)),  # what that changed, in words
+    Column("stage", String(20)),  # Uploads page, in the background: RECEIVED LOADING CHECKING SAVING DONE (021)
+    Column("stage_at", DateTime),  # since when
     Index("ix_input_load_batch", "batch_id"),
     Index("ix_input_load_tenant", "tenant_id", "submission_type", "loaded_at"),
 )

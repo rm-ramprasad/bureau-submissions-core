@@ -8,7 +8,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from app.enums import RunMode
-from app.ports.jobs import Dispatcher, NoDispatch, job_message
+from app.ports.jobs import Dispatcher, NoDispatch, job_message, upload_message
 from app.requests import SubmissionRequest
 
 log = logging.getLogger(__name__)
@@ -31,6 +31,11 @@ class QueueJobDispatcher:
                 req.run_mode,
                 f" in {delay_seconds}s" if delay_seconds else "",
             )
+
+    def dispatch_upload(self, load_id: int) -> None:
+        """An Uploads-page upload, processed by the validate worker (app.uploadjobs)."""
+        self.queues[RunMode.VALIDATE].send_message(upload_message(load_id))
+        log.info("Dispatched upload %s", load_id)
 
 
 def queue_client(settings: Any, queue_name: str) -> Any:

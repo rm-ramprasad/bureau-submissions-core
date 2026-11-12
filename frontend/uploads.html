@@ -29,30 +29,39 @@
         </template></select></div>
     <div><label for="asof">Data as of</label><input type="date" id="asof" x-model="asOf" required></div>
     <div><label for="wb">Workbook (.xlsx)</label><input type="file" id="wb" accept=".xlsx" @change="file = $event.target.files[0] || null"></div>
-    <div><button type="submit" :disabled="busy || !file || !type || !asOf">Upload &amp; check</button></div>
+    <div><button type="submit" :disabled="busy || !file || !type || !asOf"
+                 x-text="busy ? 'Uploading…' : 'Upload &amp; check'"></button></div>
   </form>
   <p class="muted" x-show="current()?.source === 'views'">This type is on the source views: the upload is checked here,
     but its request still takes the workbook as before (switch it on Admin settings when ready).</p>
 
   <div class="panel flush">
     <div class="panel-head"><h2>Uploads</h2></div>
-    <div class="table-wrap" x-show="data?.uploads.length"><table>
+    <div class="table-wrap" x-show="data?.uploads.length || sending"><table>
       <thead><tr><th>Uploaded</th><th>Type</th><th>As of</th><th>File</th><th>Checks</th><th>Customer tables</th></tr></thead>
       <tbody>
+        <tr x-show="sending">
+          <td>now</td><td x-text="F.title(type)"></td><td x-text="F.d(asOf)"></td>
+          <td class="mono" x-text="sending?.file_name"></td>
+          <td colspan="2"><span class="badge b-RUNNING" x-text="`Uploading ${sending?.pct || 0}%`"></span>
+            <div class="progress"><div :style="`width: ${sending?.pct || 0}%`"></div></div></td>
+        </tr>
         <template x-for="u in data?.uploads || []" :key="u.load_id">
           <tr>
             <td><span x-text="F.dt(u.loaded_at)"></span><div class="hint" x-text="u.loaded_by"></div></td>
             <td x-text="F.title(u.submission_type)"></td>
             <td x-text="F.d(u.as_of_date)"></td>
             <td class="mono" x-text="u.file_name"></td>
-            <td>
+            <td x-show="running(u)" colspan="2"><span class="badge b-RUNNING" x-text="stageText(u) + '…'"></span>
+              <div class="hint">since <span x-text="F.dt(u.stage_at)"></span></div></td>
+            <td x-show="!running(u)">
               <span class="badge" :class="'b-' + u.status" x-text="u.status"></span>
               <template x-for="g in u.summary || []" :key="g.code + g.sheet + g.column">
                 <div class="hint" :class="g.severity === 'ERROR' ? 'error' : ''"
                      x-text="`${g.severity === 'ERROR' ? 'Blocks' : 'Warning'}: ${g.title} (${F.num(g.count)} row(s), ${g.sheet || ''})`"></div>
               </template>
             </td>
-            <td>
+            <td x-show="!running(u)">
               <template x-if="u.applied_at"><div><span class="badge b-SUCCEEDED">Saved</span>
                 <div class="hint" x-text="F.dt(u.applied_at)"></div><div class="hint" x-text="u.apply_summary"></div></div></template>
               <template x-if="!u.applied_at && u.source === 'master'"><div><span class="badge b-FAILED">Not saved</span>

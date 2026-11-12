@@ -226,30 +226,36 @@ def load_workbook(
     file_uri: str | None = None,
     as_of_date: date | None = None,
     clock: Callable[[], datetime] = utcnow,
+    load_id: int | None = None,
 ) -> LoadResult:
     """Load one uploaded workbook. Always records an input_load row (LOADED or FAILED) and its issues. as_of_date: the
     data's date (the request's, or the one given on the Uploads page); source views without a loan system view (MFI)
-    read it."""
+    read it. load_id: an input_load row made already (the Uploads page records the upload first, then loads it in the
+    background): loaded into that row instead of a new one."""
     import openpyxl
     from openpyxl.utils.exceptions import InvalidFileException
 
     data = workbook if isinstance(workbook, bytes) else workbook.read()
     spec = load_spec(submission_type)
-    with engine.begin() as conn:
-        load_id = conn.execute(
-            insert(input_load).values(
-                tenant_id=tenant_id,
-                submission_type=spec.submission_type,
-                batch_id=batch_id,
-                file_name=file_name[:255],
-                file_uri=file_uri,
-                sha256=hashlib.sha256(data).hexdigest(),
-                status="FAILED",
-                loaded_by=loaded_by,
-                loaded_at=clock(),
-                as_of_date=as_of_date,
-            )
-        ).inserted_primary_key[0]
+    if load_id is not None:
+        with engine.begin() as conn:
+            conn.execute(update(input_load).where(input_load.c.load_id == load_id).values(status="FAILED"))
+    else:
+        with engine.begin() as conn:
+            load_id = conn.execute(
+                insert(input_load).values(
+                    tenant_id=tenant_id,
+                    submission_type=spec.submission_type,
+                    batch_id=batch_id,
+                    file_name=file_name[:255],
+                    file_uri=file_uri,
+                    sha256=hashlib.sha256(data).hexdigest(),
+                    status="FAILED",
+                    loaded_by=loaded_by,
+                    loaded_at=clock(),
+                    as_of_date=as_of_date,
+                )
+            ).inserted_primary_key[0]
     loader, counts, status = _Loader(spec), {}, "FAILED"
     try:
         try:

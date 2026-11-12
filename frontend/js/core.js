@@ -92,6 +92,31 @@ const Api = {
     return this.json(resp);
   },
 
+  // POST a file with upload progress (XMLHttpRequest: fetch has no upload progress); onProgress(percent)
+  async uploadWithProgress(path, file, fields = {}, onProgress = () => {}) {
+    const form = new FormData();
+    form.append("file", file);
+    for (const [k, v] of Object.entries(fields)) if (v !== undefined && v !== null) form.append(k, v);
+    const token = await Auth.token();
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${API_BASE}/api${path}`);
+      xhr.setRequestHeader("Accept", "application/json");
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((100 * e.loaded) / e.total)); };
+      xhr.onload = () => {
+        let data = {};
+        try { data = JSON.parse(xhr.responseText || "{}"); } catch (e) { /* not JSON */ }
+        if (xhr.status === 401 && SIGN_IN) { Auth.signIn(); return; }
+        if (xhr.status === 403) App.denied(data.error);
+        if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+        else reject(new ApiError(data.error || data.message || `Request failed (${xhr.status})`, xhr.status));
+      };
+      xhr.onerror = () => reject(new ApiError("No answer from the server", 0));
+      xhr.send(form);
+    });
+  },
+
   async json(resp) {
     const data = await resp.json().catch(() => ({}));
     if (resp.status === 403) App.denied(data.error);
