@@ -55,7 +55,9 @@
             <td>
               <template x-if="u.applied_at"><div><span class="badge b-SUCCEEDED">Saved</span>
                 <div class="hint" x-text="F.dt(u.applied_at)"></div><div class="hint" x-text="u.apply_summary"></div></div></template>
-              <span class="muted" x-show="!u.applied_at" x-text="u.apply_summary || (u.source === 'master' ? 'Not saved (see checks)' : 'Source views: use in a request')"></span>
+              <template x-if="!u.applied_at && u.source === 'master'"><div><span class="badge b-FAILED">Not saved</span>
+                <div class="hint" x-text="(u.apply_summary || 'see the checks').replace(/^Not saved: /, '')"></div></div></template>
+              <span class="muted" x-show="!u.applied_at && u.source !== 'master'">Source views: use in a request</span>
             </td>
           </tr>
         </template>

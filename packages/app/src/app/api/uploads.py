@@ -9,7 +9,8 @@ Routes on the API blueprint: GET /api/uploads, POST /api/uploads/<submission_typ
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+import re
+from datetime import date, datetime, timedelta
 
 from flask import jsonify, request
 from sqlalchemy import select, update
@@ -39,14 +40,32 @@ def _tenant(given: str | None) -> str:
     raise AssertionError  # fail() raises
 
 
+INTERRUPTED_AFTER = timedelta(minutes=10)  # longer than any upload request may run (Azure: about 4 minutes)
+INTERRUPTED = "Not saved: the upload was interrupted (it took too long or the server restarted). Upload it again."
+
+
+def db_reason(exc: BaseException) -> str:
+    """A database or code error in a line the page can show: the driver's message without its codes and prefixes."""
+    orig = getattr(exc, "orig", None)  # the driver's error (pyodbc: args = (sqlstate, message))
+    text = str(orig.args[-1]) if orig is not None and orig.args else str(orig or exc)
+    text = re.sub(r"\[[^\]]*\]", "", text)  # [23000] [Microsoft][ODBC Driver 18 ...][SQL Server]
+    text = re.sub(r"\(\d+\) \(SQL\w+\)", "", text).strip(" ('\")")
+    return " ".join(text.split())[:400] or type(exc).__name__
+
+
 def _row_json(engine, r) -> dict:
     base = _load_json(engine, dict(r._mapping)) or {}
+    source = data_source(engine, r.tenant_id, r.submission_type)
+    summary = r.apply_summary
+    if (source == "master" and r.status == "LOADED" and not r.applied_at and not summary
+            and r.loaded_at and utcnow() - r.loaded_at > INTERRUPTED_AFTER):  # fmt: skip
+        summary = INTERRUPTED  # the request ended before saving (no reason was written)
     return base | {
         "submission_type": r.submission_type,
         "as_of_date": r.as_of_date,
         "applied_at": r.applied_at,
-        "apply_summary": r.apply_summary,
-        "source": data_source(engine, r.tenant_id, r.submission_type),
+        "apply_summary": summary,
+        "source": source,
     }
 
 
@@ -110,7 +129,7 @@ def upload(submission_type: str):
     t = input_load.c
     checks = run_checks(s.engine, result.load_id, kind, as_of) if result.status == "LOADED" else None
     source = data_source(s.engine, tenant_id, kind)
-    applied, summary, status = None, None, 201
+    applied, summary, status, error = None, None, 201, None
     if result.status != "LOADED":
         text = "The workbook was not loaded: " + "; ".join(i.message for i in result.errors)
         status = 422
@@ -121,11 +140,15 @@ def upload(submission_type: str):
     elif source == "master":
         try:
             res = load_upload(s.engine, s.engine, tenant_id, kind, as_of, result.load_id)  # views in the app database
-        except UploadConflict as exc:
-            text, status = f"{file_name} passed the checks but was not loaded into the customer tables: {exc}", 422
+        except Exception as exc:  # any failure: nothing was saved (one transaction); say why, on the page and kept
+            reason = str(exc) if isinstance(exc, UploadConflict) else db_reason(exc)
+            if not isinstance(exc, UploadConflict):
+                log.exception("Saving upload %s in the customer tables failed", result.load_id)
+            text, status = f"{file_name} passed the checks but was not saved in the customer tables: {reason}", 422
+            error = reason
             with s.engine.begin() as conn:  # kept with the upload, so the list shows why (not only the message)
                 conn.execute(update(input_load).where(t.load_id == result.load_id)
-                             .values(apply_summary=f"Not saved: {exc}"[:1000]))  # fmt: skip
+                             .values(apply_summary=f"Not saved: {reason}"[:1000]))  # fmt: skip
         else:
             applied = utcnow()
             summary = (f"sanctions {res.sanctions_added} added, {res.sanctions_updated} updated; accounts "
@@ -142,7 +165,7 @@ def upload(submission_type: str):
         s.engine, current_user(), "DATA_UPLOADED", tenant_id=tenant_id, target=result.load_id, submission_type=kind,
         as_of_date=as_of.isoformat(), file_name=file_name, status=result.status, rows=result.row_counts,
         dq_blocking=checks.blocking if checks else None, dq_warnings=checks.warnings if checks else None,
-        applied=bool(applied),
+        applied=bool(applied), error=error,
     )  # fmt: skip
     with s.engine.connect() as conn:
         row = conn.execute(select(input_load).where(t.load_id == result.load_id)).one()
