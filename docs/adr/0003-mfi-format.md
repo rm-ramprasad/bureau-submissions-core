@@ -1,6 +1,6 @@
 # 3. MFI submission format (UCRF for MFIs incl. SHG, v3.3.1)
 
-Date: 2026-11-10 · Status: proposed · Decisions by the owner on 2026-11-10 marked **(owner)**
+Date: 2026-11-10 · Status: accepted; steps 1–6 done (#68–#74), step 7 waits for the client's data · Decisions by the owner on 2026-11-10 marked **(owner)**
 
 Spec: [docs/specs/UCRF_MFI_v3.3.1.md](../specs/UCRF_MFI_v3.3.1.md) (UCRF for MFIs including SHG, v3.3.1, April 2026,
 effective 01-07-2026). Section numbers below (§) refer to it. Requirements 10.3 asked for this spec before MFI work starts.
