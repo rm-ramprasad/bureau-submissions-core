@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
   Run an admin job on the deployed Function App: POST /ops/<job> with the app's function key (fetched at run time,
-  kept in memory only). Jobs: migrate | users | views | master-parity | recovery | retention.
+  kept in memory only). Jobs: migrate | users | views | master-parity | lms-cr-compare | recovery | retention.
 
 .EXAMPLE
   .\deploy\ops.ps1 migrate
@@ -10,10 +10,11 @@
   .\deploy\ops.ps1 retention -DryRun
   .\deploy\ops.ps1 views CONSUMER --as-of 2026-10-31 --load-id 17
   .\deploy\ops.ps1 master-parity CONSUMER --as-of 2026-10-31 --load-id 17
+  .\deploy\ops.ps1 lms-cr-compare COMMERCIAL --as-of 2026-10-31
 #>
 [CmdletBinding(PositionalBinding = $false)]     # only the job is positional; everything after it goes to the job
 param(
-    [Parameter(Mandatory, Position = 0)][ValidateSet("migrate", "users", "views", "master-parity", "recovery", "retention")][string]$Job,
+    [Parameter(Mandatory, Position = 0)][ValidateSet("migrate", "users", "views", "master-parity", "lms-cr-compare", "recovery", "retention")][string]$Job,
     [Parameter(ValueFromRemainingArguments)][string[]]$Args_,
     [switch]$DryRun,
     [string]$Subscription = "RarFinance",

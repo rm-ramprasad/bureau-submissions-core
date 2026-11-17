@@ -12,103 +12,18 @@ from sqlalchemy import Engine, Table, inspect
 import canonical.position
 import canonical.staging.tables  # noqa: F401  (registers all app tables)
 from canonical.db import SCHEMA, metadata
+from canonical.lms_cr import SOURCES, STAND_INS
 from canonical.migrate import AZURE_MIGRATIONS, apply_migrations, apply_views, run_batch
 from canonical.reference import seed as seed_reference
 from canonical.tenants import TenantRepository
 from canonical.testing import TENANT
 
-D, N, INT, T, S = "DATE", "DECIMAL(20, 2)", "INT", "VARCHAR(40)", "VARCHAR(100)"
-
-CONSUMER = {
-    "AccountNumber": S,
-    "TransactionDate": D,
-    "AssetClassification": S,
-    "TL_CreditFacilityStatus": INT,
-    "TL_DateDisbursed": T,
-    "TL_DateofLastPayment": T,
-    "TL_DateClosed": T,
-    "TL_DateReported": T,
-    "TL_NoofDaysPastDue": INT,
-    "TL_RepaymentTenure": INT,
-    "TL_RateofInterest": N,
-    **{
-        c: N
-        for c in (
-            "TL_SanctionedAmt",
-            "TL_CurrentBalance",
-            "TL_AmtOverdue",
-            "TL_CreditLimit",
-            "TL_CashLimit",
-            "TL_EMIAmount",
-            "TL_WrittenoffAmountTotal",
-            "TL_WrittenOffPrincipalAmount",
-            "TL_SettlementAmt",
-            "TL_ActualPaymentAmt",
-        )
-    },
+# The stand-ins have the procedures' columns and types (canonical.lms_cr), without SelectionReason (the stand-in
+# procedures add it).
+STUBS = {
+    STAND_INS[kind]: {c: t for c, t in source.columns.items() if c != "SelectionReason"}
+    for kind, source in SOURCES.items()
 }
-
-COMMERCIAL = {
-    "AccountNumber": S,
-    "SanctionRefNo": S,
-    "transactiondate": D,
-    "AcClosedDate": D,
-    "LastPaymentDate": D,
-    "IsAccountClosed": S,
-    "RBIODDays": INT,
-    "Tenure": INT,
-    "OTHER_BK": S,
-    "Major reasons for Restructuring": INT,
-    "Asset based Security coverage": INT,
-    "Guarantee Coverage": INT,
-    **{
-        c: T
-        for c in (
-            "Sanction Date",
-            "Account Status Date",
-            "Asset Classification Date",
-            "Date Classified as Wilful Default",
-            "Loan Renewal Date",
-            "Maturity Date",
-            "UFCE Date",
-        )
-    },
-    **{
-        c: S
-        for c in (
-            "Account Status",
-            "Asset Classification",
-            "Bank Remark Code",
-            "Currency Code",
-            "Dispute ID No.",
-            "Previous Account Number",
-        )
-    },
-    **{
-        c: N
-        for c in (
-            "Amount Overdue",
-            "Amount of Contracts Classified as NPA",
-            "Current Balance",
-            "Drawing Power",
-            "High Credit",
-            "Installment Amount",
-            "Last Repaid Amount",
-            "Notional Amount of Outstanding Restructured Contracts",
-            "Overdue Bucket 01 ( 1 – 30 days)",
-            "Overdue Bucket 02 ( 31 – 60 days)",
-            "Overdue Bucket 03 ( 61 – 90 days)",
-            "Overdue Bucket 04 (91 – 180 days)",
-            "Overdue Bucket 05 (Above 180 days)",
-            "Sanctioned Amount",
-            "Settled Amount",
-            "UFCE Amount",
-            "Written Off Amount",
-        )
-    },
-}
-
-STUBS = {"VwConsumerSubmissionAccountSegment": CONSUMER, "VwCommercialSubmissionCR": COMMERCIAL}
 
 
 def _name(engine: Engine, name: str) -> str:
@@ -125,8 +40,45 @@ def create_lms_stubs(engine: Engine) -> None:
         for table, columns in STUBS.items():
             if table.lower() in existing:
                 continue
-            cols = ", ".join(f"{_name(engine, c)} {t}" for c, t in columns.items())
+            cols = ", ".join(f"{_name(engine, c)} {t.compile(dialect=engine.dialect)}" for c, t in columns.items())
             conn.exec_driver_sql(f"CREATE TABLE wip.{table} ({cols})")
+
+
+def create_lms_procedures(engine: Engine) -> None:
+    """Stand-ins for the client's LMS procedures (rarfincare: dbo.usp_Get*SubmissionCR, owner 2026-11-16): they return
+    the stand-in table's rows for @TransactionDate, as canonical.lms_cr.fetch_cr calls them. SQL Server: procedures;
+    Postgres: set-returning functions with the same three parameters."""
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+        if engine.dialect.name == "mssql":
+            conn.exec_driver_sql("IF SCHEMA_ID('dbo') IS NULL EXEC('CREATE SCHEMA dbo')")
+        else:
+            conn.exec_driver_sql("CREATE SCHEMA IF NOT EXISTS dbo")
+        for kind, source in SOURCES.items():
+            stand_in, date_col = STAND_INS[kind], _name(engine, source.date_column)
+            if engine.dialect.name == "mssql":
+                conn.exec_driver_sql(
+                    f"CREATE OR ALTER PROCEDURE {source.procedure} @TransactionDate DATE, "  # noqa: S608  (fixed names)
+                    "@PreviousTransactionDate DATE, @CloseDate DATE AS "
+                    f"SELECT *, CAST('stand-in' AS NVARCHAR(400)) AS SelectionReason FROM wip.{stand_in} "
+                    f"WHERE {date_col} = @TransactionDate"
+                )
+            else:
+                conn.exec_driver_sql(
+                    f"CREATE OR REPLACE FUNCTION {source.procedure}(t DATE, p DATE, c DATE) RETURNS SETOF "  # noqa: S608
+                    f"wip.{stand_in} AS $$ SELECT * FROM wip.{stand_in} WHERE {date_col} = t $$ LANGUAGE sql"
+                )
+
+
+def mirror_lms(engine: Engine) -> None:
+    """Copy every stand-in LMS row into the tables the source views read (automn.lms_cr_*), as fetches for all their
+    dates would: for tests that seed the stand-ins and then read the views directly, on any date."""
+    with engine.begin() as conn:
+        for kind, source in SOURCES.items():
+            cols = ", ".join(_name(engine, c) for c in STUBS[STAND_INS[kind]])
+            conn.exec_driver_sql(f"DELETE FROM {SCHEMA}.{source.table.name}")  # noqa: S608  (fixed names)
+            conn.exec_driver_sql(
+                f"INSERT INTO {SCHEMA}.{source.table.name} ({cols}) SELECT {cols} FROM wip.{STAND_INS[kind]}"  # noqa: S608
+            )
 
 
 def lms_column(engine: Engine, name: str) -> str:
@@ -158,6 +110,7 @@ def prepare_mssql(engine: Engine) -> None:
     apply_migrations(engine)
     _seed(engine)
     create_lms_stubs(engine)
+    create_lms_procedures(engine)
     apply_views(engine)
 
 
@@ -167,6 +120,7 @@ def prepare_postgres(engine: Engine) -> None:
     metadata.create_all(engine)
     _seed(engine)
     create_lms_stubs(engine)
+    create_lms_procedures(engine)
     apply_views(engine)
 
 

@@ -2,7 +2,7 @@
 # severity block: the request cannot be submitted until a corrected workbook passes; warn: reported only.
 #
 # Every sheet is keyed by Sanction Reference Number (user, 2026-10-30), compared on letters and digits only
-# (F012/2025-26 = F012-2025-26): the view wip.VwCommercialSubmissionCR
+# (F012/2025-26 = F012-2025-26): the LMS figures automn.lms_cr_commercial
 # (SanctionRefNo) joins Sanction, and Sanction joins BS / AS / RS / GS / SS / CD, all on the reference. One borrower
 # per loan account. '(Name)' columns hold labels: they must be labels of their code list in
 # automn.ref_code_translation. CD rows with nothing filled are not reported. The hidden Audit Framework is ignored.
@@ -15,7 +15,7 @@ sheets:
         check: in_source
         columns: [sanction_reference_number]
         sql: >-
-          SELECT v.SanctionRefNo FROM wip.VwCommercialSubmissionCR v WHERE v.transactiondate = :as_of_date
+          SELECT v.SanctionRefNo FROM automn.lms_cr_commercial v WHERE v.transactiondate = :as_of_date
         match: alnum                 # F012/2025-26 (workbook) = F012-2025-26 (view)
         severity: warn               # a note (user, 2026-10-30): its loans are simply not in the file
         message: Sanction Reference Number is not in the commercial view for the request's as-of date; its rows are not reported

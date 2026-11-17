@@ -2,8 +2,8 @@
 # (automn.stg_consumer) right after each upload. Format: submissions/inputs/checks.py.
 # '(Name)' columns hold labels: they must be labels of their code list in automn.ref_code_translation.
 # severity block: the request cannot be submitted until a corrected workbook passes; warn: reported only.
-# The Excel drives the submission: only its rows are checked and reported. Account fields come from the view
-# (wip.VwConsumerSubmissionAccountSegment) for the request's date, so the workbook's own account columns are only
+# The Excel drives the submission: only its rows are checked and reported. Account fields come from the LMS
+# (automn.lms_cr_consumer, fetched by procedure) for the request's date, so the workbook's own account columns are only
 # checked where the view does not supply them (account type, ownership, collateral, payment frequency).
 
 sheet: Consumer
@@ -38,7 +38,7 @@ checks:
     check: in_source
     columns: [curr_new_account_no]
     sql: >-
-      SELECT v.AccountNumber FROM wip.VwConsumerSubmissionAccountSegment v WHERE v.TransactionDate = :as_of_date
+      SELECT v.AccountNumber FROM automn.lms_cr_consumer v WHERE v.TransactionDate = :as_of_date
     severity: block
     message: Account is not in the source view for the request's as-of date, so its account fields cannot be filled
 
