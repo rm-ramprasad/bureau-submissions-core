@@ -340,7 +340,12 @@ BS = {
 def commercial(engine, sheets, refs=(REF, "302/2024-25")):
     with engine.begin() as conn:
         for ref in refs:
-            conn.execute(text("INSERT INTO wip.VwCommercialSubmissionCR VALUES ('L', :r, :d)"), {"r": ref, "d": AS_OF})
+            conn.execute(  # the LMS figures as fetched from its procedure
+                text(
+                    "INSERT INTO automn.lms_cr_commercial (AccountNumber, SanctionRefNo, transactiondate) VALUES ('L', :r, :d)"
+                ),
+                {"r": ref, "d": AS_OF},
+            )
     data = workbook("COMMERCIAL", sheets)
     load_id = load_workbook(
         engine,

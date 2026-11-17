@@ -143,6 +143,7 @@ def _position_data(engine: Engine) -> None:
     from canonical.position import stg_lms_position
     from canonical.staging.tables import input_load
     from canonical.testing_db import lms_column as q
+    from canonical.testing_db import mirror_lms
 
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM wip.VwConsumerSubmissionAccountSegment"))
@@ -151,7 +152,7 @@ def _position_data(engine: Engine) -> None:
             text(
                 "INSERT INTO wip.VwConsumerSubmissionAccountSegment (AccountNumber, TransactionDate, "
                 "TL_CurrentBalance, TL_AmtOverdue, TL_NoofDaysPastDue, TL_CreditFacilityStatus, TL_DateClosed) "
-                "VALUES ('POS-C1', '2026-10-31', 1000.50, 20.00, 15, NULL, '31102026')"
+                "VALUES ('POS-C1', '2026-10-31', 1000, 20, 15, NULL, '31102026')"
             )
         )
         conn.execute(
@@ -188,6 +189,7 @@ def _position_data(engine: Engine) -> None:
                     days_past_due="3",
                 )
             )
+    mirror_lms(engine)  # the stand-in LMS rows, as fetched from the procedures
 
 
 @pytest.mark.parametrize("db", ["mssql_migrated", "postgres"])
@@ -204,7 +206,7 @@ def test_account_position_view_keeps_the_contract(db: str, request: pytest.Fixtu
     assert sorted(rows) == ["POS-C1", "POS-K1", "POS-U1"]
     c, k, u = rows["POS-C1"], rows["POS-K1"], rows["POS-U1"]
     assert (c["current_balance"], c["days_past_due"], c["date_closed"], c["source"]) == (
-        Decimal("1000.50"),
+        Decimal("1000.00"),
         15,
         date(2026, 10, 31),
         "VIEW",
@@ -224,3 +226,30 @@ def test_account_position_view_keeps_the_contract(db: str, request: pytest.Fixtu
     assert u["source_load_id"] == max(r["source_load_id"] or 0 for r in rows.values())
     assert [r["account_number"] for r in read_positions(engine, date(2026, 10, 31), ["POS-U1"])] == ["POS-U1"]
     assert read_positions(engine, date(2026, 9, 30)) == []
+
+
+@pytest.mark.parametrize("db", ["mssql_migrated", "postgres"])
+def test_the_lms_procedures_feed_the_position_view(db: str, request: pytest.FixtureRequest) -> None:
+    """fetch_cr runs the (stand-in) procedures with the three dates and saves their rows where the views read them."""
+    from datetime import date
+
+    from sqlalchemy import select
+
+    from canonical.lms_cr import fetch_cr, lms_cr_consumer
+    from canonical.position import read_positions
+
+    engine: Engine = request.getfixturevalue(db)
+    _position_data(engine)
+    with engine.begin() as conn:  # nothing fetched yet
+        conn.execute(text("DELETE FROM automn.lms_cr_consumer"))
+        conn.execute(text("DELETE FROM automn.lms_cr_commercial"))
+    assert sorted(r["account_number"] for r in read_positions(engine, date(2026, 10, 31))) == ["POS-U1"]
+    for kind in ("CONSUMER", "COMMERCIAL"):
+        result = fetch_cr(engine, engine, kind, date(2026, 10, 31), by="ci")
+        assert result is not None and (result.rows, result.previous_date) == (1, date(2026, 9, 30))
+    rows = {r["account_number"]: r for r in read_positions(engine, date(2026, 10, 31))}
+    assert sorted(rows) == ["POS-C1", "POS-K1", "POS-U1"]
+    assert str(rows["POS-C1"]["current_balance"]) == "1000.00"
+    with engine.connect() as conn:
+        reasons = conn.execute(select(lms_cr_consumer.c.SelectionReason)).scalars().all()
+    assert reasons == (["stand-in"] if engine.dialect.name == "mssql" else [None])

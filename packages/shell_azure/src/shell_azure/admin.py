@@ -6,6 +6,7 @@ timers (recovery, retention) and locally (python -m shell_azure.admin <job> ...)
   users <args>            add / email / disable / enable / list app users
   views <TYPE> --as-of D --load-id N   read-only check of a type's source views for one upload and date
   master-parity <TYPE> --as-of D --load-id N   today's snapshot rows vs the new path's (ADR 0002 PR 6)
+  lms-cr-compare <TYPE> --as-of D   the LMS procedure's CR rows vs the old LMS view's, for one date (saves nothing)
   recovery                release or fail stuck runs, re-dispatch PENDING rows never picked up
   retention [--days N] [--dry-run]     remove old personal data and files
 """
@@ -29,7 +30,7 @@ from app.ports.jobs import Dispatcher
 from app.users import UserError, UserRepository
 from canonical.db import utcnow
 
-JOBS = ("migrate", "users", "views", "master-parity", "recovery", "retention")
+JOBS = ("migrate", "users", "views", "master-parity", "lms-cr-compare", "recovery", "retention")
 RUN_TIMEOUT = timedelta(minutes=40)  # longer than host.json functionTimeout (30 min): the run is dead by then
 PENDING_GRACE = timedelta(minutes=10)
 
@@ -120,8 +121,10 @@ def users(engine: Engine, args: list[str], actor: str = "admin") -> dict[str, An
 
 
 def views(engine: Engine, submission_type: str, as_of: date, load_id: int) -> dict[str, Any]:
+    from canonical.lms_cr import fetch_cr
     from sources.views import check_views
 
+    fetch_cr(engine, engine, submission_type.upper(), as_of, by="admin-views")  # the LMS figures the views read
     rows, errors, warnings = check_views(engine, submission_type.upper(), as_of, load_id)
     return {"ok": not errors, "rows": rows, "errors": errors, "warnings": warnings}
 
@@ -131,11 +134,21 @@ def master_parity(
 ) -> dict[str, Any]:
     """Today's snapshot rows (source views) vs the new path's (demographics master + account position) for one upload
     and date (ADR 0002 PR 6). Writes the master only; nothing reads it yet."""
+    from canonical.lms_cr import fetch_cr
     from sources.master_parity import compare
 
     if not tenant:
         raise ValueError("master-parity needs the app's NBFC (SUBMISSIONS_TENANT)")
+    fetch_cr(source_engine, engine, submission_type.upper(), as_of, by="admin-master-parity")
     return compare(engine, source_engine, tenant, submission_type, as_of, load_id)
+
+
+def lms_cr_compare(engine: Engine, submission_type: str, as_of: date) -> dict[str, Any]:
+    from canonical.lms_cr import compare_with_view
+
+    if submission_type.upper() not in ("CONSUMER", "COMMERCIAL"):
+        raise ValueError("lms-cr-compare: CONSUMER or COMMERCIAL")
+    return compare_with_view(engine, submission_type, as_of)
 
 
 def recovery(engine: Engine, dispatcher: Dispatcher) -> dict[str, Any]:
@@ -212,6 +225,15 @@ def run_job(
         except (SystemExit, argparse.ArgumentError) as exc:
             raise ValueError(f"master-parity <TYPE> --as-of YYYY-MM-DD --load-id N ({exc})") from None
         return master_parity(engine, source_engine or engine, tenant, a.submission_type, a.as_of, a.load_id)
+    if job == "lms-cr-compare":
+        ap = argparse.ArgumentParser(prog="lms-cr-compare", exit_on_error=False)
+        ap.add_argument("submission_type")
+        ap.add_argument("--as-of", type=date.fromisoformat, required=True)
+        try:
+            a = ap.parse_args(args)
+        except (SystemExit, argparse.ArgumentError) as exc:
+            raise ValueError(f"lms-cr-compare <TYPE> --as-of YYYY-MM-DD ({exc})") from None
+        return lms_cr_compare(source_engine or engine, a.submission_type, a.as_of)
     if job == "recovery":
         return recovery(engine, dispatcher())
     if job == "retention":

@@ -13,6 +13,7 @@ import pytest
 from sqlalchemy import Engine, event, func, text, update
 from sqlalchemy.pool import StaticPool
 
+import canonical.lms_cr
 import canonical.staging.tables  # noqa: F401  (registers input_load, input_issue, stg_*)
 from canonical.db import make_engine, metadata
 from canonical.reference import seed as seed_reference
@@ -59,6 +60,11 @@ def add_view_accounts(engine: Engine, as_of: date, *accounts: str) -> None:
         for a in accounts:
             conn.execute(
                 text("INSERT INTO wip.VwConsumerSubmissionAccountSegment VALUES (:a, :d)"), {"a": a, "d": as_of}
+            )
+            # and as fetched from the LMS procedure (automn.lms_cr_consumer), for checks run without a fetch
+            conn.execute(
+                text("INSERT INTO automn.lms_cr_consumer (AccountNumber, TransactionDate) VALUES (:a, :d)"),
+                {"a": a, "d": as_of},
             )
 
 

@@ -39,6 +39,7 @@ MIGRATIONS = [
     "021_upload_stage",
     "022_upload_save_items",
     "023_position_terms",
+    "024_lms_cr_procedures",
 ]
 
 

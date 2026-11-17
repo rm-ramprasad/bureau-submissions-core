@@ -22,7 +22,7 @@ from canonical.enums import ExtractStrategy
 from canonical.schema import ENTITY_TABLES, ref_code_translation
 from canonical.snapshot import SnapshotRepository
 from canonical.testing import TENANT
-from canonical.testing_db import lms_column, prepare_mssql, prepare_postgres
+from canonical.testing_db import lms_column, mirror_lms, prepare_mssql, prepare_postgres
 from sources.excel import load_workbook
 from sources.extract import run_extract
 from sources.views import check_views, compile_views
@@ -73,6 +73,7 @@ def add_lms_rows(engine: Engine, *rows: dict) -> None:
                 text(f"INSERT INTO wip.VwConsumerSubmissionAccountSegment ({cols}) VALUES ({names})"),
                 {f"p{i}": v for i, v in enumerate(row.values())},
             )
+    mirror_lms(engine)  # as fetched from the LMS procedure
 
 
 def upload(engine: Engine, *rows: dict, at: datetime) -> int:
@@ -126,7 +127,7 @@ def test_an_upload_and_the_lms_rows_become_a_canonical_snapshot(db: Engine) -> N
     lms = {
         "TL_DateDisbursed": "15012020",
         "TL_SanctionedAmt": Decimal("500000.00"),
-        "TL_CurrentBalance": Decimal("123456.78"),
+        "TL_CurrentBalance": Decimal("123457"),  # whole rupees: decimal(19,0) in the LMS
         "TL_NoofDaysPastDue": 0,
     }
     add_lms_rows(
@@ -152,7 +153,7 @@ def test_an_upload_and_the_lms_rows_become_a_canonical_snapshot(db: Engine) -> N
     )
     assert status == canonical_code(db, "credit_facility_status", "05")  # 5 -> '05' -> its canonical value
     assert closed is None and opened == date(2020, 1, 15)  # 31.02.2025 is not a date
-    assert balance == Decimal("123456.78")
+    assert balance == Decimal("123457.00")
     assert rows(db, "party", snap, "party_key", "full_name", "gender", "birth_date") == [
         (f"{a1}-2", "ASHA K KUMAR", "FEMALE", date(1985, 8, 15)),  # the newest upload's name for a1
         (f"{a2}-3", "RAVI S", "MALE", date(1985, 8, 15)),  # label matched ignoring case and spaces
@@ -278,7 +279,7 @@ def test_parity_through_the_real_views_is_identical(db: Engine) -> None:
     run = next(_batches)
     a1, a2 = (f"PAR{run}-{n}" for n in (1, 2))
     lms = {"TL_DateDisbursed": "15012020", "TL_SanctionedAmt": Decimal("500000.00"), "TL_NoofDaysPastDue": 3,
-           "TL_CurrentBalance": Decimal("1000.50"), "TL_CreditFacilityStatus": 5, "AssetClassification": "STD"}  # fmt: skip
+           "TL_CurrentBalance": Decimal("1000"), "TL_CreditFacilityStatus": 5, "AssetClassification": "01"}  # fmt: skip
     add_lms_rows(db, {"AccountNumber": a1, "TransactionDate": PARITY_DAY} | lms,
                  {"AccountNumber": a2, "TransactionDate": PARITY_DAY} | lms)  # fmt: skip
     first = upload(db, borrower(a1), borrower(a2, consumer_name="RAVI S", telephone_no_office="0442222333",

@@ -23,7 +23,7 @@ from canonical.db import make_engine
 from canonical.schema import ENTITY_TABLES
 from canonical.snapshot import SnapshotRepository
 from canonical.testing import TENANT
-from canonical.testing_db import lms_column, prepare_mssql, prepare_postgres
+from canonical.testing_db import lms_column, mirror_lms, prepare_mssql, prepare_postgres
 from sources.excel import load_workbook
 from sources.extract import run_extract
 from sources.views import compile_views
@@ -59,6 +59,7 @@ def test_an_exclusion_and_an_override_reach_the_snapshot(db: Engine) -> None:
                 ),
                 {"a": acc, "d": AS_OF},
             )
+    mirror_lms(db)  # as fetched from the LMS procedure
     rows = [
         {"curr_new_account_no": acc, "consumer_name": "ASHA KUMAR", "gender_label": "Female",
          "ownership_indicator_label": "Individual", "account_type": "02"}

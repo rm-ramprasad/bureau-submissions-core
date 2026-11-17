@@ -7,8 +7,11 @@
 -- Portable source: same rules as consumer.sql (CONCAT, automn.fn_*, joins to vw_ref_code; build_views translates it).
 --
 -- Two kinds of source, one contract:
---   A. the client's LMS views (rarfincare: wip.VwConsumerSubmissionAccountSegment and wip.VwCommercialSubmissionCR):
---      their history by date, no data load. Same field logic as vw_consumer_account / vw_commercial_account.
+--   A. the client's LMS procedures (rarfincare, 2026-11-16: dbo.usp_GetConsumerSubmissionCR and
+--      dbo.usp_GetCommercialSubmissionCR),
+--      fetched per request date into automn.lms_cr_consumer / automn.lms_cr_commercial (canonical/lms_cr.py; they
+--      replaced the views wip.VwConsumerSubmissionAccountSegment / wip.VwCommercialSubmissionCR, same column names).
+--      Same field logic as vw_consumer_account / vw_commercial_account.
 --   B. LMS Excel uploads (automn.stg_lms_position, migration 012) for clients without an LMS view: the newest LOADED
 --      upload per account, sanction and date wins (a re-upload for a date is a correction).
 -- vw_pos_account_position is A and B together; a client uses one of them (the configured mapping, PR 6, will generate
@@ -78,7 +81,7 @@ FROM (
       )
     END AS status_code,
     NULLIF(LTRIM(RTRIM(CAST(x.AssetClassification AS CHAR(40)))), '') AS asset_code
-  FROM wip.VwConsumerSubmissionAccountSegment AS x
+  FROM automn.lms_cr_consumer AS x
 ) AS v
 LEFT JOIN automn.vw_ref_code AS c_status
   ON c_status.submission_type = 'CONSUMER'
@@ -208,7 +211,7 @@ FROM (
         2
       )
     END AS guarantee_coverage_code
-  FROM wip.VwCommercialSubmissionCR AS y
+  FROM automn.lms_cr_commercial AS y
 ) AS l
 LEFT JOIN automn.vw_ref_code AS c_asset
   ON c_asset.submission_type = 'COMMERCIAL'
