@@ -1,7 +1,9 @@
 # CLAUDE.md
 
 Credit bureau submission files for NBFCs: cloud-neutral layers (uv workspace under `packages/`) in thin per-cloud
-shells. Design: `docs/requirements.md`. Plan and status: `docs/PLAN.md` and the GitHub issues.
+shells. Design: `docs/requirements.md`; decisions: `docs/adr/` (0002 layers L0–L4 and the sanction model, 0003 MFI).
+Plan and status: `docs/PLAN.md` and the GitHub issues. Releases and deploys: `docs/release.md`,
+`docs/github-deploy-rarfincare.md`.
 
 ## Rules
 
@@ -21,6 +23,9 @@ shells. Design: `docs/requirements.md`. Plan and status: `docs/PLAN.md` and the 
   owner, running scripts prepared here.
 - **Never** create, change or delete cloud resources; infrastructure is written as code for review.
 - **Types:** strict mypy for new code. The ported-module baseline in `pyproject.toml` only shrinks.
+- **Migrations** (`packages/canonical/src/canonical/migrations/azure/`, next number in `docs/PLAN.md`): never edit
+  one once it is in a PR; add a new number. The app identity is DML only: the owner runs each new migration in SSMS,
+  then deploys with `mark_applied`. View files (`azure/views/*.sql`) are not applied by deploy: say so in the PR.
 - **Coverage gate:** `fail_under` in `pyproject.toml`, never lowered.
 
 ## Commands

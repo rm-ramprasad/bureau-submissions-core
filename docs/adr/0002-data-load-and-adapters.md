@@ -1,6 +1,12 @@
 # 2. Load once, extract many: layers L0–L4, source adapters, per-format extracts
 
-Date: 2026-11-08 · Status: proposed (issue #20) · Decisions by the owner on 2026-11-08 marked **(owner)**
+Date: 2026-11-08 · Status: accepted 2026-11-08 (issue #20) · Decisions by the owner on 2026-11-08 marked **(owner)**
+
+> **Update 2026-11-11 (owner):** the party model below (customer ID, `dm_party`, account ↔ party + role) is replaced
+> by the **sanction model**: one data model for consumer and commercial, customer tables keyed by sanction reference
+> number (`dm_sanction` = borrower, `dm_sanction_holder`, contact lists, guarantor / relationship / security / cheque
+> per sanction, `dm_sanction_account`), with `sanction_ref_key` on every table (migrations 019, 020). Progress per
+> PR: [PLAN.md](../PLAN.md).
 
 ## Context
 

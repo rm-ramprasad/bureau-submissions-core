@@ -1,7 +1,8 @@
 # bureau-submissions-core
 
-Credit bureau submission files (CIBIL, CRIF High Mark, Experian, Equifax; consumer TUDF and commercial delimited)
+Credit bureau submission files (CIBIL, CRIF High Mark, Experian, Equifax; consumer TUDF, commercial delimited and MFI)
 from an NBFC's data: cloud-neutral layers in thin per-cloud shells. Design: [docs/requirements.md](docs/requirements.md).
+Decisions: [docs/adr/](docs/adr/). Plan and status: [docs/PLAN.md](docs/PLAN.md). Releases: [docs/release.md](docs/release.md).
 
 ## Packages
 
