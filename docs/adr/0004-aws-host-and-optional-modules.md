@@ -111,12 +111,6 @@ partnership model starts. Either way the rule SQL must become dialect-independen
 - The AWS repository's documents are superseded by this ADR and the comparison; their sections are marked "moved"
   when each item lands here.
 
-## Order of work (each a pull request)
+## Order of work
 
-1. This ADR and the comparison (docs only).
-2. Rule SQL dialect / schema independence, with tests on SQL Server, Postgres and (if chosen) DuckDB.
-3. Bring across: `tlv_newline` golden file; Rules page hides rule logic from client roles.
-4. Pack versions with `effective_from` and client pinning.
-5. Phase B as decided above (#22–#24, rewritten).
-6. Optional modules as AWS clients need them, starting with `optional:lms-mapping`.
-7. Archive `submission-aws-lambda`.
+See [CONVERGENCE-PLAN.md](../CONVERGENCE-PLAN.md) §5 (steps) and §6 (open decisions, including the conflict above).
