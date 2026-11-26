@@ -68,6 +68,7 @@ Add `--keep` to keep the trial snapshot and browse its findings in the UI (`/sna
 
 ```python
 from submissions.validation.rules import set_policy
+
 set_policy(engine, "nbfc_017", "UCRF.TL.WRITTEN_OFF_AMOUNTS_MISSING", outcome="REJECT_RECORD")
 ```
 
