@@ -36,7 +36,7 @@ dev = [
 db = ["pyodbc>=5.5.0"]
 
 [tool.pytest.ini_options]
-testpaths = ["packages"]
+testpaths = ["packages", "deploy/tests"]
 addopts = "-q --strict-markers --import-mode=importlib"
 filterwarnings = ["ignore:The default date(time)? adapter is deprecated:DeprecationWarning"]
 markers = [
