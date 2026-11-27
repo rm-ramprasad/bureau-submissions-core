@@ -174,7 +174,7 @@ def _deny(engine, email: str, claims: dict, reason: str) -> NoReturn:
     )
 
 
-def identify(config: OidcConfig | None, groups: Groups = Groups()) -> Identity:  # noqa: B008 (frozen)
+def identify(config: OidcConfig | None, groups: Groups = Groups()) -> Identity:
     """The caller's identity, or abort 401 (no / wrong token) or 403 (no access). `config` None = no sign-in."""
     if config is None:
         name = (request.headers.get("X-Forwarded-User") or "internal-user")[:100]
