@@ -30,11 +30,10 @@ dev = [
     "pre-commit>=4",
     "types-pyyaml>=6.0.12.20261122",
     "types-openpyxl>=3.1.5.20261122",
-    "sqlglot==26.16.0",           # canonical.build_views: generated views must not change with the version
 ]
 
 # Database drivers for the `db` tests (CI job "Database"); not needed for the unit tests.
-db = ["pyodbc>=5.5.0", "psycopg[binary]>=3.3.9"]
+db = ["pyodbc>=5.5.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["packages"]

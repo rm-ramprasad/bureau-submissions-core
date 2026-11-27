@@ -26,7 +26,7 @@ from canonical.snapshot import SnapshotRepository
 from canonical.staging.loads import loaded_workbook
 from canonical.tenants import TenantRepository
 from canonical.testing import TENANT
-from canonical.testing_db import lms_column, prepare_mssql, prepare_postgres
+from canonical.testing_db import lms_column, prepare_mssql
 from sources.excel import load_workbook
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "sources" / "tests"))
@@ -37,13 +37,13 @@ AS_OF = date(2026, 9, 28)
 _run = count(1)
 
 
-@pytest.fixture(scope="module", params=["mssql", "postgres"])
+@pytest.fixture(scope="module", params=["mssql"])
 def db(request) -> Iterator[Engine]:
-    url = os.environ.get({"mssql": "BSC_MSSQL_URL", "postgres": "BSC_POSTGRES_URL"}[request.param])
+    url = os.environ.get({"mssql": "BSC_MSSQL_URL"}[request.param])
     if not url:
         pytest.skip("database URL not set")
     engine = make_engine(url)
-    (prepare_mssql if request.param == "mssql" else prepare_postgres)(engine)
+    prepare_mssql(engine)
     seed_missing(BureauRepository(engine), TENANT.tenant_id)
     yield engine
     engine.dispose()

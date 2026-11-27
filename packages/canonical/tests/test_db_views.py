@@ -3,13 +3,11 @@
 - SQL Server (stands in for Azure SQL): the baseline as the administrator runs it, then 002-006 through the runner,
   then the T-SQL views. Every view must compile and run, and every column the app tables define must exist in the
   migrated schema with a compatible type (the migrations and the SQLAlchemy tables must not drift apart).
-- Postgres: the app tables from the SQLAlchemy metadata, then the generated Postgres views.
 
 The client's LMS views (schema `wip`, e.g. wip.VwConsumerSubmissionAccountSegment on rarfincare) are stand-in tables
 with the columns the views read (canonical.testing_db).
 
     BSC_MSSQL_URL=mssql+pyodbc://sa:...@localhost:1433/bsc?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
-    BSC_POSTGRES_URL=postgresql+psycopg://postgres:...@localhost:5432/bsc
     uv run pytest -m db
 """
 
@@ -27,7 +25,7 @@ import canonical.staging.loads
 import canonical.staging.tables  # noqa: F401  (registers all app tables)
 from canonical.db import SCHEMA, make_engine, metadata
 from canonical.migrate import AZURE_MIGRATIONS, apply_migrations, apply_views, pending_migrations
-from canonical.testing_db import prepare_mssql, prepare_postgres, schema_drift
+from canonical.testing_db import prepare_mssql, schema_drift
 
 pytestmark = pytest.mark.db
 
@@ -85,23 +83,6 @@ def test_mssql_labels_sql_runs_to_the_end(mssql_migrated: Engine) -> None:
 def test_mssql_schema_matches_the_app_tables(mssql_migrated: Engine) -> None:
     problems = schema_drift(mssql_migrated, metadata.sorted_tables, TABLES_NOT_IN_MIGRATIONS)
     assert not problems, "\n".join(problems)
-
-
-@pytest.fixture(scope="module")
-def postgres() -> Iterator[Engine]:
-    engine = _engine("BSC_POSTGRES_URL")
-    prepare_postgres(engine)
-    yield engine
-    engine.dispose()
-
-
-def test_postgres_views_run(postgres: Engine) -> None:
-    views = _views(postgres)
-    assert {"vw_consumer_account", "vw_consumer_party", "vw_commercial_account", "vw_ref_label"} <= set(views)
-    with postgres.connect() as conn:
-        for v in views:
-            conn.execute(text(f"SELECT * FROM {SCHEMA}.{v} LIMIT 1")).all()
-    apply_views(postgres)  # CREATE OR REPLACE: safe to run again
 
 
 def test_mssql_row_counts_still_work_after_the_views(mssql_migrated: Engine) -> None:
@@ -190,14 +171,13 @@ def _position_data(engine: Engine) -> None:
             )
 
 
-@pytest.mark.parametrize("db", ["mssql_migrated", "postgres"])
-def test_account_position_view_keeps_the_contract(db: str, request: pytest.FixtureRequest) -> None:
+def test_account_position_view_keeps_the_contract(mssql_migrated: Engine) -> None:
     from datetime import date
     from decimal import Decimal
 
     from canonical.position import check_view, read_positions
 
-    engine: Engine = request.getfixturevalue(db)
+    engine = mssql_migrated
     _position_data(engine)
     assert check_view(engine) == []
     rows = {r["account_number"]: r for r in read_positions(engine, date(2026, 10, 31))}

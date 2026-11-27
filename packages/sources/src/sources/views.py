@@ -71,9 +71,6 @@ def _views(conn: Connection, prefix: str) -> dict[str, str]:
             "WHERE SCHEMA_NAME(v.schema_id) = :s AND v.name LIKE :p ESCAPE '\\'"
         )
         rows = conn.execute(text(sql), {"s": SCHEMA, "p": like}).all()
-    elif dialect == "postgresql":
-        sql = "SELECT viewname, definition FROM pg_views WHERE schemaname = :s AND viewname LIKE :p ESCAPE '\\'"
-        rows = conn.execute(text(sql), {"s": SCHEMA, "p": like}).all()
     else:
         raise ViewError(f"source views are not supported on {dialect}")
     return {name.lower(): definition or "" for name, definition in rows}

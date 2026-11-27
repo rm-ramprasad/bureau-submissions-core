@@ -11,7 +11,7 @@ from sqlalchemy import Engine, Table, inspect
 
 import canonical.position
 import canonical.staging.tables  # noqa: F401  (registers all app tables)
-from canonical.db import SCHEMA, metadata
+from canonical.db import SCHEMA
 from canonical.migrate import AZURE_MIGRATIONS, apply_migrations, apply_views, run_batch
 from canonical.reference import seed as seed_reference
 from canonical.tenants import TenantRepository
@@ -156,15 +156,6 @@ def prepare_mssql(engine: Engine) -> None:
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             run_batch(conn, (AZURE_MIGRATIONS / "001_baseline.sql").read_text("utf-8"))
     apply_migrations(engine)
-    _seed(engine)
-    create_lms_stubs(engine)
-    apply_views(engine)
-
-
-def prepare_postgres(engine: Engine) -> None:
-    """Postgres: the app tables from the SQLAlchemy metadata, the reference data, the stand-ins, the views."""
-    _schemas(engine)
-    metadata.create_all(engine)
     _seed(engine)
     create_lms_stubs(engine)
     apply_views(engine)

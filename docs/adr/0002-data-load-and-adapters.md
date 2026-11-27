@@ -2,6 +2,9 @@
 
 Date: 2026-11-08 · Status: proposed (issue #20) · Decisions by the owner on 2026-11-08 marked **(owner)**
 
+> **Superseded in part (2026-11-26, owner):** mentions of Postgres below are no longer targets. Azure SQL is the
+> only relational database; AWS uses S3 + Athena. See [CONVERGENCE-PLAN.md](../CONVERGENCE-PLAN.md) §5.
+
 ## Context
 
 Today each submission type has its own upload, staging tables and hand-written mapping views
