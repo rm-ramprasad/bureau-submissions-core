@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v5   # GitHub's Python, not uv's download (timed out 2026-11-08)
+      - uses: actions/setup-python@v7   # GitHub's Python, not uv's download (timed out 2026-11-08)
         with:
           python-version: "3.14"
       - uses: astral-sh/setup-uv@v7
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v5   # GitHub's Python, not uv's download (timed out 2026-11-08)
+      - uses: actions/setup-python@v7   # GitHub's Python, not uv's download (timed out 2026-11-08)
         with:
           python-version: "3.14"
       - uses: astral-sh/setup-uv@v7
@@ -79,7 +79,7 @@ jobs:
       BSC_POSTGRES_URL: "postgresql+psycopg://postgres:ci-only@localhost:5432/bsc"
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v5   # GitHub's Python, not uv's download (timed out 2026-11-08)
+      - uses: actions/setup-python@v7   # GitHub's Python, not uv's download (timed out 2026-11-08)
         with:
           python-version: "3.14"
       - uses: astral-sh/setup-uv@v7
@@ -133,7 +133,7 @@ jobs:
       - uses: actions/checkout@v7
       # GitHub's own Python (its tool cache), not uv's download: that download (a GitHub release file) timed out
       # repeatedly on 2026-11-08 and this job, unlike the others, has no uv cache to fall back on.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
       - name: "uv from PyPI (not a GitHub release download, those timed out on 2026-11-08)"
