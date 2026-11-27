@@ -57,8 +57,12 @@ Controls:
 ## 3. Database objects
 
 **Rule: the schema name is configuration.** `automn` exists only in rarfincare's `client.yaml` and database. Today
-it is written literally in migrations, views and rule SQL (`tests/test_schema_prefix.py` enforces it); this changes
-to a `{schema}` placeholder filled at load / migration time, and the test changes to "no literal schema name".
+it is written literally in migrations, views and rule SQL. **Done (step 2, owner 2026-11-27):** `automn` stays the
+token in all SQL text (migrations 001–024 are frozen and never edited); the schema name is configuration
+(`BSC_SCHEMA`, or `make_engine(schema=...)`, default `automn`), and the engine maps the token: SQLAlchemy's
+`schema_translate_map` for the table objects and a whole-word rewrite of each statement's text for the rest. For
+`automn` nothing is added, so rarfincare's SQL is unchanged. CI runs the unit and SQL Server tests a second time with
+`BSC_SCHEMA=bsc`.
 
 | Object | Source | Applied by |
 |---|---|---|

@@ -1,5 +1,6 @@
--- Consumer source views: the uploaded 'Consumer' sheet (automn.stg_consumer) joined to the account view
--- wip.VwConsumerSubmissionAccountSegment. Run 00_functions.sql and 01_reference.sql first.
+-- Consumer source views: the uploaded 'Consumer' sheet (automn.stg_consumer) joined to the LMS figures
+-- automn.lms_cr_consumer (from dbo.usp_GetConsumerSubmissionCR, fetched per request date: canonical/lms_cr.py).
+-- Run 00_functions.sql and 01_reference.sql first.
 -- Portable source (2026-11-02): tools/build_views.py generates the Postgres / MySQL copies from this file, so write only
 -- what it translates correctly: CONCAT (never '...' + ...), automn.fn_amount / fn_percent / fn_int (never TRY_CAST),
 -- joins to automn.vw_ref_label / vw_ref_code for labels and codes (never a function), and CAST source-view values to
@@ -100,7 +101,7 @@ FROM (SELECT x.*,
              CASE WHEN x.TL_CreditFacilityStatus IS NOT NULL      -- 2-digit code: 5 -> 05
                   THEN RIGHT(CONCAT('0', CAST(x.TL_CreditFacilityStatus AS VARCHAR(3))), 2) END AS status_code,
              NULLIF(LTRIM(RTRIM(CAST(x.AssetClassification AS VARCHAR(40)))), '') AS asset_code
-      FROM wip.VwConsumerSubmissionAccountSegment x) v
+      FROM automn.lms_cr_consumer x) v
 JOIN automn.vw_consumer_borrower s ON s.curr_new_account_no = v.AccountNumber AND s.rn = 1
 LEFT JOIN automn.vw_ref_code c_type ON c_type.submission_type = 'CONSUMER' AND c_type.code_list = 'account_type'
       AND c_type.code_key = UPPER(LTRIM(RTRIM(s.account_type)))

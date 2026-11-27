@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import delete, func, inspect, select
 
 from bureau_core.canonical import canonical_model
+from canonical.db import schema_name
 from canonical.schema import (
     ENTITY_TABLES,
     RECORD_TYPES,
@@ -50,7 +51,7 @@ def test_reference_rows():
 
 def test_tables_create_and_round_trip(engine):
     assert set(ENTITY_TABLES[n].name for n in EXPECTED_ENTITIES) <= set(
-        inspect(engine).get_table_names(schema="automn")
+        inspect(engine).get_table_names(schema=schema_name(engine))
     )
     now = datetime(2026, 10, 21)
     with engine.begin() as conn:

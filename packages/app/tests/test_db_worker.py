@@ -1,4 +1,4 @@
-"""One request end to end through the real pipeline on SQL Server and Postgres (marked `db`; CI job "Database"):
+"""One request end to end through the real pipeline on SQL Server (marked `db`; CI job "Database"):
 an upload and LMS rows -> VALIDATE through rarfincare's source views (snapshot, core validation, stored result) ->
 GENERATE for one bureau (bureau Excel, TUDF, review Excel in the file store)."""
 
@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "sources" / "tests"
 from src_helpers import workbook
 
 pytestmark = pytest.mark.db
-AS_OF = date(2026, 9, 28)
+AS_OF = date(2026, 9, 30)  # a reporting date: the worker fetches the LMS figures through the stand-in procedure
 _run = count(1)
 
 
@@ -57,7 +57,7 @@ def test_a_request_validates_and_generates(db: Engine, tmp_path) -> None:
                 f"INSERT INTO wip.VwConsumerSubmissionAccountSegment ({lms_column(db, 'AccountNumber')}, "
                 f"{lms_column(db, 'TransactionDate')}, {lms_column(db, 'TL_DateDisbursed')}, "
                 f"{lms_column(db, 'TL_SanctionedAmt')}, {lms_column(db, 'TL_CurrentBalance')}, "
-                f"{lms_column(db, 'TL_NoofDaysPastDue')}) VALUES (:a, :d, '15012020', 500000, 1234.50, 0)"
+                f"{lms_column(db, 'TL_NoofDaysPastDue')}) VALUES (:a, :d, '15012020', 500000, 1235, 0)"
             ),
             {"a": acc, "d": AS_OF},
         )

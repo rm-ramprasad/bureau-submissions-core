@@ -22,7 +22,7 @@ from typing import Any
 from sqlalchemy import Connection, Engine, text
 
 from bureau_core.canonical import canonical_model
-from canonical.db import SCHEMA
+from canonical.db import SCHEMA, schema_name
 from canonical.schema import ENTITY_TABLES, MODEL
 
 REQUIRED_ENTITIES = ("party", "account", "account_holder")
@@ -70,7 +70,7 @@ def _views(conn: Connection, prefix: str) -> dict[str, str]:
             "SELECT v.name, OBJECT_DEFINITION(v.object_id) FROM sys.views v "
             "WHERE SCHEMA_NAME(v.schema_id) = :s AND v.name LIKE :p ESCAPE '\\'"
         )
-        rows = conn.execute(text(sql), {"s": SCHEMA, "p": like}).all()
+        rows = conn.execute(text(sql), {"s": schema_name(conn), "p": like}).all()
     else:
         raise ViewError(f"source views are not supported on {dialect}")
     return {name.lower(): definition or "" for name, definition in rows}
@@ -80,7 +80,7 @@ def _columns(conn: Connection, view: str) -> set[str]:
     if conn.dialect.name == "sqlite":
         return {r[1].lower() for r in conn.execute(text(f"PRAGMA {SCHEMA}.table_info({view})"))}
     sql = "SELECT column_name FROM information_schema.columns WHERE table_schema = :s AND table_name = :v"
-    return {r[0].lower() for r in conn.execute(text(sql), {"s": SCHEMA, "v": view})}
+    return {r[0].lower() for r in conn.execute(text(sql), {"s": schema_name(conn), "v": view})}
 
 
 def has_view(engine: Engine, view: str) -> bool:
