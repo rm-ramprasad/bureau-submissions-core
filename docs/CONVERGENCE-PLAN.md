@@ -95,7 +95,7 @@ Each step is one branch and PR (repository rule), in order. Steps 1–5 change n
 
 **Update 2026-11-26 (owner):** canonical data is **Azure SQL** on Azure and **S3 + Athena** (with Glue, DynamoDB) on AWS. Postgres and MySQL are not targets: the generated Postgres / MySQL views, `build_views` (sqlglot) and the Postgres CI container were removed. **Azure is finished first; AWS comes later.**
 
-- **Azure now:** 1 (Azure package only, structure ready for a second shell), 2, 4, 5, 6, 7, 8. Step 3 shrinks to T-SQL only (fix `LEN`, the three `ref_code_group` sub-queries); no transpiling.
+- **Azure now:** 1, 2, 4 done (#95–#97); 3 closed with no change (below); 6, 7, 8 next. **5 deferred** (owner 2026-11-27: there is only prod; built later if needed).
 - **AWS later:** 9, 10, and Athena SQL for the rule packs (with step 9).
 
 | # | Step | Outcome | Depends on |
@@ -103,10 +103,10 @@ Each step is one branch and PR (repository rule), in order. Steps 1–5 change n
 | 0 | **Move in** (this PR): ADR 0004, writer comparison, AWS target documents, this plan | One home for all design | — |
 | 1 | **Build per shell + package-contents test** | Azure zip provably contains only Azure parts | 0 |
 | 2 | **Schema as configuration**: `{schema}` in migrations, views, rule SQL; test with two schema names | `automn` only in rarfincare's config | 0 |
-| 3 | **Rule SQL dialect-neutral**: rule packs written once, transpiled per dialect (as the views are); fix `LEN`; check the three `ref_code_group` sub-queries missing from the commercial pack (comparison) | Rules run on SQL Server and Postgres (and DuckDB if chosen) | 2 |
+| 3 | ~~Rule SQL dialect-neutral~~ **Closed, no change (2026-11-27):** Azure SQL is the only relational target, so `LEN` is correct T-SQL and the schema prefix is handled by step 2. The "three missing `ref_code_group` sub-queries" was a false alarm: the commercial and consumer packs equal the AWS copy line for line once the schema prefix and `LEN`/`LENGTH` are normalized (15 `ref_code_group` uses in each). Athena SQL for the rules comes with step 9 | — | 2 |
 | 4 | **Migrations at deploy** — owner 2026-11-27: new SQL stays run by the owner in SSMS (the app identity gets no CREATE/ALTER). Done: migrations.zip ships SSMS scripts that run all or nothing and record themselves, so the deploy needs no `mark_applied` and fails if one is missing | No typed migration list; a half-run migration is impossible | 2 |
-| 5 | **Our dev environment** (stage 2): Azure SQL free offer, dev Function App and Static Web App; deploy from a release | Releases tested before any client | 1, 4 |
-| 6 | **rarfincare deployment repository**: `client.yaml`, `client/` (their views and mappings moved out of this repository), OIDC deploy workflow, staging schema, production approval; release assets readable by the client workflow | Client-owned deploy record; product code stays here | 1, 4, 5 |
+| 5 | **Deferred (owner 2026-11-27: only prod exists; build when needed).** **Our dev environment** (stage 2): Azure SQL free offer, dev Function App and Static Web App; deploy from a release | Releases tested before any client | 1, 4 |
+| 6 | **rarfincare deployment repository**: `client.yaml`, `client/` (their views and mappings moved out of this repository), OIDC deploy workflow, staging schema, production approval; release assets readable by the client workflow | Client-owned deploy record; product code stays here | 1, 4 (5 when it exists) |
 | 7 | **Bring across from the AWS repository**: `tlv_newline` golden file; Rules page hides rule logic from client roles | Nothing left only in the old repository except the LMS adapter | 0 |
 | 8 | **Pack versions** with `effective_from`, client pinning | Regulatory changes released ahead, old cycles reproducible | 3 |
 | 9 | **AWS host (phase B)** as decided below: `shell_aws`, ports, AWS template, AWS package | First AWS client installable | 1, 3, decision A |
