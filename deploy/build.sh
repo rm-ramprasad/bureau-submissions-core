@@ -29,6 +29,7 @@ for secret in .env.sql .env local.settings.json; do
   if find dist/function -name "$secret" | grep -q .; then echo "$secret must never be packaged" >&2; exit 1; fi
 done
 echo "$version" > "$site/shell_$shell/VERSION"  # reported by the migrate job: the smoke test checks it
+echo "$version" > "$site/app/VERSION"  # recorded on every generated file (out_file.release_version)
 zipdir() {  # zipdir <folder> <zip> [glob] [excluded name]: the folder's files, paths relative to it
   python3 - "$@" <<'PY'
 import sys, zipfile

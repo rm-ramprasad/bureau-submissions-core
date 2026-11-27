@@ -20,17 +20,18 @@ from pathlib import Path
 import yaml
 from sqlalchemy import select
 
-from app import outputfiles, reconciliation
+from app import audit, outputfiles, reconciliation
 from app.adjustments.summary import adjustments_csv
 from app.bureaus import BureauProfile
 from app.enums import RecordOutcome
 from app.render import build_excel
 from app.requests import RequestResult, SubmissionRequest
 from app.validation.tables import record_outcome, validation_finding
+from app.version import release_version
 from bureau_core.formats.excel.engine import new_workbook
 from bureau_core.tudf import convert
 from bureau_core.tudf.reconcile import reconcile
-from bureau_core.types import type_definition
+from bureau_core.types import pack_version, type_definition
 from canonical.schema import ENTITY_TABLES
 from canonical.snapshot import Snapshot
 from canonical.staging.loads import loaded_workbook
@@ -183,8 +184,11 @@ def _file_summary(content: bytes, name: str, bureau: BureauProfile, snapshot: Sn
 
 
 def _fingerprint(services, request, snapshot, bureau, kind, name, uri, content, records=None) -> None:
-    """L4: the stored file's fingerprint (SHA-256, size, records), for proving later what was generated."""
-    outputfiles.record_file(
+    """L4: the stored file's fingerprint (SHA-256, size, records) and what built it (release, pack version), for
+    proving later what was generated and with which logic; audited as FILE_GENERATED."""
+    pack = pack_version(snapshot.submission_type)
+    release = release_version()
+    sha = outputfiles.record_file(
         services.app_engine,
         request_id=request.request_id,
         snapshot_id=snapshot.snapshot_id,
@@ -194,6 +198,23 @@ def _fingerprint(services, request, snapshot, bureau, kind, name, uri, content, 
         file_uri=uri,
         content=content,
         record_count=records,
+        release_version=release,
+        pack_version=pack.version,
+        pack_checksum=pack.checksum,
+    )
+    audit.record(
+        services.app_engine,
+        "system",
+        "FILE_GENERATED",
+        tenant_id=request.tenant_id,
+        target=request.request_id,
+        file=name,
+        kind=kind,
+        bureau=str(bureau.bureau_code),
+        sha256=sha,
+        release=release,
+        pack=f"{snapshot.submission_type} {pack.version}",
+        pack_checksum=pack.checksum,
     )
 
 

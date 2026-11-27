@@ -22,7 +22,7 @@ SHELLS: dict[str, dict[str, set[str]]] = {
         # top-level folders in site-packages that must be there / must not be there
         "required": {"shell_azure", "app", "bureau_core", "canonical", "clientconfig", "sources"},
         "forbidden": {"shell_aws", "boto3", "botocore", "s3transfer", "aioboto3", "awswrangler", "sqlglot", "psycopg"},
-        "files": {"function_app.py", "host.json", SITE + "shell_azure/VERSION"},
+        "files": {"function_app.py", "host.json", SITE + "shell_azure/VERSION", SITE + "app/VERSION"},
     },
 }
 SECRETS = {".env", ".env.sql", "local.settings.json"}

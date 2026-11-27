@@ -61,6 +61,17 @@ jobs:
               echo "No new migrations."
             fi
             echo
+            # pack versions: a type whose rule / format files changed since the previous release (its CHANGES.md)
+            packs=$(git diff --name-only ${previous:+"$previous"..}"$GITHUB_SHA" \
+                    -- 'packages/bureau_core/src/bureau_core/types/*/CHANGES.md' 2>/dev/null || true)
+            if [ -n "$previous" ] && [ -n "$packs" ]; then
+              echo "## New pack versions (rules / file layout), live from this deploy"
+              echo
+              for f in $packs; do
+                echo "- $(basename "$(dirname "$f")"): $(grep -m1 '^## ' "$f" | sed 's/^## //')"
+              done
+              echo
+            fi
           } > dist/notes.md
           cat dist/notes.md
       - name: Publish

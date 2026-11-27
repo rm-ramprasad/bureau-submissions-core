@@ -20,6 +20,7 @@ GOOD = [
     S + "shell_azure/__init__.py",
     S + "shell_azure/VERSION",
     S + "app/__init__.py",
+    S + "app/VERSION",
     S + "bureau_core/__init__.py",
     S + "canonical/__init__.py",
     S + "canonical/migrations/azure/views/consumer.sql",
