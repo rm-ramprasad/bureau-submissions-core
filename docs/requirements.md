@@ -1,5 +1,9 @@
 # Same layers, different shell (design, 2026-11-04)
 
+> **Superseded in part (2026-11-26, owner):** Postgres / RDS Postgres and the generated views are no longer
+> targets. Azure SQL on Azure; S3 + Athena (Glue, DynamoDB) on AWS, built after Azure. See
+> [CONVERGENCE-PLAN.md](CONVERGENCE-PLAN.md) §5.
+
 Status: **agreed design (2026-11-04)**; no code has changed yet. Order of work: section 5. Decisions are in [ROADMAP.md](ROADMAP.md) "Product direction":
 a managed install in each client's own cloud (about 30 clients on AWS, rarfincare on Azure, at most 5 users each),
 serverless only, app database Azure SQL (rarfincare) / RDS Postgres (AWS).

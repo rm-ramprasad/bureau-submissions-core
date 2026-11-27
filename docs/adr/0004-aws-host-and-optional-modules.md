@@ -2,6 +2,10 @@
 
 Date: 2026-11-26 · Status: proposed · Decisions by the owner on 2026-11-26 marked **(owner)**
 
+> **Superseded in part (2026-11-26, owner):** the RDS Postgres option and the generated Postgres views are dropped.
+> AWS keeps canonical data in S3 + Athena (Glue) with DynamoDB for control data; Azure uses Azure SQL only. AWS is
+> built after Azure is finished. See [CONVERGENCE-PLAN.md](../CONVERGENCE-PLAN.md) §5.
+
 ## Context
 
 Two repositories have grown side by side:

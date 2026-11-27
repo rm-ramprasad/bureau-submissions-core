@@ -73,7 +73,7 @@ This ends running view scripts by hand in SSMS. The owner still approves each pr
 
 | Stage | Database | Runs | Data | Client access |
 |---|---|---|---|---|
-| 1 Every PR | SQL Server + Postgres containers (CI Database job, exists) | Migrations, views, rule SQL, full pipeline, golden files; schema named `automn` **and** another name | Synthetic | No |
+| 1 Every PR | SQL Server container (CI Database job, exists) | Migrations, views, rule SQL, full pipeline, golden files; schema named `automn` **and** another name | Synthetic | No |
 | 2 Our dev | Azure SQL in **our** subscription (free offer); a dev AWS account when the AWS host starts | The release deployed end to end | Synthetic + anonymised samples | No |
 | 3 Client staging | A second schema (e.g. `automn_test`) or a staging database in the client's subscription | The client repository's deploy with the new pin | Client's real sheets, a test cycle | Yes |
 | 4 Production | `automn` | Same workflow after stage 3 | Live | Yes |
@@ -88,6 +88,11 @@ the same golden bureau files.
 ## 5. Steps
 
 Each step is one branch and PR (repository rule), in order. Steps 1–5 change nothing for rarfincare's files.
+
+**Update 2026-11-26 (owner):** canonical data is **Azure SQL** on Azure and **S3 + Athena** (with Glue, DynamoDB) on AWS. Postgres and MySQL are not targets: the generated Postgres / MySQL views, `build_views` (sqlglot) and the Postgres CI container were removed. **Azure is finished first; AWS comes later.**
+
+- **Azure now:** 1 (Azure package only, structure ready for a second shell), 2, 4, 5, 6, 7, 8. Step 3 shrinks to T-SQL only (fix `LEN`, the three `ref_code_group` sub-queries); no transpiling.
+- **AWS later:** 9, 10, and Athena SQL for the rule packs (with step 9).
 
 | # | Step | Outcome | Depends on |
 |---|---|---|---|
@@ -110,7 +115,7 @@ Phase A steps in [PLAN.md](PLAN.md) continue in parallel; where they touch migra
 
 | # | Decision | Options | Needed by |
 |---|---|---|---|
-| A | AWS data and control stores for phase B | (1) RDS Postgres as in PLAN.md / requirements.md: fastest, one more SQL dialect; (2) S3 / Parquet + DuckDB and DynamoDB (agreed 2026-11-26 for the partnership model): ~0 idle cost, kill switch, more work; (3) Postgres first, S3 / DuckDB later as a second data-store adapter | Step 9 |
+| A | AWS data and control stores for phase B — **decided 2026-11-26: S3 + Athena (Glue) and DynamoDB; no Postgres** | (1) RDS Postgres as in PLAN.md / requirements.md: fastest, one more SQL dialect; (2) S3 / Parquet + DuckDB and DynamoDB (agreed 2026-11-26 for the partnership model): ~0 idle cost, kill switch, more work; (3) Postgres first, S3 / DuckDB later as a second data-store adapter | Step 9 |
 | B | How the client workflow gets release assets | Read-only token in the client repository; or a package feed the client can read | Step 6 |
 | C | rarfincare staging | Second schema in their database, or a separate staging database | Step 6 |
 | D | Client deployment repository for rarfincare, or keep publishing from this repository | Deployment repository recommended once there is a second client | Step 6 |

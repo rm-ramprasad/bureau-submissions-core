@@ -58,7 +58,7 @@ jobs:
           path: coverage.xml
 
   database:
-    name: "Database: migrations and views (SQL Server, Postgres)"
+    name: "Database: migrations and views (SQL Server)"
     runs-on: ubuntu-24.04            # pinned: Microsoft's ODBC driver repo is per Ubuntu release
     services:
       mssql:
@@ -67,16 +67,8 @@ jobs:
           ACCEPT_EULA: "Y"
           MSSQL_SA_PASSWORD: Ci-only-Passw0rd!   # throwaway container, CI only
         ports: ["1433:1433"]
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_PASSWORD: ci-only            # throwaway container, CI only
-          POSTGRES_DB: bsc
-        ports: ["5432:5432"]
-        options: --health-cmd pg_isready --health-interval 5s --health-retries 20
     env:
       BSC_MSSQL_URL: "mssql+pyodbc://sa:Ci-only-Passw0rd!@localhost:1433/bsc?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
-      BSC_POSTGRES_URL: "postgresql+psycopg://postgres:ci-only@localhost:5432/bsc"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v5   # GitHub's Python, not uv's download (timed out 2026-11-08)
