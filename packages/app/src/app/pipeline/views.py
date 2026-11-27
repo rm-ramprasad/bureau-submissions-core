@@ -14,6 +14,7 @@ from app.requests import RequestResult, SubmissionRequest
 from app.validation.run import ValidationSummary, validate_snapshot
 from app.validation.settings import load_rule_set
 from bureau_core.formats.tudf.engine import FileStats
+from canonical.lms_cr import fetch_cr
 from canonical.snapshot import Snapshot
 from canonical.staging.loads import loaded_workbook
 from canonical.tenants import Tenant
@@ -44,6 +45,10 @@ class ViewsPipeline:
         check passes an old request's upload and frozen adjustments)."""
         if load_id is None:
             load_id = loaded_workbook(services.app_engine, request.batch_id, request.submission_type)
+        # the LMS's figures for the date, from its procedure (owner 2026-11-16): read by the source views
+        fetch_cr(
+            services.source_engine, services.app_engine, str(request.submission_type), request.as_of_date, by=owner
+        )
         compiled = self._compiled(services, tenant, request, load_id)
         extract = run_extract(
             tenant=tenant,

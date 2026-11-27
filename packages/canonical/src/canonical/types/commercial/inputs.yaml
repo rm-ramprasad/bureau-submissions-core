@@ -1,7 +1,7 @@
 # Commercial input workbook (input-templates/Commercial_Submissions_Workbook_Staging.xlsx, 2026-10-30): each visible
 # sheet into its automn.stg_commercial_* table (format: submissions/inputs/spec.py). Headers must match row 1.
 # Every sheet is keyed by Sanction Reference Number (user, 2026-10-30): the views join the sheets and the loan
-# view wip.VwCommercialSubmissionCR on it. '(Name)' columns hold labels, turned into values by the views through
+# figures (automn.lms_cr_commercial) on it. '(Name)' columns hold labels, turned into values by the views through
 # automn.ref_code_translation.label. Hidden sheets (Instructions, Audit Framework, ...) are never read.
 workbook: Commercial submissions workbook (staging)
 sheets:

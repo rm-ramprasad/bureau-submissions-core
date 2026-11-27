@@ -131,7 +131,8 @@ First deploy from GitHub: **v1.0.0 on 2026-11-08**.
 - **Another client:** see [release.md](release.md), "New client".
 - **Admin jobs and sign-in:** the Function App's sign-in (Easy Auth) lets only the listed `/ops/<job>` paths through;
   each is still protected by the function key `ops.ps1` sends. As of 2026-11-10: `/ops/migrate`, `/ops/users`,
-  `/ops/recovery`, `/ops/retention`, `/ops/views`, `/ops/master-parity`. **A new admin job needs its path added**
+  `/ops/recovery`, `/ops/retention`, `/ops/views`, `/ops/master-parity`; from v1.20.0 also `/ops/lms-cr-compare`.
+  **A new admin job needs its path added**
   (the release notes say so). Check and add (PowerShell; the add keeps the existing paths):
 
   ```powershell

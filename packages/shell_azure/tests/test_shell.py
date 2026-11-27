@@ -159,6 +159,12 @@ def test_views_recovery_retention_and_unknown_jobs(engine, requests_repo):
         run(engine, {"job": "master-parity", "args": ["consumer"]})
     with pytest.raises(Exception, match="Required views missing"):  # parity reads the type's views first
         run(engine, {"job": "master-parity", "args": ["consumer", "--as-of", "2026-09-30", "--load-id", "1"]})
+    out = run(engine, {"job": "lms-cr-compare", "args": ["consumer", "--as-of", "2026-09-30"]})
+    assert (out["verdict"], out["previous_date"]) == ("IDENTICAL", "2026-08-31")
+    with pytest.raises(ValueError, match="lms-cr-compare <TYPE>"):
+        run(engine, {"job": "lms-cr-compare", "args": ["consumer"]})
+    with pytest.raises(ValueError, match="CONSUMER or COMMERCIAL"):
+        run(engine, {"job": "lms-cr-compare", "args": ["mfi", "--as-of", "2026-09-30"]})
     assert run(engine, {"job": "recovery"}) == {
         "released": [],
         "failed": [],
@@ -221,7 +227,7 @@ def test_admin_function_route(azure_env):
     assert call("recovery", {})[0] == 200
     assert call("nope", {}) == (
         400,
-        {"error": "Unknown job 'nope': use migrate, users, views, master-parity, recovery, retention"},
+        {"error": "Unknown job 'nope': use migrate, users, views, master-parity, lms-cr-compare, recovery, retention"},
     )
     status, body = call("master-parity", {"args": ["consumer", "--as-of", "2026-09-30", "--load-id", "1"]})
     assert status == 400 and "Required views missing" in body["error"]

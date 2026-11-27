@@ -19,6 +19,7 @@ from app import audit
 from app.api.auth import current_user
 from app.api.common import bp, fail, svc
 from app.enums import RequestStatus, RunMode
+from canonical.lms_cr import CrFetchError, fetch_cr
 from canonical.staging.checks import run_checks
 from canonical.staging.loads import latest_loads
 from canonical.staging.spec import available_specs
@@ -198,6 +199,10 @@ def upload_input(batch_id: str, submission_type: str):
     )
     checks = None
     if result.status == "LOADED":  # data-quality checks on the staged rows, for this date
+        try:  # the LMS's figures for the date first: the checks look the accounts up in them
+            fetch_cr(s.engine, s.engine, row.submission_type.value, row.as_of_date, by=current_user())
+        except CrFetchError as exc:
+            fail(f"The workbook is saved, but the LMS figures could not be fetched: {exc}", 502)
         checks = run_checks(s.engine, result.load_id, row.submission_type.value, row.as_of_date)
     audit.record(
         s.engine,

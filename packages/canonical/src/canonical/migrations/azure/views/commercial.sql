@@ -1,4 +1,5 @@
--- Commercial source views: the loans of wip.VwCommercialSubmissionCR joined to the uploaded workbook's sheets
+-- Commercial source views: the loans of automn.lms_cr_commercial (dbo.usp_GetCommercialSubmissionCR, fetched per
+-- request date: canonical/lms_cr.py) joined to the uploaded workbook's sheets
 -- (automn.stg_commercial_*). Run 00_functions.sql and 01_reference.sql first. Run in rarfinmisdb in SSMS / Azure Data
 -- Studio (GO separates batches); safe to run again (CREATE OR ALTER). A change here needs no app redeployment.
 -- Portable source (2026-11-02): tools/build_views.py generates the Postgres / MySQL copies from this file, so write only
@@ -49,7 +50,7 @@ CREATE OR ALTER VIEW automn.vw_commercial_ref_account AS
 SELECT x.ref_key, x.AccountNumber
 FROM (SELECT automn.fn_ref_key(v.SanctionRefNo) AS ref_key, v.AccountNumber,
              ROW_NUMBER() OVER (PARTITION BY v.AccountNumber ORDER BY v.transactiondate DESC) AS rn
-      FROM wip.VwCommercialSubmissionCR v) x
+      FROM automn.lms_cr_commercial v) x
 WHERE x.rn = 1;
 GO
 
@@ -70,7 +71,7 @@ SELECT u.load_id, u.source_load_id, u.source_loaded_at, v.transactiondate AS as_
        n.sanction_reference_number AS ref, u.ref_key,
        n.credit_type_label, n.repayment_frequency_label, n.suit_filed_status AS suit_code,
        n.suit_reference_number, n.suit_amount_in_rupees, n.date_of_suit_filing
-FROM wip.VwCommercialSubmissionCR v
+FROM automn.lms_cr_commercial v
 JOIN automn.vw_commercial_upload_ref u ON u.ref_key = automn.fn_ref_key(v.SanctionRefNo)
 JOIN (SELECT x.*, ROW_NUMBER() OVER (PARTITION BY x.load_id, automn.fn_ref_key(x.sanction_reference_number)
                                      ORDER BY x.source_row) AS rn
