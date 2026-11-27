@@ -37,6 +37,10 @@ out_file = Table(
     Column("size_bytes", _PK, nullable=False),
     Column("record_count", Integer),
     Column("created_at", DateTime, nullable=False),
+    # what built the file (migration 025): the release and the type's pack version (CHANGES.md); NULL before 025
+    Column("release_version", Unicode(40)),
+    Column("pack_version", Unicode(20)),
+    Column("pack_checksum", String(12)),
     Index("ix_out_file_request", "request_id"),
 )
 
@@ -68,8 +72,11 @@ def record_file(
     file_uri: str,
     content: bytes,
     record_count: int | None = None,
+    release_version: str | None = None,
+    pack_version: str | None = None,
+    pack_checksum: str | None = None,
 ) -> str:
-    """Record a stored file's fingerprint; returns its SHA-256."""
+    """Record a stored file's fingerprint and what built it; returns its SHA-256."""
     sha = hashlib.sha256(content).hexdigest()
     with engine.begin() as conn:
         conn.execute(
@@ -84,6 +91,9 @@ def record_file(
                 size_bytes=len(content),
                 record_count=record_count,
                 created_at=utcnow(),
+                release_version=release_version,
+                pack_version=pack_version,
+                pack_checksum=pack_checksum,
             )
         )
     return sha
@@ -98,11 +108,28 @@ def bureau_files(engine: Engine, request_ids: Iterable[int]) -> dict[int, dict[s
     out: dict[int, dict[str, Any]] = {}
     with engine.connect() as conn:
         for r in conn.execute(
-            select(f.request_id, f.file_id, f.file_name, f.sha256, f.size_bytes, f.record_count)
+            select(
+                f.request_id,
+                f.file_id,
+                f.file_name,
+                f.sha256,
+                f.size_bytes,
+                f.record_count,
+                f.release_version,
+                f.pack_version,
+                f.pack_checksum,
+            )
             .where(f.request_id.in_(ids), f.kind == BUREAU_FILE)
             .order_by(f.file_id)
         ):
-            item = dict(sha256=r.sha256, size_bytes=r.size_bytes, record_count=r.record_count)
+            item = dict(
+                sha256=r.sha256,
+                size_bytes=r.size_bytes,
+                record_count=r.record_count,
+                release_version=r.release_version,
+                pack_version=r.pack_version,
+                pack_checksum=r.pack_checksum,
+            )
             entry = out.setdefault(r.request_id, {})
             entry.setdefault("fingerprint", item)  # the request's (first) file
             entry.setdefault("files", []).append(dict(item, file_id=r.file_id, file_name=r.file_name))

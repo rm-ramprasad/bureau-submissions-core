@@ -328,6 +328,26 @@ def test_generated_files_carry_their_fingerprint(api, validated, engine):
     assert kinds == ["BUREAU_EXCEL"] * 2 + ["BUREAU_FILE"] * 2 + ["REVIEW_EXCEL"] * 2
 
 
+def test_generated_files_record_the_release_and_pack_version(api, validated, engine):
+    """Step 8 (owner 2026-11-27): every generated file says which release and pack version built it, and is audited."""
+    import json
+
+    from app.outputfiles import out_file
+    from bureau_core.types import pack_version
+
+    pack = pack_version("CONSUMER")
+    for f in api.get("/files")[1]["files"]:
+        fp = f["fingerprint"]
+        assert (fp["pack_version"], fp["pack_checksum"], fp["release_version"]) == (pack.version, pack.checksum, "dev")
+    with engine.connect() as conn:
+        rows = conn.execute(select(out_file.c.pack_version, out_file.c.release_version)).all()
+        events = conn.execute(select(audit_event.c.details).where(audit_event.c.action == "FILE_GENERATED")).all()
+    assert rows and all(r == (pack.version, "dev") for r in rows)
+    assert len(events) == len(rows)  # one audit event per stored file
+    detail = json.loads(events[0].details)
+    assert detail["pack"] == f"CONSUMER {pack.version}" and detail["pack_checksum"] == pack.checksum
+
+
 def test_a_file_is_marked_as_submitted_once(api, validated, engine):
     _, files = api.get("/files", bureau="CIBIL")
     rid = files["files"][0]["request_id"]

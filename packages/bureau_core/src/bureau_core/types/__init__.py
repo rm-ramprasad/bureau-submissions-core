@@ -17,7 +17,9 @@ hold the host's side (inputs.yaml, input_checks.yaml) when it is not in the prod
 
 from __future__ import annotations
 
+import hashlib
 import os
+import re
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -214,3 +216,70 @@ def type_definition(submission_type: SubmissionType | str) -> TypeDefinition:
     if d is None:
         raise TypeDefinitionError(f"No submission type folder for {submission_type} (bureau_core/types/)")
     return d
+
+
+# ---------------------------------------------------------------- pack versions (CONVERGENCE-PLAN step 8, owner 2026-11-27)
+# A type's pack is its rule and format files. Every change to them is a new pack version, recorded in the type's
+# CHANGES.md (newest first): `## <version> (<YYYY-MM-DD>) — checksum <first 12 of the SHA-256>`. A test fails when the
+# files and the newest entry disagree, so no change ships unversioned. Each generated file records the version.
+# Changes go live on the day they are deployed (no future-dated packs, no pinning, no re-runs of old cycles).
+
+PACK_FILES = ("codes.yaml", "excel_layout.yaml", "layout.yaml", "requirements.yaml", "rules.yaml")
+CHANGES = "CHANGES.md"
+_ENTRY = re.compile(
+    r"^## (?P<version>\d{4}\.\d+) \((?P<date>\d{4}-\d{2}-\d{2})\) — checksum (?P<checksum>[0-9a-f]{12})\s*$"
+)
+
+
+@dataclass(frozen=True)
+class PackVersion:
+    version: str  # e.g. 2026.1
+    date: str  # the day the version was written (YYYY-MM-DD)
+    checksum: str  # first 12 hex digits of the SHA-256 of the pack files
+
+
+def pack_checksum(folder: Path) -> str:
+    """SHA-256 of the pack files present in a type folder (name and content, line endings as LF), 12 hex digits."""
+    h = hashlib.sha256()
+    for name in PACK_FILES:
+        path = folder / name
+        if path.is_file():
+            h.update(name.encode() + b"\0" + path.read_bytes().replace(b"\r\n", b"\n") + b"\0")
+    return h.hexdigest()[:12]
+
+
+def pack_history(folder: Path) -> list[PackVersion]:
+    """The CHANGES.md entries of a type folder, newest first."""
+    path = folder / CHANGES
+    if not path.is_file():
+        raise TypeDefinitionError(f"{folder.name}: {CHANGES} missing (every pack change needs an entry)")
+    entries = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("## "):
+            m = _ENTRY.match(line)
+            if not m:
+                raise TypeDefinitionError(
+                    f"{folder.name}/{CHANGES}: heading not as '## 2026.1 (2026-11-27) — checksum <12 hex>': {line}"
+                )
+            entries.append(PackVersion(m["version"], m["date"], m["checksum"]))
+    if not entries:
+        raise TypeDefinitionError(f"{folder.name}/{CHANGES}: no version entry")
+    return entries
+
+
+UNVERSIONED = "unversioned"
+
+
+@cache
+def pack_version(submission_type: SubmissionType | str) -> PackVersion:
+    """The type's current pack version: the newest CHANGES.md entry, when it matches the files. Otherwise (a type folder
+    without a ledger, or files changed without an entry; CI refuses both for the product's types) the version is
+    `unversioned` with the files' real checksum: a run never fails over it, and the checksum still identifies the
+    logic."""
+    folder = descriptors()[str(submission_type)][1]
+    actual = pack_checksum(folder)
+    try:
+        newest = pack_history(folder)[0]
+    except TypeDefinitionError:
+        return PackVersion(UNVERSIONED, "", actual)
+    return newest if newest.checksum == actual else PackVersion(UNVERSIONED, "", actual)
