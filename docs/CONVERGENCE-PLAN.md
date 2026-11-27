@@ -104,7 +104,7 @@ Each step is one branch and PR (repository rule), in order. Steps 1–5 change n
 | 1 | **Build per shell + package-contents test** | Azure zip provably contains only Azure parts | 0 |
 | 2 | **Schema as configuration**: `{schema}` in migrations, views, rule SQL; test with two schema names | `automn` only in rarfincare's config | 0 |
 | 3 | **Rule SQL dialect-neutral**: rule packs written once, transpiled per dialect (as the views are); fix `LEN`; check the three `ref_code_group` sub-queries missing from the commercial pack (comparison) | Rules run on SQL Server and Postgres (and DuckDB if chosen) | 2 |
-| 4 | **Migration runner as a deploy step** (schema + client folder as inputs); views and reference seed included | No hand-run SQL | 2 |
+| 4 | **Migrations at deploy** — owner 2026-11-27: new SQL stays run by the owner in SSMS (the app identity gets no CREATE/ALTER). Done: migrations.zip ships SSMS scripts that run all or nothing and record themselves, so the deploy needs no `mark_applied` and fails if one is missing | No typed migration list; a half-run migration is impossible | 2 |
 | 5 | **Our dev environment** (stage 2): Azure SQL free offer, dev Function App and Static Web App; deploy from a release | Releases tested before any client | 1, 4 |
 | 6 | **rarfincare deployment repository**: `client.yaml`, `client/` (their views and mappings moved out of this repository), OIDC deploy workflow, staging schema, production approval; release assets readable by the client workflow | Client-owned deploy record; product code stays here | 1, 4, 5 |
 | 7 | **Bring across from the AWS repository**: `tlv_newline` golden file; Rules page hides rule logic from client roles | Nothing left only in the old repository except the LMS adapter | 0 |

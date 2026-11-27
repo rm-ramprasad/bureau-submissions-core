@@ -6,8 +6,8 @@
 # trusts only this repository's `main` (a federated credential on a managed identity: no stored secrets,
 # deploy/setup-github-oidc.ps1).
 #
-# Order: Function App code -> wait until it answers -> migrate (records migrations the owner ran in SSMS:
-# `mark_applied`) -> pages (config.json written for this install) -> smoke test (the deployed version, the sign-in
+# Order: Function App code -> wait until it answers -> migrate (nothing may be pending: the owner's SSMS scripts from
+# migrations.zip record themselves; `mark_applied` only for an older file) -> pages (config.json written for this install) -> smoke test (the deployed version, the sign-in
 # page, the API). Stops at the first failure. deploy/deploy.ps1 stays as the fallback from a workstation.
 name: Deploy
 
@@ -21,7 +21,7 @@ on:
         description: "Type the version again to confirm"
         required: true
       mark_applied:
-        description: "Migrations you ran in SSMS for this release, comma-separated (see the release notes), or empty"
+        description: "Usually empty: migrations.zip files record themselves. Only for one run from an older file (comma-separated)"
         required: false
         default: ""
 

@@ -63,8 +63,9 @@ def migrate(engine: Engine, tenant: str | None, mark_applied: str | None = None)
             "error": str(exc.cause).splitlines()[0][:500],
             "hint": (
                 f"New migrations are run by the owner in SSMS (admin login): the app identity has no CREATE/ALTER "
-                f"permission, so 'permission denied' here is expected. Run {exc.version}.sql in SSMS, then record "
-                f"it: ops.ps1 migrate --mark-applied {exc.version}"
+                f"permission, so 'permission denied' here is expected. Run {exc.version}.sql from this release's "
+                f"migrations.zip in SSMS (it records itself), then deploy again. Ran the plain source file instead? "
+                f"Record it: ops.ps1 migrate --mark-applied {exc.version}"
             ),
         }
     result["reference"] = seed(engine)

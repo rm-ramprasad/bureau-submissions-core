@@ -10,10 +10,11 @@ Do not edit these files here: the next publish replaces them. Changes go through
 
 1. Releases tab: open the release (e.g. `v1.2.0`) and read its notes.
 2. **If the notes list new migrations**, run each file from `migrations.zip` in SSMS against the app database (admin
-   login) first.
+   login) first, in order. Each file runs all or nothing and records itself; run twice, it stops without changes.
 3. Actions > **Deploy** > Run workflow (branch `main`): `version` = the release, `confirm` = the release again,
-   `mark_applied` = the migrations you ran (comma-separated, as in the notes), or empty.
-4. The run publishes the Function App, waits until it answers, records the migrations, checks the Function App runs
+   `mark_applied` empty. (Only if you ran a migration from a release older than this change, or a plain source
+   file, enter its name there so it is recorded.)
+4. The run publishes the Function App, waits until it answers, checks no migration is left, checks the Function App runs
    that version, publishes the pages and runs a smoke test. It stops at the first failure.
 
 Rolling back: deploy the previous release the same way (migrations only add, so older code runs on a newer database).
