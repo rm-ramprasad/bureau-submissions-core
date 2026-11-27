@@ -56,14 +56,14 @@ def build_file(
     as_of_date: date,
     bureau: BureauProfile,
     cycle: ReportingCycle | None = None,
-    options: FormatOptions = FormatOptions(),  # noqa: B008 (frozen: safe to share),
+    options: FormatOptions = FormatOptions(),
 ) -> tuple[bytes, FileStats]:
     with engine.connect() as conn:
         translations = snapshot_translations(conn, snapshot_id)  # as validated
     return render.tudf_file(engine, snapshot_id, as_of_date, bureau, cycle, options.apply(layout()), translations)
 
 
-def parse_records(body: str, options: FormatOptions = FormatOptions()) -> list[list[ParsedSegment]]:  # noqa: B008
+def parse_records(body: str, options: FormatOptions = FormatOptions()) -> list[list[ParsedSegment]]:
     return _parse_records(body, options.apply(layout()))
 
 

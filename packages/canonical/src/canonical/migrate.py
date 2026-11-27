@@ -4,8 +4,8 @@
   `automn.schema_migration`. The baseline (001) is run once by an administrator and records itself, so the runner only
   applies later files. Each file runs in one transaction (no BEGIN/COMMIT in it). Statements are split on ';' at line
   end: keep semicolons out of string literals, and name every table with its schema (`automn.<table>`).
-- `migrations/<dialect>/views/*.sql`: the source views (`automn.vw_<type>_<entity>`), safe to run again. The T-SQL
-  files are the source; the Postgres and MySQL copies are generated from them (`python -m canonical.build_views`).
+- `migrations/azure/views/*.sql`: the source views (`automn.vw_<type>_<entity>`), T-SQL, safe to run again. Azure SQL
+  is the only relational target (AWS keeps canonical data in S3 + Athena), so there are no other dialect copies.
 
 The files on rarfincare were applied from the reference app: they are copied here byte for byte, so the history in
 `automn.schema_migration` stays valid (Option A: reuse the existing schema).
@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 
 MIGRATIONS_ROOT = Path(str(files("canonical") / "migrations"))
 AZURE_MIGRATIONS = MIGRATIONS_ROOT / "azure"
-VIEW_DIALECTS = ("azure", "postgres", "mysql")
+VIEW_DIALECTS = ("azure",)
 
 schema_migration = Table(  # not on the app metadata: the baseline file creates it with the rest
     "schema_migration",
@@ -118,17 +118,14 @@ def view_files(dialect: str) -> list[Path]:
 def apply_views(engine: Engine) -> list[str]:
     """Create or replace the source views (and their helper functions) in the engine's database.
 
-    SQL Server: each GO batch runs on its own. Postgres: each file runs whole (its functions hold ';' inside $$)."""
-    dialect = {"mssql": "azure", "postgresql": "postgres", "mysql": "mysql"}.get(engine.dialect.name)
-    if dialect is None:
-        raise ValueError(f"no source views for {engine.dialect.name}")
-    if dialect == "mysql":
-        raise NotImplementedError("MySQL views are generated but not applied yet (no MySQL target)")
+    SQL Server only: each GO batch runs on its own."""
+    if engine.dialect.name != "mssql":
+        raise ValueError(f"no source views for {engine.dialect.name}: Azure SQL only")
     done = []
-    for path in view_files(dialect):
+    for path in view_files("azure"):
         sql = path.read_text(encoding="utf-8")
         with engine.begin() as conn:
-            for batch in split_batches(sql) if dialect == "azure" else [sql]:
+            for batch in split_batches(sql):
                 run_batch(conn, batch)
         done.append(path.name)
     return done

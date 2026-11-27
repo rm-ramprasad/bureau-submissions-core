@@ -120,7 +120,8 @@ def test_the_procedure_call_per_database():
     def on(name):
         return SimpleNamespace(dialect=SimpleNamespace(name=name))
 
-    assert lms_cr._call_sql(on("postgresql"), "dbo.p") == "SELECT * FROM dbo.p(:t, :p, :c)"  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="SQL Server only"):
+        lms_cr._call_sql(on("postgresql"), "dbo.p")  # type: ignore[arg-type]
     assert lms_cr._call_sql(on("mssql"), "dbo.p") == (  # type: ignore[arg-type]
         "SET NOCOUNT ON; EXEC dbo.p @TransactionDate = :t, @PreviousTransactionDate = :p, @CloseDate = :c"
     )

@@ -1,0 +1,167 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Submission module architecture</title>
+<style>
+*{box-sizing:border-box;margin:0}
+body{font-family:"Segoe UI",Arial,sans-serif;background:#fff;color:#1d2433;width:1760px;padding:28px 32px}
+h1{font-size:30px;font-weight:600}
+.sub{color:#5a6475;font-size:15px;margin:4px 0 16px}
+.legend{display:flex;gap:20px;font-size:13px;margin-bottom:14px;align-items:center;flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:16px;height:16px;border-radius:4px;display:inline-block}
+.main{display:grid;grid-template-columns:500px 150px 1fr 160px;align-items:stretch}
+.acct{border:2px solid #c9d1de;border-radius:14px;padding:14px;background:#fafbfd}
+.acct h2{font-size:17px;font-weight:600}
+.acct .note{font-size:12.5px;color:#5a6475;margin:2px 0 10px}
+.box{border-radius:9px;padding:8px 11px;margin-bottom:8px;font-size:13px;line-height:1.35;position:relative}
+.box b{font-size:14px;display:block}
+.tag{position:absolute;top:7px;right:8px;font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:10px;letter-spacing:.3px;color:#fff}
+.lms{background:#f6dcc0;border:1.5px solid #e09040}
+.bronze{background:#f3e2cf;border:2px solid #a8692e}.t-bronze{background:#a8692e}
+.silver{background:#eceff3;border:2px solid #7d8794}.t-silver{background:#7d8794}
+.gold{background:#fbf0c4;border:2px solid #c99a0a}.t-gold{background:#c99a0a}
+.lock{border-style:solid;box-shadow:inset 4px 0 0 #c0392b}
+.audit{background:#fff4cc;border:2px solid #b8860b}.t-audit{background:#b8860b}
+.core{background:#d9f2df;border:2px solid #2f9e55}.t-core{background:#2f9e55}
+.adapt{background:#e2ecff;border:2px dashed #3b6fd6}.t-adapt{background:#3b6fd6}
+.host{background:#fde5cf;border:2px solid #d97a1e}.t-host{background:#d97a1e}
+.plan{background:#ece3fb;border:2px solid #7c4fd1}.t-plan{background:#7c4fd1}
+.meta{background:#fde8e8;border:2px solid #c0392b}.t-meta{background:#c0392b}
+.temp{background:#fff;border:2px dashed #c0392b}
+.link{display:flex;flex-direction:column;justify-content:center;align-items:center;font-size:12px;color:#38414f;text-align:center;padding:0 8px;gap:22px}
+.arrow{width:100%;border-top:2px solid #38414f;position:relative;padding-top:4px}
+.arrow.l::before{content:"";position:absolute;left:-2px;top:-7px;border:6px solid transparent;border-right:9px solid #38414f}
+.arrow.r::after{content:"";position:absolute;right:-2px;top:-7px;border:6px solid transparent;border-left:9px solid #38414f}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.grid2 .box,.grid3 .box{margin-bottom:0}
+.pipe{display:flex;gap:6px;align-items:stretch}
+.pipe .box{flex:1;margin:0}
+.chev{align-self:center;font-size:20px;color:#2f9e55;font-weight:700}
+.sec{font-size:12px;font-weight:700;color:#5a6475;text-transform:uppercase;letter-spacing:.6px;margin:10px 0 6px}
+.bureau{display:flex;flex-direction:column;justify-content:center;padding-left:12px;gap:8px}
+.bureau .box{background:#e6e8ec;border:1.5px solid #9aa2ae;text-align:center}
+.bottom{display:grid;grid-template-columns:1.15fr 1fr 1fr 1fr;gap:14px;margin-top:16px}
+.panel{border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.45}
+.panel h3{font-size:15px;margin-bottom:6px}
+.plans{background:#f4f0fc;border:1.5px solid #b9a3e8}
+.plans table{border-collapse:collapse;width:100%;font-size:12.5px}
+.plans td,.plans th{padding:4px 6px;border-bottom:1px solid #d9cdf3;text-align:left;vertical-align:top}
+ul{padding-left:18px}
+.keyrow{font-size:12px;color:#7a2b22;font-weight:600;margin:-2px 0 8px}
+</style></head><body>
+<h1>Bureau Submission + Data Platform: modular, portable, exit-safe</h1>
+<div class="sub">Not SaaS: per NBFC, both accounts sit in the client's AWS Organization; Account 2 is our add-on, administered by us · ALL data in the client's account: raw + submitted files readable by the client, everything derived encrypted and readable only by our services · all logic, metadata and the key in ours · same core on AWS, Azure or local</div>
+<div class="legend">
+<span><i class="sw" style="background:#2f9e55"></i>PORTABLE CORE</span>
+<span><i class="sw" style="background:#3b6fd6"></i>SWAPPABLE ADAPTER (AWS / Azure / local)</span>
+<span><i class="sw" style="background:#d97a1e"></i>CLOUD HOST (Azure equivalent in brackets)</span>
+<span><i class="sw" style="background:#7c4fd1"></i>PLAN-GATED MODULE</span>
+<span><i class="sw" style="background:#c0392b"></i>OUR IP / METADATA / KEY</span>
+<span><i class="sw" style="background:#fff;box-shadow:inset 4px 0 0 #c0392b;border:1px solid #999"></i>Parquet encrypted by our engine (app-level): client can see &amp; delete, cannot read</span>
+</div>
+
+<div class="main">
+ <!-- CLIENT ACCOUNT -->
+ <div class="acct">
+  <h2>Account 1: Client data <span style="font-weight:400;color:#5a6475">(client-owned)</span></h2>
+  <div class="note">AWS account or Azure subscription, alongside the LMS. Every byte lives here: residency, deletion and access audit stay with the client.</div>
+  <div class="box lms"><b>LMS (partner)</b>Transactional DB · S3 / data-lake export</div>
+  <div class="box bronze"><span class="tag t-bronze">BRONZE · CLIENT-READABLE</span><b>Raw archive</b>Lite CSV uploads · LMS extracts, per cycle, unchanged + hashed · archive tier, 7+ yrs</div>
+  <div class="box silver lock"><span class="tag t-silver">SILVER · OUR KEY</span><b>Curated canonical layer</b>Parquet, conformed to our canonical model · add-on outputs (write-off, ARC, co-lending) · dated history · rebuildable from bronze · neutral physical column names</div>
+  <div class="box gold lock"><span class="tag t-gold">GOLD · OUR KEY</span><b>Marts &amp; AI features</b>BI marts, KPIs, bureau-ready views, model features · served to users only through our apps</div>
+  <div class="box silver lock" style="background:#fff"><span class="tag t-meta">WORKING · OUR KEY</span><b>Submission working store</b>Per-cycle snapshot, findings, record outcomes as Parquet · purged when the cycle closes</div>
+  <div class="box silver lock" style="background:#fff"><span class="tag t-meta">EXCEPTIONS · OUR KEY</span><b>Exceptions log (append-only)</b>One Parquet file per save · ADD / SUPERSEDE / WITHDRAW rows, never updated · S3 Object Lock · frozen at submit</div>
+  <div class="box audit"><span class="tag t-audit">AUDIT · CLIENT-READABLE</span><b>Submission files + audit packs</b>TUDF / UCRF / MFI / NeSL files and, per submission: manifest (hashes, engine + mapping versions), exceptions log with approvers, findings report, run log. Write-once.</div>
+  <div class="box" style="background:#fff;border:1.5px dashed #9aa2ae"><b>Access grant (client's kill switch)</b>Bucket policy for Account 2's roles (AWS) · managed identity + private endpoint (Azure). Revoke → engine cut off instantly.</div>
+ </div>
+
+ <!-- LINK -->
+ <div class="link">
+  <div class="arrow l">ingest →<br>bronze</div>
+  <div class="arrow r">read bronze</div>
+  <div class="arrow l">write silver / gold<br>(encrypted with<br>our key)</div>
+  <div class="arrow r">read silver / gold<br>(decrypt with<br>our key)</div>
+  <div class="arrow l">write working store,<br>files + audit packs</div>
+  <div style="font-weight:600;color:#a33">No client data<br>at rest in<br>Account 2<br>(control DB holds<br>app state only)</div>
+ </div>
+
+ <!-- ENGINE ACCOUNT -->
+ <div class="acct">
+  <h2>Account 2: Apps, compute &amp; metadata <span style="font-weight:400;color:#5a6475">(our add-on, one per client: root &amp; admin roles ours, no Org admin role)</span></h2>
+  <div class="note">Packaged code and metadata only. Without this account, the data in Account 1 is unreadable and nothing can be rebuilt.</div>
+
+  <div class="sec">Ingestion → bronze (plan decides which)</div>
+  <div class="grid2">
+   <div class="box plan"><span class="tag t-plan">LITE</span><b>CSV loader</b>Our CSV templates · Consumer / Commercial / MFI / NeSL</div>
+   <div class="box adapt"><span class="tag t-adapt">STANDARD</span><b>LMS connectors</b>MySQL / Postgres / SQL Server / S3-Parquet extracts</div>
+  </div>
+
+  <div class="sec">Medallion build (bronze → silver → gold)</div>
+  <div class="grid3">
+   <div class="box core"><span class="tag t-core">CORE</span><b>Python + DuckDB build jobs</b>Lambda / container jobs; scheduled by Step Functions (Durable Functions)</div>
+   <div class="box core"><span class="tag t-core">CORE</span><b>Mappings &amp; cleaning rules</b>YAML mapping → canonical, conformance checks</div>
+   <div class="box plan"><span class="tag t-plan">COMPLETE</span><b>Add-on modules</b>Write-off · ARC · co-lending → silver</div>
+  </div>
+  <div class="grid3" style="margin-top:8px">
+   <div class="box meta"><span class="tag t-meta">IP</span><b>Catalog &amp; schema registry</b>Table definitions, real column names, versions, per-client access</div>
+   <div class="box meta"><span class="tag t-meta">KEY</span><b>KMS endpoint → our key account</b>Client's key lives in OUR common key account (one key per client); 1-AZ endpoint here. Disable = data unreadable.</div>
+   <div class="box audit"><span class="tag t-audit">AUDIT</span><b>Version ledger (no PII)</b>Hashes, who / when, every engine + mapping version → any cycle re-runnable</div>
+  </div>
+
+  <div class="sec">Products on silver / gold</div>
+  <div class="grid2">
+   <div class="box core" style="padding-bottom:6px"><span class="tag t-core">SUBMISSIONS</span><b>Bureau submission engine</b>
+     <div class="pipe" style="margin-top:6px">
+      <div class="box temp" style="font-size:12px"><b style="font-size:12.5px">DuckDB in Lambda</b>reads silver, reads/writes working store in Account 1 · in memory only</div><div class="chev">›</div>
+      <div class="box temp" style="font-size:12px;border-color:#2f9e55"><b style="font-size:12.5px">Snapshot · validation · formatter</b>type packs: Consumer ✓ Commercial ✓ MFI NeSL</div>
+     </div>
+     <div class="box temp" style="font-size:12px;margin:6px 0 0;border-color:#d97a1e"><b style="font-size:12.5px">Control DB (small RDS)</b>requests, status &amp; atomic claim, submit locks, users · transactional · no account-level data</div></div>
+   <div class="box core"><span class="tag t-core">AI / BI</span><b>Analytics &amp; Intelligence Hub</b>Athena + QuickSight on gold (Synapse SQL + Power BI) · Intelligence Hub on Bedrock (Azure OpenAI) · clients consume through these apps, never raw tables</div>
+  </div>
+
+  <div class="sec">Adapters &amp; hosting</div>
+  <div class="grid3">
+   <div class="box adapt"><span class="tag t-adapt">ADAPTER</span><b>FileStore</b>S3 · Blob · local</div>
+   <div class="box adapt"><span class="tag t-adapt">ADAPTER</span><b>Job dispatch</b>S3 event · queue · polling</div>
+   <div class="box adapt"><span class="tag t-adapt">ADAPTER</span><b>Auth</b>Cognito · Entra ID · none</div>
+   <div class="box core"><span class="tag t-core">CORE</span><b>Web app + API</b>Alpine.js · Flask</div>
+   <div class="box host"><span class="tag t-host">HOST</span><b>Compute</b>Lambda + DuckDB, control RDS (Function App, Azure DB)</div>
+   <div class="box host"><span class="tag t-host">HOST</span><b>Delivery &amp; IaC</b>CloudFront, SAM (SWA, Bicep)</div>
+  </div>
+ </div>
+
+ <!-- BUREAUS -->
+ <div class="bureau">
+  <div class="box meta" style="text-align:left"><b>🔑 Our key account</b>Our Org · ap-south-1 · no workloads · one KMS key per client · single kill switch + audit</div>
+  <div class="box"><b>Credit bureaus</b>CIBIL · Experian<br>Equifax · CRIF<br>NeSL</div>
+  <div style="font-size:12px;text-align:center;color:#5a6475">◄ user downloads file<br>&amp; uploads to bureau</div>
+ </div>
+</div>
+
+<div class="bottom">
+ <div class="panel plans"><h3>Plans = configuration, not separate products</h3>
+  <table><tr><th>Plan</th><th>Ingestion</th><th>Modules</th><th>Products</th></tr>
+  <tr><td><b>Lite</b></td><td>CSV upload in our template</td><td>none</td><td rowspan="3">Any of Consumer / Commercial / MFI / NeSL, set per install · AI/BI on gold sold separately</td></tr>
+  <tr><td><b>Standard</b></td><td>LMS DB / S3 connector</td><td>none</td></tr>
+  <tr><td><b>Complete</b></td><td>as Standard</td><td>write-off, ARC, co-lending…</td></tr></table>
+ </div>
+ <div class="panel" style="background:#fdecea;border:1.5px solid #e3a59c"><h3>Kill switch, both directions</h3><ul>
+  <li><b>Client exits:</b> revokes bucket policy → we're cut off instantly</li>
+  <li><b>We exit:</b> disable the client's key → silver &amp; gold unreadable; client deletes them</li>
+  <li>Client keeps bronze, every submission file and audit pack (+ optional one-time gold export by contract)</li>
+  <li>Jobs, mappings, catalog and add-on logic never leave Account 2</li>
+  <li>Contract: curated structure is our IP, deleted on exit</li></ul></div>
+ <div class="panel" style="background:#fff8e1;border:1.5px solid #d4a72c"><h3>Audit, years later</h3><ul>
+  <li><b>What was submitted?</b> the write-once file</li>
+  <li><b>From what data?</b> hashed bronze extract</li>
+  <li><b>What changed, who approved?</b> exceptions log</li>
+  <li><b>Not altered?</b> manifest hashes vs our ledger</li>
+  <li><b>Deep dispute:</b> re-run from bronze with the recorded versions → byte-identical file</li></ul></div>
+ <div class="panel" style="background:#eef7f0;border:1.5px solid #9fd1ae"><h3>Portability</h3><ul>
+  <li><b>Runs anywhere:</b> canonical model, mappings, CSV loader, validation, formatters, type packs, add-ons, web app</li>
+  <li><b>Swap per cloud:</b> FileStore, job dispatch, auth, key service</li>
+  <li><b>Rewrite per cloud:</b> scheduler, entry handlers, IaC</li>
+  <li><b>Release:</b> build once → dev → staging → canary client → every client's Account 2, in one pipeline run</li>
+  <li>Locally: API + polling worker, no cloud</li></ul></div>
+</div>
+</body></html>

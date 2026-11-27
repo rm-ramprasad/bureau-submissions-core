@@ -1,4 +1,4 @@
-"""Exclusions and overrides through rarfincare's real source views on SQL Server and Postgres (marked `db`; CI job
+"""Exclusions and overrides through rarfincare's real source views on SQL Server (marked `db`; CI job
 "Database"): an upload and LMS rows, a request with one excluded loan and one override, then the snapshot."""
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from canonical.db import make_engine
 from canonical.schema import ENTITY_TABLES
 from canonical.snapshot import SnapshotRepository
 from canonical.testing import TENANT
-from canonical.testing_db import lms_column, mirror_lms, prepare_mssql, prepare_postgres
+from canonical.testing_db import lms_column, mirror_lms, prepare_mssql
 from sources.excel import load_workbook
 from sources.extract import run_extract
 from sources.views import compile_views
@@ -36,13 +36,13 @@ AS_OF = date(2026, 9, 29)
 _run = count(1)
 
 
-@pytest.fixture(scope="module", params=["mssql", "postgres"])
+@pytest.fixture(scope="module", params=["mssql"])
 def db(request) -> Iterator[Engine]:
-    url = os.environ.get({"mssql": "BSC_MSSQL_URL", "postgres": "BSC_POSTGRES_URL"}[request.param])
+    url = os.environ.get({"mssql": "BSC_MSSQL_URL"}[request.param])
     if not url:
         pytest.skip("database URL not set")
     engine = make_engine(url)
-    (prepare_mssql if request.param == "mssql" else prepare_postgres)(engine)
+    prepare_mssql(engine)
     yield engine
     engine.dispose()
 

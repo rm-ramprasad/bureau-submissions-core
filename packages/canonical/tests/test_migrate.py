@@ -3,7 +3,6 @@
 import pytest
 from sqlalchemy import text
 
-from canonical import build_views
 from canonical.db import make_engine
 from canonical.migrate import (
     AZURE_MIGRATIONS,
@@ -88,9 +87,8 @@ def test_after_the_baseline_only_later_migrations_are_pending(tmp_path) -> None:
     assert [p.stem for p in pending_migrations(engine)] == MIGRATIONS[1:]
 
 
-@pytest.mark.parametrize("dialect", ["azure", "postgres", "mysql"])
-def test_view_files_run_functions_first(dialect: str) -> None:
-    names = [p.name for p in view_files(dialect)]
+def test_view_files_run_functions_first() -> None:
+    names = [p.name for p in view_files("azure")]
     assert names == [
         "00_functions.sql",
         "01_reference.sql",
@@ -107,53 +105,6 @@ def test_unknown_dialects_are_refused(tmp_path) -> None:
         view_files("oracle")
     with pytest.raises(ValueError, match="no source views for sqlite"):
         apply_views(make_engine(f"sqlite:///{tmp_path / 'm.db'}"))
-
-
-# ------------------------------------------------------------------ generated Postgres / MySQL views
-
-
-def test_generated_views_are_up_to_date() -> None:
-    stale = [p for p, content in build_views.build().items() if not p.is_file() or p.read_text("utf-8") != content]
-    assert not stale, "run  uv run python -m canonical.build_views  and commit: " + ", ".join(map(str, stale))
-
-
-@pytest.mark.parametrize(
-    "sql",
-    [
-        "SELECT RIGHT('0' + CAST(x AS VARCHAR(2)), 2)",
-        "SELECT TRY_CAST(x AS DECIMAL(20, 2))",
-        "SELECT automn.fn_label_value('CONSUMER', 'gender', x)",
-        "CREATE OR ALTER FUNCTION automn.f() RETURNS INT AS BEGIN RETURN 1; END",
-        "SELECT * FROM a OUTER APPLY (VALUES (a.x)) AS d(x)",
-    ],
-)
-def test_forbidden_forms_are_refused(sql: str) -> None:
-    assert build_views.check_source("x.sql", sql)
-
-
-def test_comments_and_numbers_are_not_refused() -> None:
-    assert not build_views.check_source("x.sql", "-- never '...' + ..., never TRY_CAST\nSELECT a.source_row + 100000")
-
-
-def test_build_views_check_passes_on_the_committed_files(monkeypatch, capsys) -> None:
-    monkeypatch.setattr("sys.argv", ["build_views", "--check"])
-    assert build_views.main() == 0
-    assert "0 stale" in capsys.readouterr().out
-
-
-def test_build_views_check_names_a_stale_file(monkeypatch, capsys) -> None:
-    real = build_views.build
-    monkeypatch.setattr(build_views, "build", lambda: {p: c + "-- changed\n" for p, c in real().items()})
-    monkeypatch.setattr("sys.argv", ["build_views", "--check"])
-    assert build_views.main() == 1
-    assert "STALE postgres/views/consumer.sql" in capsys.readouterr().out
-
-
-def test_cross_apply_becomes_cross_join_lateral() -> None:
-    sql = "CREATE VIEW automn.v AS SELECT d.x FROM automn.a AS a CROSS APPLY (VALUES (a.x), (a.y)) AS d(x)"
-    for dialect in ("postgres", "mysql"):
-        out = build_views.translate("x.sql", sql, dialect)
-        assert "CROSS JOIN LATERAL" in out and "INNER JOIN" not in out
 
 
 def test_a_failed_file_is_named_and_a_hand_run_one_can_be_marked(tmp_path) -> None:

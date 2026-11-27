@@ -219,11 +219,10 @@ def previous_cycle_date(as_of: date) -> date:
 
 
 def _call_sql(engine: Engine, procedure: str) -> str:
-    if engine.dialect.name == "mssql":
-        # NOCOUNT: a procedure that fills temp tables first would otherwise hand back row counts before its rows
-        return f"SET NOCOUNT ON; EXEC {procedure} @TransactionDate = :t, @PreviousTransactionDate = :p, @CloseDate = :c"
-    # Postgres (CI stand-in): a set-returning function with the same three parameters
-    return f"SELECT * FROM {procedure}(:t, :p, :c)"  # noqa: S608  (fixed names, values bound)
+    if engine.dialect.name != "mssql":
+        raise ValueError(f"LMS procedures run on SQL Server only, not {engine.dialect.name}")
+    # NOCOUNT: a procedure that fills temp tables first would otherwise hand back row counts before its rows
+    return f"SET NOCOUNT ON; EXEC {procedure} @TransactionDate = :t, @PreviousTransactionDate = :p, @CloseDate = :c"
 
 
 def run_procedure(engine: Engine, source: CrSource, as_of: date, previous: date) -> list[dict[str, Any]]:

@@ -1,5 +1,9 @@
 # Plan
 
+> **Superseded in part (2026-11-26, owner):** Postgres / RDS Postgres and the generated views are no longer
+> targets. Azure SQL on Azure; S3 + Athena (Glue, DynamoDB) on AWS, built after Azure. See
+> [CONVERGENCE-PLAN.md](CONVERGENCE-PLAN.md) §5.
+
 The to-do list is **GitHub Issues** (one per step, checklists inside), grouped by milestone. This page is the
 overview; the issue is the source of truth for status. Design: [requirements.md](requirements.md).
 

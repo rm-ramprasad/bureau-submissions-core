@@ -22,7 +22,7 @@ from canonical.enums import ExtractStrategy
 from canonical.schema import ENTITY_TABLES, ref_code_translation
 from canonical.snapshot import SnapshotRepository
 from canonical.testing import TENANT
-from canonical.testing_db import lms_column, mirror_lms, prepare_mssql, prepare_postgres
+from canonical.testing_db import lms_column, mirror_lms, prepare_mssql
 from sources.excel import load_workbook
 from sources.extract import run_extract
 from sources.views import check_views, compile_views
@@ -33,14 +33,14 @@ AS_OF = date(2026, 10, 31)
 _batches = count(1)
 
 
-@pytest.fixture(scope="module", params=["mssql", "postgres"])
+@pytest.fixture(scope="module", params=["mssql"])
 def db(request) -> Iterator[Engine]:
-    var = {"mssql": "BSC_MSSQL_URL", "postgres": "BSC_POSTGRES_URL"}[request.param]
+    var = {"mssql": "BSC_MSSQL_URL"}[request.param]
     url = os.environ.get(var)
     if not url:
         pytest.skip(f"{var} not set")
     engine = make_engine(url)
-    (prepare_mssql if request.param == "mssql" else prepare_postgres)(engine)
+    prepare_mssql(engine)
     yield engine
     engine.dispose()
 

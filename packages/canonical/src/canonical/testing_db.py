@@ -1,4 +1,4 @@
-"""Real-database test support (SQL Server, Postgres) for the `db` tests: schema, migrations, reference data, views,
+"""Real-database test support (SQL Server) for the `db` tests: schema, migrations, reference data, views,
 and stand-ins for the client's LMS views in schema `wip` (on rarfincare: views over its loan system). The source
 views join them, so a database test needs them: tables with the columns the views read and plausible types."""
 
@@ -11,7 +11,7 @@ from sqlalchemy import Engine, Table, inspect
 
 import canonical.position
 import canonical.staging.tables  # noqa: F401  (registers all app tables)
-from canonical.db import SCHEMA, metadata
+from canonical.db import SCHEMA
 from canonical.lms_cr import SOURCES, STAND_INS
 from canonical.migrate import AZURE_MIGRATIONS, apply_migrations, apply_views, run_batch
 from canonical.reference import seed as seed_reference
@@ -27,7 +27,7 @@ STUBS = {
 
 
 def _name(engine: Engine, name: str) -> str:
-    """Postgres folds unquoted names to lower case, as the generated views write them; names with spaces are quoted."""
+    """Names with spaces or dots are quoted; others are left as the views write them."""
     if " " not in name and "." not in name:
         return name
     return f"[{name}]" if engine.dialect.name == "mssql" else f'"{name}"'
@@ -46,27 +46,17 @@ def create_lms_stubs(engine: Engine) -> None:
 
 def create_lms_procedures(engine: Engine) -> None:
     """Stand-ins for the client's LMS procedures (rarfincare: dbo.usp_Get*SubmissionCR, owner 2026-11-16): they return
-    the stand-in table's rows for @TransactionDate, as canonical.lms_cr.fetch_cr calls them. SQL Server: procedures;
-    Postgres: set-returning functions with the same three parameters."""
+    the stand-in table's rows for @TransactionDate, as canonical.lms_cr.fetch_cr calls them (SQL Server)."""
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-        if engine.dialect.name == "mssql":
-            conn.exec_driver_sql("IF SCHEMA_ID('dbo') IS NULL EXEC('CREATE SCHEMA dbo')")
-        else:
-            conn.exec_driver_sql("CREATE SCHEMA IF NOT EXISTS dbo")
+        conn.exec_driver_sql("IF SCHEMA_ID('dbo') IS NULL EXEC('CREATE SCHEMA dbo')")
         for kind, source in SOURCES.items():
             stand_in, date_col = STAND_INS[kind], _name(engine, source.date_column)
-            if engine.dialect.name == "mssql":
-                conn.exec_driver_sql(
-                    f"CREATE OR ALTER PROCEDURE {source.procedure} @TransactionDate DATE, "  # noqa: S608  (fixed names)
-                    "@PreviousTransactionDate DATE, @CloseDate DATE AS "
-                    f"SELECT *, CAST('stand-in' AS NVARCHAR(400)) AS SelectionReason FROM wip.{stand_in} "
-                    f"WHERE {date_col} = @TransactionDate"
-                )
-            else:
-                conn.exec_driver_sql(
-                    f"CREATE OR REPLACE FUNCTION {source.procedure}(t DATE, p DATE, c DATE) RETURNS SETOF "  # noqa: S608
-                    f"wip.{stand_in} AS $$ SELECT * FROM wip.{stand_in} WHERE {date_col} = t $$ LANGUAGE sql"
-                )
+            conn.exec_driver_sql(
+                f"CREATE OR ALTER PROCEDURE {source.procedure} @TransactionDate DATE, "  # noqa: S608  (fixed names)
+                "@PreviousTransactionDate DATE, @CloseDate DATE AS "
+                f"SELECT *, CAST('stand-in' AS NVARCHAR(400)) AS SelectionReason FROM wip.{stand_in} "
+                f"WHERE {date_col} = @TransactionDate"
+            )
 
 
 def mirror_lms(engine: Engine) -> None:
@@ -108,16 +98,6 @@ def prepare_mssql(engine: Engine) -> None:
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             run_batch(conn, (AZURE_MIGRATIONS / "001_baseline.sql").read_text("utf-8"))
     apply_migrations(engine)
-    _seed(engine)
-    create_lms_stubs(engine)
-    create_lms_procedures(engine)
-    apply_views(engine)
-
-
-def prepare_postgres(engine: Engine) -> None:
-    """Postgres: the app tables from the SQLAlchemy metadata, the reference data, the stand-ins, the views."""
-    _schemas(engine)
-    metadata.create_all(engine)
     _seed(engine)
     create_lms_stubs(engine)
     create_lms_procedures(engine)
