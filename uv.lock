@@ -261,7 +261,7 @@ dev = [
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-cov", specifier = ">=6" },
     { name = "ruff", specifier = ">=0.17.6" },
-    { name = "sqlglot", specifier = "==30.33.0" },
+    { name = "sqlglot", specifier = "==26.16.0" },
     { name = "types-openpyxl", specifier = ">=3.1.5.20261122" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20261122" },
 ]
@@ -1366,11 +1366,11 @@ wheels = [
 
 [[package]]
 name = "sqlglot"
-version = "30.33.0"
+version = "26.16.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/f6/4d/ce64044d87620a6cfeb0de779359400f29730ad169d7f804c050f8de7c5e/sqlglot-30.33.0.tar.gz", hash = "sha256:9c007e0471c93e778d8613f25853543b959a3f793d9dadf1341b3d6bd53246a8", size = 6253207, upload-time = "2026-11-17T12:19:03.18Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7b/4f/3ad24588e0db292c97f481f11e78db748760886c49cfd1bf0d3facd457a4/sqlglot-26.16.0.tar.gz", hash = "sha256:253585bd6694bf376af100a306f71d8dae2e6b5be0b61df130a7c1d868d28487", size = 5351655, upload-time = "2025-04-22T08:25:12.805Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/32/b2/564252e22f8e0a383adee6b38afc4a0e38fccbc4046b5c36a387a2308f23/sqlglot-30.33.0-py3-none-any.whl", hash = "sha256:a5b279fe7397a9fb6cdd0274a13a5fcee0fa83ac6ff617083f1f2832031e90bc", size = 829420, upload-time = "2026-11-17T12:19:01.389Z" },
+    { url = "https://files.pythonhosted.org/packages/92/60/ca1d23fac43fd6dbc7609549163b79e89ba25ba2ed737e46394d9d9124d1/sqlglot-26.16.0-py3-none-any.whl", hash = "sha256:7ecc3f7c73d714cad39a11a48c76db5e64466f93c793bf56ed8df6bb1210efb7", size = 458629, upload-time = "2025-04-22T08:25:09.56Z" },
 ]
 
 [[package]]
