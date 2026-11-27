@@ -522,8 +522,7 @@ def test_rule_catalogue_without_an_nbfc(make_api):
     _, page = make_api().get("/rules", type="CONSUMER")
     rule = next(r for r in page["rules"] if r["rule_id"] == RULE)
     assert page["tenant_id"] is None and rule["message"].startswith("ID number is not valid")
-    assert rule["sql"] or rule["python"]  # the logic is visible
-    assert any(r["python"] for r in page["rules"]) and any(r["sql"] for r in page["rules"])
+    assert rule["sql"] is None and rule["python"] is None  # built-in logic is not shown (owner 2026-11-27)
     assert make_api().post(f"/rules/{RULE}", type="CONSUMER", enabled=True, reason="r")[0] == 400  # needs an NBFC
 
 
@@ -826,6 +825,36 @@ def test_a_format_with_several_files_stores_lists_and_downloads_each(api, worker
     assert status == 200
     assert api.get(f"/requests/{f['request_id']}/files/999999")[0] == 404
     assert "FILE_DOWNLOADED" in actions(engine)
+
+
+def test_built_in_rule_logic_is_shown_to_nobody(grouped):
+    """Owner 2026-11-27: the product's rule SQL / Python stays out of the Rules page for every client role."""
+    api = grouped()
+    for headers in (
+        bearer(groups=[USERS_GROUP], preferred_username="ravi.s@company.in"),
+        bearer(groups=[ADMINS_GROUP]),
+    ):
+        status, data = api.get("/rules", headers=headers)
+        built_in = [r for r in data["rules"] if r["source"] != "CUSTOM"]
+        assert status == 200 and built_in
+        assert all(r["sql"] is None and r["python"] is None for r in built_in)
+        assert all(r["message"] and r["outcome"] for r in built_in)  # what a rule checks is still described
+
+
+def test_a_custom_rule_shows_its_sql_to_administrators_only():
+    from types import SimpleNamespace
+
+    from app.api.rules import _rule_json
+
+    def rule(source):
+        return SimpleNamespace(
+            rule_id="R1", source=source, entity="account", segment=None, field=None, outcome="ERROR", enabled=True,
+            kind="sql", message="m", sql="SELECT 1", python=None,
+        )  # fmt: skip
+
+    assert _rule_json(rule("CUSTOM"), {}, is_admin=True)["sql"] == "SELECT 1"
+    assert _rule_json(rule("CUSTOM"), {}, is_admin=False)["sql"] is None
+    assert _rule_json(rule("BUILTIN"), {}, is_admin=True)["sql"] is None
 
 
 # ---------------------------------------------------------------- known gaps from the port review (#35)
