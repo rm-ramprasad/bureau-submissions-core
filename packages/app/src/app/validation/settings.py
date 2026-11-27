@@ -130,7 +130,7 @@ def _own_rules(engine: Engine, tenant_id: str, submission_type: SubmissionType |
 
 
 def _apply(rule: Rule, p: dict[str, Any] | None) -> Rule:
-    if p is None:
+    if p is None or rule.locked:  # a locked rule keeps its own settings, even with an override saved before the lock
         return rule
     return replace(
         rule,

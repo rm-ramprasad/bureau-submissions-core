@@ -77,7 +77,7 @@ def test_unknown_parameters_and_clearing(engine, clock):
 def test_policies_and_catalogue(engine):
     from bureau_core.validation.rules import RuleDefinitionError, builtin_rules
 
-    first = builtin_rules("CONSUMER")[0]
+    first = next(r for r in builtin_rules("CONSUMER") if not r.locked)  # a locked rule ignores overrides
     S.set_policy(engine, "nbfc_001", first.rule_id, outcome="WARN")
     S.set_policy(engine, "nbfc_001", first.rule_id, is_enabled=False)  # updates the same override
     entry = next(e for e in S.catalogue(engine, "nbfc_001", "CONSUMER") if e.default.rule_id == first.rule_id)

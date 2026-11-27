@@ -37,6 +37,9 @@ class RuleDefinitionError(ValueError):
     pass
 
 
+LOCKED_CATEGORY = "MINIMUM"  # the packs' "Minimum reporting requirements"
+
+
 @dataclass(frozen=True)
 class Rule:
     rule_id: str
@@ -57,6 +60,15 @@ class Rule:
     @property
     def kind(self) -> str:
         return "sql" if self.sql else "python" if self.python else "cascade"
+
+    @property
+    def locked(self) -> bool:
+        """A check the bureau needs (owner, 2026-11-27): a required field of the type (requirements.yaml) or a rule of
+        the minimum reporting requirements. No client may switch it off or change its outcome; a file without it
+        would be rejected by the bureau."""
+        if self.source == "CUSTOM":
+            return False
+        return (self.generated and ".REQUIRED." in self.rule_id) or self.category == LOCKED_CATEGORY
 
 
 @dataclass(frozen=True)

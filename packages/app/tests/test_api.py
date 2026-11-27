@@ -849,7 +849,7 @@ def test_a_custom_rule_shows_its_sql_to_administrators_only():
     def rule(source):
         return SimpleNamespace(
             rule_id="R1", source=source, entity="account", segment=None, field=None, outcome="ERROR", enabled=True,
-            kind="sql", message="m", sql="SELECT 1", python=None,
+            kind="sql", message="m", sql="SELECT 1", python=None, locked=False,
         )  # fmt: skip
 
     assert _rule_json(rule("CUSTOM"), {}, is_admin=True)["sql"] == "SELECT 1"
@@ -912,3 +912,46 @@ def test_a_number_zero_is_kept_as_a_custom_rule_limit():
     from app.api.rules import _number_text
 
     assert [_number_text(v) for v in (0, 0.0, "0", " 5 ", "", None)] == ["0", "0.0", "0", "5", None, None]
+
+
+# ---------------------------------------------------------------- locked rules and findings counts (#19, part 1)
+LOCKED = "UCRF.REQUIRED.party.full_name"  # a required field: the bureau needs it
+
+
+def test_which_rules_are_locked():
+    from bureau_core.validation.rules import builtin_pack
+
+    pack = {r.rule_id: r for r in builtin_pack("CONSUMER").rules}
+    assert pack[LOCKED].locked  # required field
+    assert all(r.locked for r in pack.values() if r.category == "MINIMUM")  # minimum reporting requirements
+    assert not pack[RULE].locked  # an ordinary rule stays adjustable
+    assert any(not r.locked for r in pack.values() if r.generated)  # code rules are not locked
+
+
+def test_a_locked_rule_cannot_be_changed_and_old_overrides_are_ignored(make_api, engine):
+    api = make_api()
+    status, err = api.post(f"/rules/{LOCKED}", type="CONSUMER", tenant="nbfc_001", enabled=False, reason="test")
+    assert status == 409 and "bureau needs" in err["error"]
+    rules.set_policy(engine, "nbfc_001", LOCKED, is_enabled=False)  # saved before the lock existed
+    assert effective(engine, rule_id=LOCKED).enabled  # validation keeps the check on
+    page = api.get("/rules", type="CONSUMER", tenant="nbfc_001")[1]
+    entry = next(r for r in page["rules"] if r["rule_id"] == LOCKED)
+    assert entry["locked"] and entry["enabled"] and not entry["changed"]
+
+
+def test_the_rules_page_counts_each_rules_findings_in_the_latest_validation(api, validated, engine):
+    from sqlalchemy import func
+
+    from app.validation.tables import validation_finding
+
+    row, _ = validated
+    page = api.get("/rules", type="CONSUMER", tenant="nbfc_001")[1]
+    assert page["latest_validation"]["snapshot_id"] == row.snapshot_id
+    with engine.connect() as conn:
+        total = conn.execute(
+            select(func.count())
+            .select_from(validation_finding)
+            .where(validation_finding.c.snapshot_id == row.snapshot_id)
+        ).scalar()
+    assert sum(r["latest_findings"] for r in page["rules"]) == total > 0
+    assert api.get("/rules", type="CONSUMER")[1]["latest_validation"] is None  # no NBFC chosen: no counts

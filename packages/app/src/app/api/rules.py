@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from flask import g, jsonify
+from sqlalchemy import func, select
 
 from app import audit
 from app.api.auth import admin_only, current_user
@@ -27,6 +28,7 @@ from app.pipeline import enabled_types
 from app.validation import custom as custom_rules
 from app.validation import settings as rule_parameters
 from app.validation import settings as rules
+from app.validation.tables import validation_finding
 from bureau_core.validation.parameters import ParameterError, builtin_parameters, render_message
 
 
@@ -37,6 +39,16 @@ def _rule_kind(rule, custom_defs=None) -> str:
     if rule.generated:
         return "Generated"
     return {"sql": "SQL", "python": "Python", "cascade": "Record decision"}[rule.kind]
+
+
+def _finding_counts(engine, snapshot_id: int) -> dict[str, int]:
+    """rule_id -> findings in that validation: what switching a rule off or changing its outcome would affect."""
+    f = validation_finding.c
+    with engine.connect() as conn:
+        rows = conn.execute(
+            select(f.rule_id, func.count()).where(f.snapshot_id == snapshot_id).group_by(f.rule_id)
+        ).all()
+    return {rule_id: int(n) for rule_id, n in rows}
 
 
 def _rules_type() -> SubmissionType:
@@ -67,6 +79,7 @@ def _rule_json(rule, values, is_admin: bool = False) -> dict:
         "enabled": rule.enabled,
         "kind": rule.kind,
         "message": render_message(rule.message, values),
+        "locked": rule.locked,
         "sql": rule.sql if shows else None,
         "python": rule.python if shows else None,
     }
@@ -82,7 +95,12 @@ def rules_page():
     overridden = rule_parameters.overrides(s.engine, tenant_id, sub_type) if tenant_id else {}
     values = {n: overridden[n]["value"] if n in overridden else p.default for n, p in definitions.items()}
     entries = rules.catalogue(s.engine, tenant_id or "", sub_type)
+    latest = s.snapshots.latest(tenant_id, sub_type) if tenant_id else None
+    counts = _finding_counts(s.engine, latest.snapshot_id) if latest else {}
     return jsonify(
+        latest_validation=(
+            {"snapshot_id": latest.snapshot_id, "as_of_date": latest.as_of_date.isoformat()} if latest else None
+        ),
         tenant_id=tenant_id,
         submission_type=sub_type,
         rules=[
@@ -91,6 +109,7 @@ def rules_page():
                 "kind_label": _rule_kind(e.default, custom_defs),
                 "default": {"enabled": e.default.enabled, "outcome": e.default.outcome},
                 "changed": e.changed,
+                "latest_findings": counts.get(e.default.rule_id, 0) if latest else None,
                 "policy": e.policy,
             }
             for e in entries
@@ -305,6 +324,8 @@ def save_rule_policy(rule_id: str):
     entry = next((e for e in rules.catalogue(s.engine, tenant_id, sub_type) if e.default.rule_id == rule_id), None)
     if entry is None:
         fail(f"No rule {rule_id}", 404)
+    if entry.default.locked:
+        fail(f"{rule_id} is a check the bureau needs: it cannot be switched off or changed.", 409)
     enabled = bool(b.get("enabled"))
     try:
         outcome = Outcome(b.get("outcome") or entry.default.outcome.value)
