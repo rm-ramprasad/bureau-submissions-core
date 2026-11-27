@@ -42,8 +42,10 @@ from app.requests import (
 # ---------------------------------------------------------------- exceptions: step 2 of a request
 def _request_row(batch_id: str):
     """The request's row for the chosen submission type (?type= / body type; default the first)."""
-    rows = svc().requests.list_batch(batch_id)
-    if not rows or rows[0].run_mode is not RunMode.VALIDATE:
+    s = svc()
+    rows = s.requests.list_batch(batch_id)
+    # another NBFC's request is "not found", as on the other routes (#35)
+    if not rows or rows[0].run_mode is not RunMode.VALIDATE or (s.tenant and rows[0].tenant_id != s.tenant):
         fail(f"No request {batch_id}", 404)
     wanted = arg("type")
     return rows, next((r for r in rows if r.submission_type.value == wanted), rows[0])

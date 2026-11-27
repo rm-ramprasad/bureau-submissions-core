@@ -134,14 +134,20 @@ def _definition(b: dict) -> custom_rules.Definition:
         outcome=b.get("outcome") or "",
         message=(b.get("message") or "").strip(),
         values=_lines(b.get("values")),
-        min=str(b.get("min") or "").strip() or None,
-        max=str(b.get("max") or "").strip() or None,
+        min=_number_text(b.get("min")),
+        max=_number_text(b.get("max")),
         pattern=(b.get("pattern") or "").strip() or None,
         operator=b.get("operator") or None,
         other_field=other or None,
         when_field=when or None,
         when_values=_lines(b.get("when_values")),
     )
+
+
+def _number_text(raw) -> str | None:
+    """A min / max as text; empty means not set. A number 0 sent to the API is kept (#35: `0 or ""` dropped it)."""
+    text = "" if raw is None else str(raw).strip()
+    return text or None
 
 
 def _lines(raw) -> list[str]:

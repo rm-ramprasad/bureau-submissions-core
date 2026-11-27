@@ -328,6 +328,26 @@ def test_generated_files_carry_their_fingerprint(api, validated, engine):
     assert kinds == ["BUREAU_EXCEL"] * 2 + ["BUREAU_FILE"] * 2 + ["REVIEW_EXCEL"] * 2
 
 
+def test_generated_files_record_the_release_and_pack_version(api, validated, engine):
+    """Step 8 (owner 2026-11-27): every generated file says which release and pack version built it, and is audited."""
+    import json
+
+    from app.outputfiles import out_file
+    from bureau_core.types import pack_version
+
+    pack = pack_version("CONSUMER")
+    for f in api.get("/files")[1]["files"]:
+        fp = f["fingerprint"]
+        assert (fp["pack_version"], fp["pack_checksum"], fp["release_version"]) == (pack.version, pack.checksum, "dev")
+    with engine.connect() as conn:
+        rows = conn.execute(select(out_file.c.pack_version, out_file.c.release_version)).all()
+        events = conn.execute(select(audit_event.c.details).where(audit_event.c.action == "FILE_GENERATED")).all()
+    assert rows and all(r == (pack.version, "dev") for r in rows)
+    assert len(events) == len(rows)  # one audit event per stored file
+    detail = json.loads(events[0].details)
+    assert detail["pack"] == f"CONSUMER {pack.version}" and detail["pack_checksum"] == pack.checksum
+
+
 def test_a_file_is_marked_as_submitted_once(api, validated, engine):
     _, files = api.get("/files", bureau="CIBIL")
     rid = files["files"][0]["request_id"]
@@ -835,3 +855,60 @@ def test_a_custom_rule_shows_its_sql_to_administrators_only():
     assert _rule_json(rule("CUSTOM"), {}, is_admin=True)["sql"] == "SELECT 1"
     assert _rule_json(rule("CUSTOM"), {}, is_admin=False)["sql"] is None
     assert _rule_json(rule("BUILTIN"), {}, is_admin=True)["sql"] is None
+
+
+# ---------------------------------------------------------------- known gaps from the port review (#35)
+def test_another_nbfcs_request_is_not_found_on_any_route(make_api, tmp_path, engine, validated, requests_repo):
+    """#35.1: download, retry / cancel, generate-from-validation and the exceptions routes check the deployment's NBFC."""
+    install_golden_views(engine)
+    row, g = validated  # nbfc_001's requests
+    rid = requests_repo.list_batch(g)[0].request_id
+    from dataclasses import replace
+
+    def deployment(tenant):  # the NBFC the deployment serves (ApiServices.tenant), as rarfincare's
+        api = make_api(store=LocalFileStore(tmp_path))
+        ext = api.client.application.extensions
+        ext["bureau_submissions"] = replace(ext["bureau_submissions"], tenant=tenant)
+        return api
+
+    other = deployment("nbfc_002")
+    assert other.get(f"/requests/{rid}/file")[0] == 404
+    assert other.post(f"/requests/{rid}/retry")[0] == 404
+    assert other.post(f"/requests/{rid}/cancel")[0] == 404
+    status, err = other.post(f"/batches/{row.batch_id}/generate", request_id=row.request_id, bureau_codes=["CIBIL"])
+    assert status == 400 and "Choose the validation" in err["error"]
+    assert other.get(f"/batches/{row.batch_id}/exceptions")[0] == 404
+    own = deployment("nbfc_001")
+    assert own.get(f"/requests/{rid}/file")[0] == 200  # the deployment's own request still works
+
+
+def test_the_tracker_date_filter_follows_indian_days(api, validated, engine):
+    """#35.3: a request raised at 01:30 IST on 27 November (20:00 UTC on the 26th) is a 27 November request."""
+    from datetime import datetime
+
+    from sqlalchemy import update
+
+    from app.requests.tables import submission_request
+
+    with engine.begin() as conn:
+        conn.execute(update(submission_request).values(requested_at=datetime(2026, 11, 26, 20, 0)))
+    on_27th = api.get("/batches", **{"from": "2026-11-27", "to": "2026-11-27"})[1]
+    on_26th = api.get("/batches", **{"from": "2026-11-26", "to": "2026-11-26"})[1]
+    assert on_27th["total"] > 0 and on_26th["total"] == 0
+
+
+def test_a_first_sign_in_that_loses_the_race_finds_the_user(engine):
+    """#35.2: the first page load's parallel requests: the ones that find the user already added do not fail."""
+    from app.api.auth import _add_on_first_sign_in
+
+    repo = UserRepository(engine)
+    first = repo.add("asha.k", "Asha K", "asha.k@company.in")
+    again = _add_on_first_sign_in(repo, engine, "asha.k@company.in", "Asha K", False)
+    assert again.username == first.username
+
+
+def test_a_number_zero_is_kept_as_a_custom_rule_limit():
+    """#35.4: min / max 0 sent as a number to the API was dropped (`0 or ""`)."""
+    from app.api.rules import _number_text
+
+    assert [_number_text(v) for v in (0, 0.0, "0", " 5 ", "", None)] == ["0", "0.0", "0", "5", None, None]

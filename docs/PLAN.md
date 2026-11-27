@@ -32,6 +32,9 @@ Alongside: #12 type-error baseline (tech debt), #13 decision on MOBILE digits (k
 
 ## Later (not scheduled)
 
+- Convergence step 6, client deployment repository: when a second Azure client is signed ([#101](https://github.com/rm-ramprasad/bureau-submissions-core/issues/101)).
+- Convergence step 5, our dev environment: when releases need testing outside prod ([#102](https://github.com/rm-ramprasad/bureau-submissions-core/issues/102)).
+
 Ingest and data model (lake), MFI / NeSL types, rejections and resubmissions, DQI / DQR, licensing and compiled
 releases (requirements.md §10–§18). Ruled out for now: hosted SaaS / multi-tenant.
 

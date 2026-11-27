@@ -95,7 +95,7 @@ Each step is one branch and PR (repository rule), in order. Steps 1–5 change n
 
 **Update 2026-11-26 (owner):** canonical data is **Azure SQL** on Azure and **S3 + Athena** (with Glue, DynamoDB) on AWS. Postgres and MySQL are not targets: the generated Postgres / MySQL views, `build_views` (sqlglot) and the Postgres CI container were removed. **Azure is finished first; AWS comes later.**
 
-- **Azure now:** 1, 2, 4 done (#95–#97); 3 closed with no change (below); 6, 7, 8 next. **5 deferred** (owner 2026-11-27: there is only prod; built later if needed).
+- **Azure now:** 1, 2, 4, 7, 8 done (#95–#97, #99, #100; v1.20.0 deployed 2026-11-27); 3 closed with no change. **Deferred (owner 2026-11-27), tracked in issues:** 5 until releases need testing outside prod ([#102](https://github.com/rm-ramprasad/bureau-submissions-core/issues/102)); 6 until a second Azure client ([#101](https://github.com/rm-ramprasad/bureau-submissions-core/issues/101)).
 - **AWS later:** 9, 10, and Athena SQL for the rule packs (with step 9).
 
 | # | Step | Outcome | Depends on |
@@ -105,10 +105,10 @@ Each step is one branch and PR (repository rule), in order. Steps 1–5 change n
 | 2 | **Schema as configuration**: `{schema}` in migrations, views, rule SQL; test with two schema names | `automn` only in rarfincare's config | 0 |
 | 3 | ~~Rule SQL dialect-neutral~~ **Closed, no change (2026-11-27):** Azure SQL is the only relational target, so `LEN` is correct T-SQL and the schema prefix is handled by step 2. The "three missing `ref_code_group` sub-queries" was a false alarm: the commercial and consumer packs equal the AWS copy line for line once the schema prefix and `LEN`/`LENGTH` are normalized (15 `ref_code_group` uses in each). Athena SQL for the rules comes with step 9 | — | 2 |
 | 4 | **Migrations at deploy** — owner 2026-11-27: new SQL stays run by the owner in SSMS (the app identity gets no CREATE/ALTER). Done: migrations.zip ships SSMS scripts that run all or nothing and record themselves, so the deploy needs no `mark_applied` and fails if one is missing | No typed migration list; a half-run migration is impossible | 2 |
-| 5 | **Deferred (owner 2026-11-27: only prod exists; build when needed).** **Our dev environment** (stage 2): Azure SQL free offer, dev Function App and Static Web App; deploy from a release | Releases tested before any client | 1, 4 |
-| 6 | **rarfincare deployment repository**: `client.yaml`, `client/` (their views and mappings moved out of this repository), OIDC deploy workflow, staging schema, production approval; release assets readable by the client workflow | Client-owned deploy record; product code stays here | 1, 4 (5 when it exists) |
+| 5 | **Deferred (owner 2026-11-27: only prod exists; build when needed; [#102](https://github.com/rm-ramprasad/bureau-submissions-core/issues/102)).** **Our dev environment** (stage 2): Azure SQL free offer, dev Function App and Static Web App; deploy from a release | Releases tested before any client | 1, 4 |
+| 6 | **Deferred (owner 2026-11-27) until a second Azure client; [#101](https://github.com/rm-ramprasad/bureau-submissions-core/issues/101).** **rarfincare deployment repository**: `client.yaml`, `client/` (their views and mappings moved out of this repository), OIDC deploy workflow, staging schema, production approval; release assets readable by the client workflow | Client-owned deploy record; product code stays here | 1, 4 (5 when it exists) |
 | 7 | **Done (2026-11-27):** TLV-tags-with-line-breaks golden file (our own output); Rules page shows no built-in rule logic to any client role, custom rule SQL to admins only (owner) | Nothing left only in the old repository except the LMS adapter | 0 |
-| 8 | **Pack versions** with `effective_from`, client pinning | Regulatory changes released ahead, old cycles reproducible | 3 |
+| 8 | **Done (owner 2026-11-27): pack versions, audited.** Every change to a type's rule / format files is a new version in its `CHANGES.md` (CI refuses an unversioned change); every generated file records release, pack version and checksum (migration 025) and is audited (`FILE_GENERATED`). Changes go live on the day they are deployed: no future-dated packs, no pinning, no re-runs of old cycles | Every file traceable to the logic that built it | — |
 | 9 | **AWS host (phase B)** as decided below: `shell_aws`, ports, AWS template, AWS package | First AWS client installable | 1, 3, decision A |
 | 10 | **Optional modules** as AWS clients need them, starting with `optional:lms-mapping` (the AWS repository's mapping compiler and onboarding tools, merged with ADR 0002 source adapters; `nbfc_002` golden files) | — | 9 |
 
@@ -121,7 +121,8 @@ Phase A steps in [PLAN.md](PLAN.md) continue in parallel; where they touch migra
 |---|---|---|---|
 | A | AWS data and control stores for phase B — **decided 2026-11-26: S3 + Athena (Glue) and DynamoDB; no Postgres** | (1) RDS Postgres as in PLAN.md / requirements.md: fastest, one more SQL dialect; (2) S3 / Parquet + DuckDB and DynamoDB (agreed 2026-11-26 for the partnership model): ~0 idle cost, kill switch, more work; (3) Postgres first, S3 / DuckDB later as a second data-store adapter | Step 9 |
 | B | How the client workflow gets release assets | Read-only token in the client repository; or a package feed the client can read | Step 6 |
-| C | rarfincare staging | Second schema in their database, or a separate staging database | Step 6 |
+| C | rarfincare staging | **Decided 2026-11-27: none for now** (a second schema works since step 2 if needed) | Step 6 |
+| E | Production approval | **Decided 2026-11-27: keep today's safeguards** (version typed twice, write access, `main` only, Azure trusts only that `main`); no paid GitHub plan | — |
 | D | Client deployment repository for rarfincare, or keep publishing from this repository | Deployment repository recommended once there is a second client | Step 6 |
 
 ## 7. Taken from `submission-aws-lambda` before archiving
