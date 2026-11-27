@@ -4,24 +4,31 @@
 #                       wheels installed into .python_packages (no remote build), exactly the locked versions
 #   dist/web.zip        the pages as they are: config.json and the CSP addresses are written per install at deploy
 #   dist/migrations.zip the SQL migrations (the owner runs new ones in SSMS; the deploy only records them)
-# The same steps as deploy/deploy.ps1 (the Windows fallback). Usage: deploy/build.sh [version]
+# Only the shell's packages go in (CONVERGENCE-PLAN.md section 2, control 1): the workspace packages it depends on, read
+# from the lock, never --all-packages. Check the result with deploy/check_package.py <shell> dist.
+# The same steps as deploy/deploy.ps1 (the Windows fallback). Usage: deploy/build.sh [version] [shell: azure]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 version="${1:-dev}"
+shell="${2:-azure}"
+case "$shell" in azure) ;; *) echo "unknown shell $shell (azure only for now)" >&2; exit 2 ;; esac
 rm -rf dist && mkdir -p dist/function dist/wheels
 cp deploy/function_app.py deploy/host.json dist/function/
 site=dist/function/.python_packages/lib/site-packages
-uv export --locked --no-dev --package shell-azure --no-emit-workspace --no-hashes --format requirements-txt \
+uv export --locked --no-dev --package "shell-$shell" --no-emit-workspace --no-hashes --format requirements-txt \
   -o dist/requirements-linux.txt
 uv pip install --quiet --target "$site" --python-platform x86_64-manylinux_2_28 --python-version 3.14 \
   --only-binary :all: -r dist/requirements-linux.txt
-uv build --all-packages --wheel --out-dir dist/wheels
+members=$(uv export --locked --no-dev --package "shell-$shell" --no-hashes --format requirements-txt \
+  | sed -n 's#^-e \./packages/##p')
+[ -n "$members" ] || { echo "no workspace packages found for shell-$shell" >&2; exit 1; }
+for member in $members; do uv build --quiet --package "$(echo "$member" | tr _ -)" --wheel --out-dir dist/wheels; done
 uv pip install --quiet --target "$site" --no-deps --python-platform x86_64-manylinux_2_28 --python-version 3.14 \
   dist/wheels/*.whl
 for secret in .env.sql .env local.settings.json; do
   if find dist/function -name "$secret" | grep -q .; then echo "$secret must never be packaged" >&2; exit 1; fi
 done
-echo "$version" > "$site/shell_azure/VERSION"  # reported by the migrate job: the smoke test checks it
+echo "$version" > "$site/shell_$shell/VERSION"  # reported by the migrate job: the smoke test checks it
 zipdir() {  # zipdir <folder> <zip> [glob] [excluded name]: the folder's files, paths relative to it
   python3 - "$@" <<'PY'
 import sys, zipfile
@@ -37,5 +44,5 @@ PY
 }
 zipdir dist/function dist/function.zip
 zipdir frontend dist/web.zip "**/*" config.json
-zipdir packages/canonical/src/canonical/migrations/azure dist/migrations.zip "*.sql"
+zipdir "packages/canonical/src/canonical/migrations/$shell" dist/migrations.zip "*.sql"
 ls -l dist/*.zip

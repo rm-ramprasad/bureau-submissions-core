@@ -37,7 +37,9 @@ jobs:
           uv run ruff check . && uv run ruff format --check . && uv run mypy packages && uv run lint-imports
           uv run pytest -q -m "not db and not perf"
       - name: Build
-        run: deploy/build.sh "$GITHUB_REF_NAME"
+        run: deploy/build.sh "$GITHUB_REF_NAME" azure
+      - name: Package contents (Azure parts only; fails the release)
+        run: python3 deploy/check_package.py azure dist
       - name: Release notes (new migrations first)
         run: |
           previous=$(git describe --tags --abbrev=0 "$GITHUB_REF_NAME^" 2>/dev/null || true)
