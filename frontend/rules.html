@@ -45,7 +45,10 @@
                   <div><a href="#" @click.prevent="q = r" x-text="r"></a></div></template></td>
                 <td class="mono nowrap" x-text="p.type === 'date' ? F.d(p.default) : p.default"></td>
                 <td>
-                  <template x-if="canEdit()">
+                  <div x-show="r.locked" title="A check the bureau needs: it cannot be switched off or changed">
+                    <span aria-hidden="true">🔒</span> <span x-text="'On · ' + LABELS[r.outcome]"></span>
+                    <div class="hint">Required by the bureau</div></div>
+                  <template x-if="canEdit() && !r.locked">
                     <div>
                       <form class="rule-form" @submit.prevent="saveParameter(p, value, reason)">
                         <template x-if="p.type === 'date'"><input type="date" x-model="value" required></template>
@@ -208,6 +211,8 @@
                 <td class="mono"><span x-text="r.rule_id"></span>
                   <div class="hint" x-text="[r.segment, r.field].filter(Boolean).join(' · ') + ' · ' + r.kind_label"></div></td>
                 <td><span x-text="r.message"></span>
+                  <div class="hint" x-show="r.latest_findings !== null && r.latest_findings !== undefined"
+                    x-text="`${F.num(r.latest_findings)} finding(s) in the latest validation (${data.latest_validation?.as_of_date || ''})`"></div>
                   <details x-show="r.sql || r.python"><summary class="hint" x-text="r.sql ? 'SQL' : 'Python check'"></summary>
                     <pre class="sql" x-show="r.sql" x-text="r.sql"></pre>
                     <p class="hint mono" x-show="r.python" x-text="'submissions/validation/python_rules.py · ' + r.python"></p></details></td>
@@ -229,7 +234,7 @@
                         <button class="linkish" @click="post(`/rules/${encodeURIComponent(r.rule_id)}/reset`)">reset to default</button></div>
                     </div>
                   </template>
-                  <span x-show="!canEdit()" x-text="(r.enabled ? 'On' : 'Off') + ' · ' + LABELS[r.outcome]"></span>
+                  <span x-show="!canEdit() && !r.locked" x-text="(r.enabled ? 'On' : 'Off') + ' · ' + LABELS[r.outcome]"></span>
                   <div class="hint" x-show="!canEdit() && r.changed">Changed <span x-text="F.dt(r.policy?.updated_at)"></span> ·
                     <a :href="'audit.html?target=' + encodeURIComponent(r.rule_id)">history</a></div>
                 </td>
