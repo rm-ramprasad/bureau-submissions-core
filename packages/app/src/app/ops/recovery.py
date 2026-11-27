@@ -42,7 +42,7 @@ def recover(
     engine: Engine,
     requests: RequestRepository,
     snapshots: SnapshotRepository,
-    settings: RecoverySettings = RecoverySettings(),  # noqa: B008 (frozen: safe to share)
+    settings: RecoverySettings = RecoverySettings(),
     clock: Callable[[], datetime] = utcnow,
 ) -> RecoveryResult:
     now, result = clock(), RecoveryResult()

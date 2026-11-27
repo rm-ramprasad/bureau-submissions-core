@@ -24,7 +24,7 @@ SOURCE = ROOT / "azure" / "views"
 OVERRIDES = ROOT / "views-overrides"
 DIALECTS = {"postgres": "postgres", "mysql": "mysql"}  # output folder -> SQLGlot dialect
 FUNCTIONS_FILE = "00_functions.sql"
-SQLGLOT_VERSION = "26.16.0"
+SQLGLOT_VERSION = "30.33.0"
 
 # Forms that translate to wrong SQL without an error (feasibility check, 2026-11-02), and what to write instead.
 FORBIDDEN = [
