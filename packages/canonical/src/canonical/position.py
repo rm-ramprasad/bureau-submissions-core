@@ -17,7 +17,7 @@ from typing import Any
 
 from sqlalchemy import BigInteger, Column, Engine, ForeignKey, Index, Integer, Table, Unicode, inspect, text
 
-from canonical.db import SCHEMA, metadata
+from canonical.db import SCHEMA, metadata, schema_name
 
 VIEW = "vw_pos_account_position"
 KEY, AMOUNT, NUMBER, CODE, DATE, ID = "key", "amount", "number", "code", "date", "id"
@@ -95,7 +95,7 @@ stg_lms_position = Table(
 
 def check_view(engine: Engine, view: str = VIEW) -> list[str]:
     """Differences between a position view's columns and the contract (names and order). Empty when it keeps it."""
-    got = [c["name"].lower() for c in inspect(engine).get_columns(view, schema=SCHEMA)]
+    got = [c["name"].lower() for c in inspect(engine).get_columns(view, schema=schema_name(engine))]
     want = list(POSITION_COLUMNS)
     problems = [f"{view}: missing column {c}" for c in want if c not in got]
     problems += [f"{view}: column {c} is not in the contract" for c in got if c not in want]

@@ -51,6 +51,10 @@ jobs:
       - run: uv sync --locked
       # Workbook tests skip here (workbooks are local only); db tests run in the Database job.
       - run: uv run pytest -m "not db and not perf" --cov --cov-report=term --cov-report=xml
+      - name: Unit tests with another schema name (the schema is configuration; automn is only the token)
+        run: uv run pytest -m "not db and not perf" -p no:cacheprovider
+        env:
+          BSC_SCHEMA: bsc
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -95,12 +99,18 @@ jobs:
           done
           exit 1
       - run: uv run pytest -m db -v -p no:cacheprovider --junitxml=db-results.xml
+      - name: Database tests with another schema name (frozen migrations and T-SQL views under schema bsc)
+        run: uv run pytest -m db -v -p no:cacheprovider --junitxml=db-results-bsc.xml
+        env:
+          BSC_SCHEMA: bsc
       - name: Failures as annotations
         if: failure()
         run: |
           python3 - <<'PY'
           import xml.etree.ElementTree as ET
-          for case in ET.parse("db-results.xml").iter("testcase"):
+          import os
+          cases = [c for f in ("db-results.xml", "db-results-bsc.xml") if os.path.exists(f) for c in ET.parse(f).iter("testcase")]
+          for case in cases:
               for bad in list(case.findall("failure")) + list(case.findall("error")):
                   text = (bad.get("message") or "") + " " + (bad.text or "")[-1500:]
                   text = text.replace("%", "%25").replace("\r", "").replace("\n", "%0A")

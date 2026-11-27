@@ -11,7 +11,7 @@ from sqlalchemy import Engine, Table, inspect
 
 import canonical.position
 import canonical.staging.tables  # noqa: F401  (registers all app tables)
-from canonical.db import SCHEMA
+from canonical.db import SCHEMA, schema_name
 from canonical.lms_cr import SOURCES, STAND_INS
 from canonical.migrate import AZURE_MIGRATIONS, apply_migrations, apply_views, run_batch
 from canonical.reference import seed as seed_reference
@@ -94,7 +94,7 @@ def prepare_mssql(engine: Engine) -> None:
     """SQL Server as on rarfincare: the baseline (as the administrator runs it), migrations 002-006, the reference
     data, the stand-in LMS tables, then the views (labels.sql fills the labels, so it runs after the seed)."""
     _schemas(engine)
-    if "schema_migration" not in inspect(engine).get_table_names(schema=SCHEMA):
+    if "schema_migration" not in inspect(engine).get_table_names(schema=schema_name(engine)):
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             run_batch(conn, (AZURE_MIGRATIONS / "001_baseline.sql").read_text("utf-8"))
     apply_migrations(engine)
@@ -124,14 +124,14 @@ def schema_drift(
     """Differences between SQLAlchemy tables and the migrated database: a missing table or column, another type
     family, another length. Empty when they agree."""
     live = inspect(engine)
-    names = set(live.get_table_names(schema=SCHEMA))
+    names = set(live.get_table_names(schema=schema_name(engine)))
     problems = []
     for table in tables:
         if table.name not in names:
             if table.name not in not_yet_migrated:
                 problems.append(f"{table.name}: not created by the migrations")
             continue
-        cols = {c["name"]: c for c in live.get_columns(table.name, schema=SCHEMA)}
+        cols = {c["name"]: c for c in live.get_columns(table.name, schema=schema_name(engine))}
         for col in table.columns:
             got = cols.get(col.name)
             if got is None:

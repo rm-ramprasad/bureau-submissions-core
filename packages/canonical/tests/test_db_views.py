@@ -23,7 +23,7 @@ import canonical.master.tables
 import canonical.position
 import canonical.staging.loads
 import canonical.staging.tables  # noqa: F401  (registers all app tables)
-from canonical.db import SCHEMA, make_engine, metadata
+from canonical.db import SCHEMA, make_engine, metadata, schema_name
 from canonical.migrate import AZURE_MIGRATIONS, apply_migrations, apply_views, pending_migrations
 from canonical.testing_db import prepare_mssql, schema_drift
 
@@ -40,7 +40,7 @@ def _engine(var: str) -> Engine:
 
 
 def _views(engine: Engine) -> list[str]:
-    return sorted(v for v in inspect(engine).get_view_names(schema=SCHEMA) if v.startswith("vw_"))
+    return sorted(v for v in inspect(engine).get_view_names(schema=schema_name(engine)) if v.startswith("vw_"))
 
 
 @pytest.fixture(scope="module")

@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import inspect, select
 from sqlalchemy.exc import IntegrityError
 
-from canonical.db import make_engine, metadata
+from canonical.db import make_engine, metadata, schema_name
 from canonical.master.tables import (
     MASTER_TABLES,
     dm_sanction,
@@ -74,7 +74,7 @@ def test_sanction_account_round_trip(eng) -> None:
         s = conn.execute(select(dm_sanction)).one()
     assert (a.is_active, a.sanctioned_amount, a.sanction_id) == (True, Decimal("1000.50"), s.sanction_id)
     assert s.is_active and s.full_name is None
-    assert "dm_change_log" in inspect(eng).get_table_names(schema="automn")
+    assert "dm_change_log" in inspect(eng).get_table_names(schema=schema_name(eng))
 
 
 def test_sanction_reference_and_account_are_unique_per_tenant(eng) -> None:
