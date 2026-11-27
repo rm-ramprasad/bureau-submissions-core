@@ -30,10 +30,15 @@ uv sync                                   # Python 3.14, all packages editable, 
 uv run pytest --cov                       # tests + coverage gate
 uv run ruff check . && uv run ruff format --check . && uv run mypy packages && uv run lint-imports
 REGENERATE_GOLDEN=1 uv run pytest packages/bureau_core   # only for an intended, reviewed output change
-BSC_WORKBOOK_DIR=/workspace/submission-azure-functionapp/input-templates uv run pytest -m workbook
+BSC_WORKBOOK_DIR=/workspace/test-workbooks uv run pytest -m workbook
 ```
 
 ## Reference code
 
-`/workspace/submission-azure-functionapp/` is the previous app (read only): code is ported from it package by
-package. Its `CLAUDE.md` and `docs/` hold the domain rules (cycles, workbook handling, views, file formats).
+The previous app (`submission-azure-functionapp`, never in git) was retired on 2026-11-26. Its backup is the owner's
+OneDrive zip `submission-azure-functionapp-archive-2026-11-26.zip` (no secrets): its `CLAUDE.md` and `docs/` hold
+the domain rules (cycles, workbook handling, views, file formats), plus the unported `infra/` Bicep, `clients/` YAML
+and `mock_data/`. Ask the owner for it; do not recreate the folder.
+
+The test workbooks hold real client data: they live outside every repository in `/workspace/test-workbooks/` and are
+never committed.
