@@ -67,6 +67,13 @@ def make_engine(
     return engine
 
 
+def map_schema_sql(bind: Any, sql: str) -> str:
+    """The statement text with the token `automn` replaced by the bind's schema. For code that runs SQL on the raw
+    driver cursor (migrate.run_batch), which the engine's statement hook does not see."""
+    name = schema_name(bind)
+    return sql if name == SCHEMA else _TOKEN.sub(name, sql)
+
+
 def _map_schema(engine: Engine, name: str) -> None:
     """Replace the word `automn` with the configured name in every statement's text (hand-written SQL, rule SQL,
     migrations, views). Table objects go through schema_translate_map; this covers the rest."""

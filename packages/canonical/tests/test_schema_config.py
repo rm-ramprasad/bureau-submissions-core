@@ -70,3 +70,15 @@ def test_schema_names_must_be_plain_identifiers(bad: str, monkeypatch: pytest.Mo
         return
     with pytest.raises(ValueError, match="schema name"):
         configured_schema(bad)
+
+
+def test_sql_for_the_raw_cursor_is_mapped_too() -> None:
+    """migrate.run_batch runs migrations and views on the raw driver cursor, which the engine's hook does not see."""
+    from canonical.db import map_schema_sql
+
+    sql = "CREATE TABLE [automn].app_user (id INT);\nINSERT INTO automn.schema_migration VALUES ('automnal')"
+    assert map_schema_sql(make_engine("sqlite://", schema="automn"), sql) == sql
+    with make_engine("sqlite://", schema="bsc").connect() as conn:
+        assert map_schema_sql(conn, sql) == (
+            "CREATE TABLE [bsc].app_user (id INT);\nINSERT INTO bsc.schema_migration VALUES ('automnal')"
+        )

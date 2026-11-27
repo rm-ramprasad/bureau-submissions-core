@@ -20,7 +20,7 @@ from pathlib import Path
 
 from sqlalchemy import Column, Connection, DateTime, Engine, MetaData, String, Table, insert, select, text
 
-from canonical.db import SCHEMA, utcnow
+from canonical.db import SCHEMA, map_schema_sql, utcnow
 
 log = logging.getLogger(__name__)
 
@@ -141,7 +141,7 @@ def run_batch(conn: Connection, sql: str) -> None:
     cursor = conn.connection.driver_connection.cursor()  # type: ignore[union-attr]
     try:
         cursor.execute("SET NOCOUNT ON")  # its own statement: CREATE VIEW / FUNCTION must start their batch
-        cursor.execute(sql)
+        cursor.execute(map_schema_sql(conn, sql))  # the raw cursor bypasses the engine's schema hook
         while cursor.nextset():
             pass
     finally:
