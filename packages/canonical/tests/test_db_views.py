@@ -240,9 +240,9 @@ def test_the_ssms_scripts_run_once_all_or_nothing_and_record_themselves(mssql_mi
 
     def run(path) -> Exception | None:
         try:
-            with mssql_migrated.connect() as conn:
+            # autocommit, as SSMS runs a script: the script's own BEGIN/COMMIT is the only transaction
+            with mssql_migrated.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
                 run_batch(conn, ssms_script(path))
-                conn.commit()
         except Exception as exc:
             return exc
         return None
