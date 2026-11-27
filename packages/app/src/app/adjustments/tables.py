@@ -21,7 +21,7 @@ from sqlalchemy import (
 
 import canonical.schema
 import canonical.tenants.tables  # noqa: F401
-from canonical.db import metadata
+from canonical.db import metadata, schema_name
 
 _PK = BigInteger().with_variant(Integer(), "sqlite")
 
@@ -97,7 +97,7 @@ FROM automn.snapshot_adjustment x"""
 
 # metadata.create_all (test databases) creates the view too; Azure SQL gets it from migrations/azure/001_baseline.sql
 def _view_missing(ddl, target, bind, **kw) -> bool:  # create_all may run again on the same database
-    return "v_snapshot_adjustment" not in inspect(bind).get_view_names(schema="automn")
+    return "v_snapshot_adjustment" not in inspect(bind).get_view_names(schema=schema_name(bind))
 
 
 event.listen(metadata, "after_create", DDL(ADJUSTMENT_VIEW_SQL).execute_if(callable_=_view_missing))  # type: ignore[arg-type]
