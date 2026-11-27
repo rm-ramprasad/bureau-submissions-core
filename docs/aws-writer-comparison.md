@@ -46,12 +46,16 @@ Counts below are the lines that still differ.
 
 ## Rule SQL dialect (blocker for AWS)
 
+> **Update 2026-11-27:** Azure SQL only on Azure; AWS uses S3 + Athena, so the rule packs get Athena SQL with
+> CONVERGENCE-PLAN.md step 9. No Postgres / DuckDB transpiling.
+
 The rule packs here are written for SQL Server:
 
 - every table is written `automn.c_party`, `automn.c_account` … (the AWS copy: `c_party`);
 - `LEN(...)` instead of `LENGTH(...)`;
-- the commercial pack drops three `ref_code_group` sub-queries that the AWS copy has (check whether this is
-  intended or a gap: `entity_related_type` / `individual_related_type`).
+- ~~the commercial pack drops three `ref_code_group` sub-queries~~ **Checked 2026-11-27: no gap.** The commercial
+  and consumer packs equal the AWS copy line for line once `automn.` and `LEN`/`LENGTH` are normalized; both have
+  15 `ref_code_group` uses, including `entity_related_type` / `individual_related_type`.
 
 The source views already solve this for the views (T-SQL is the source, Postgres / MySQL copies are generated with
 SQLGlot, `tests/test_views_build.py`). The rule packs need the same: either write the rule SQL once in a neutral
