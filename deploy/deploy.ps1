@@ -63,9 +63,13 @@ if (-not $WebOnly) {
     Check "uv export"
     uv pip install --quiet --target $site --python-platform x86_64-manylinux_2_28 --python-version 3.14 --only-binary :all: -r $req
     Check "uv pip install (Linux wheels)"
-    # the workspace packages (bureau_core, canonical, sources, clientconfig, app, shell_azure): pure Python wheels
+    # the workspace packages shell_azure depends on (from the lock, never --all-packages; as deploy/build.sh)
     $wheels = Join-Path $Dist "wheels"
-    uv build --all-packages --wheel --out-dir $wheels; Check "uv build"
+    $members = uv export --locked --no-dev --package shell-azure --no-hashes --format requirements-txt |
+        Where-Object { $_ -match '^-e \./packages/(.+)$' } | ForEach-Object { $Matches[1] -replace '_', '-' }
+    Check "uv export (workspace packages)"
+    if (-not $members) { throw "no workspace packages found for shell-azure" }
+    foreach ($member in $members) { uv build --quiet --package $member --wheel --out-dir $wheels; Check "uv build $member" }
     uv pip install --quiet --target $site --no-deps --python-platform x86_64-manylinux_2_28 --python-version 3.14 (Get-ChildItem $wheels -Filter *.whl).FullName
     Check "uv pip install (workspace wheels)"
     foreach ($secret in ".env.sql", ".env", "local.settings.json") {
