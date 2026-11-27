@@ -96,6 +96,22 @@ def test_consumer_direct_tudf(code: BureauCode) -> None:
     check(f"nbfc_001_{code.value.lower()}.txt", got)
 
 
+def test_consumer_tlv_tags_and_a_line_break_between_records() -> None:
+    """Encoding variant a bureau may ask for (spec section 14 #16): PN03N01 tags and one record per line."""
+    batch, result = load("consumer_nbfc_001")
+    layout = load_layout(type_definition(SubmissionType.CONSUMER).path("layout.yaml"))
+    variant = layout.with_encoding(segment_tag_style="tlv", record_separator="\n")
+    got, _ = tudf.render_file(
+        snapshot_data(batch, result, _children(layout)),
+        AS_OF,
+        consumer_profile(BureauCode.CIBIL),
+        ReportingCycle.MONTH_END,
+        variant,
+        result.translations,
+    )
+    check("nbfc_001_cibil_tlv_newline.txt", got)
+
+
 @pytest.mark.parametrize("code", list(BureauCode))
 def test_consumer_via_bureau_excel(code: BureauCode) -> None:
     batch, result = load("consumer_nbfc_001")

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from flask import jsonify
+from flask import g, jsonify
 
 from app import audit
 from app.api.auth import admin_only, current_user
@@ -49,7 +49,14 @@ def _rules_type() -> SubmissionType:
     return sub_type
 
 
-def _rule_json(rule, values) -> dict:
+def _shows_logic(rule, is_admin: bool) -> bool:
+    """Rule logic on the Rules page (owner, 2026-11-27): the built-in rules' SQL / Python is the product's and is shown
+    to nobody; a custom rule's SQL is the client's own and is shown to its administrators."""
+    return rule.source == "CUSTOM" and is_admin
+
+
+def _rule_json(rule, values, is_admin: bool = False) -> dict:
+    shows = _shows_logic(rule, is_admin)
     return {
         "rule_id": rule.rule_id,
         "source": rule.source,
@@ -60,8 +67,8 @@ def _rule_json(rule, values) -> dict:
         "enabled": rule.enabled,
         "kind": rule.kind,
         "message": render_message(rule.message, values),
-        "sql": rule.sql,
-        "python": rule.python,
+        "sql": rule.sql if shows else None,
+        "python": rule.python if shows else None,
     }
 
 
@@ -80,7 +87,7 @@ def rules_page():
         submission_type=sub_type,
         rules=[
             {
-                **_rule_json(e.effective, values),
+                **_rule_json(e.effective, values, is_admin=bool(g.identity.is_admin)),
                 "kind_label": _rule_kind(e.default, custom_defs),
                 "default": {"enabled": e.default.enabled, "outcome": e.default.outcome},
                 "changed": e.changed,
