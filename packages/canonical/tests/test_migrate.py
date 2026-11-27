@@ -40,6 +40,7 @@ MIGRATIONS = [
     "023_position_terms",
     "024_lms_cr_procedures",
     "025_out_file_versions",
+    "026_input_check_policy",
 ]
 
 

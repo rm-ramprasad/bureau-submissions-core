@@ -136,3 +136,47 @@ def test_the_document_schema():
     with pytest.raises(ConfigDocumentError, match="more"):
         validate(many)
     assert changes(None, {"tenant_id": "a", "x": [1]}) == ["tenant_id", "x"]
+
+
+def test_upload_check_settings_on_the_page_in_the_audit_and_in_exports(api, engine):
+    """#19 part 2: admins switch upload checks off or change their severity; locked ones refuse; exported and imported."""
+    from canonical.staging import check_policy
+
+    page = api.get("/rules/input-checks", type="CONSUMER")[1]
+    by_id = {c["check_id"]: c for c in page["checks"]}
+    assert by_id["REQUIRED"]["locked"] and not by_id["PAN_FORMAT"]["locked"]
+    assert by_id["PAN_FORMAT"]["default"] == {"enabled": True, "severity": "warn"}
+
+    status, err = api.post("/rules/input-checks/REQUIRED", type="CONSUMER", enabled=False, reason="r")
+    assert status == 409 and "bureau file needs" in err["error"]
+    assert api.post("/rules/input-checks/NOPE", type="CONSUMER", enabled=False, reason="r")[0] == 404
+    status, err = api.post("/rules/input-checks/PAN_FORMAT", type="CONSUMER", enabled=True, severity="block")
+    assert status == 400 and "reason" in err["error"]
+    status, out = api.post("/rules/input-checks/PAN_FORMAT", type="CONSUMER", enabled=True, severity="block",
+                           reason="PAN is mandatory for us")  # fmt: skip
+    assert status == 200 and "block" in out["message"]
+    pan = next(c for c in api.get("/rules/input-checks", type="CONSUMER")[1]["checks"] if c["check_id"] == "PAN_FORMAT")
+    assert pan["changed"] and pan["severity"] == "block" and pan["policy"]["reason"] == "PAN is mandatory for us"
+
+    doc = store.document(engine, "nbfc_001")
+    validate(doc)
+    assert doc["input_checks"] == {"CONSUMER": {"PAN_FORMAT": {"is_enabled": None, "severity": "block"}}}
+    other = api.__class__(api.client, "nbfc_002")
+    assert other.post("/config/import", document=doc, reason="copy")[0] == 200
+    assert check_policy.policies(engine, "nbfc_002", "CONSUMER")["PAN_FORMAT"]["severity"] == "block"
+
+    bad = json.loads(json.dumps(doc, default=str))
+    bad["input_checks"] = {"CONSUMER": {"REQUIRED": {"is_enabled": False, "severity": None},
+                                        "NOPE": {"is_enabled": False, "severity": None}}}  # fmt: skip
+    status, err = other.post("/config/import", document=bad, reason="r")
+    assert status == 400 and "REQUIRED: locked" in err["error"] and "NOPE: no such check" in err["error"]
+
+    assert api.post("/rules/input-checks/PAN_FORMAT/reset", type="CONSUMER", reason="back")[0] == 200
+    assert check_policy.policies(engine, "nbfc_001", "CONSUMER") == {}
+    with engine.connect() as conn:
+        from sqlalchemy import select
+
+        from app.audit import audit_event
+
+        acts = list(conn.execute(select(audit_event.c.action)).scalars())
+    assert "INPUT_CHECK_CHANGED" in acts and "INPUT_CHECK_RESET" in acts

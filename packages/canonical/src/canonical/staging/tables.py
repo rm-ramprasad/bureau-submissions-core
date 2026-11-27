@@ -3,7 +3,7 @@ the load header (input_load) and what the loader reported (input_issue)."""
 
 from __future__ import annotations
 
-from sqlalchemy import BigInteger, Column, Date, DateTime, ForeignKey, Index, Integer, String, Table, Unicode
+from sqlalchemy import BigInteger, Boolean, Column, Date, DateTime, ForeignKey, Index, Integer, String, Table, Unicode
 
 from canonical.db import SCHEMA, metadata
 from canonical.staging.spec import VALUE_LENGTH, WorkbookSpec, available_specs, load_spec
@@ -84,3 +84,18 @@ def staging_tables(spec: WorkbookSpec) -> dict[str, Table]:
 
 
 STAGING_TABLES: dict[str, dict[str, Table]] = {t: staging_tables(load_spec(t)) for t in available_specs()}
+
+
+# An NBFC's settings for the upload checks (migration 026; canonical.staging.check_policy)
+input_check_policy = Table(
+    "input_check_policy",
+    metadata,
+    Column("tenant_id", String(30), primary_key=True),
+    Column("submission_type", String(20), primary_key=True),
+    Column("check_id", String(60), primary_key=True),
+    Column("is_enabled", Boolean),  # NULL: the check's own (on)
+    Column("severity", String(10)),  # NULL: the check's own
+    Column("reason", Unicode(500), nullable=False),
+    Column("updated_by", String(100), nullable=False),
+    Column("updated_at", DateTime, nullable=False),
+)
