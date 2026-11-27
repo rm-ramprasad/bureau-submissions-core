@@ -102,7 +102,16 @@ def run_stages(name: str, records: int, out_dir: Path, *, progress: Callable[[st
     from canonical.db import make_engine
 
     engine = make_engine(f"sqlite:///{out_dir / 'perf.db'}")  # on disk, as the real database is not in the app
+    # every app table module, as test_db_app_tables.py: the pipeline imports some lazily, after create_all
     import app.adjustments.tables
+    import app.audit
+    import app.bureaus.tables
+    import app.configstore
+    import app.configstore.settings
+    import app.outputfiles
+    import app.reconciliation
+    import app.requests.tables
+    import app.users
     import app.validation.tables  # noqa: F401
 
     metadata.create_all(engine)
