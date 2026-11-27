@@ -148,3 +148,63 @@ def run_batch(conn: Connection, sql: str) -> None:
         # back to the default: the pooled connection is reused, and the app reads UPDATE row counts
         cursor.execute("SET NOCOUNT OFF")
         cursor.close()
+
+
+# ------------------------------------------------------------------ SSMS copies for the release (owner, 2026-11-27)
+# New migrations stay run by hand in SSMS (the app identity has no CREATE/ALTER). The release ships each file wrapped
+# so that it runs as one transaction and records itself in schema_migration: the deploy then finds nothing pending and
+# needs no mark_applied. The source files are never changed (frozen); 001_baseline already records itself.
+
+BASELINE = "001_baseline"
+
+
+def ssms_script(path: Path) -> str:
+    """The migration file as the owner runs it in SSMS: refuses to run twice, all or nothing, records itself."""
+    sql = path.read_text(encoding="utf-8")
+    if path.stem == BASELINE:
+        return sql
+    v = path.stem
+    if not re.fullmatch(r"\d{3}_[a-z0-9_]+", v):  # the version is written into the SQL below
+        raise ValueError(f"migration file name {path.name!r}: NNN_lowercase_words.sql")
+    # S608: fixed text; the version is checked above and the file is ours
+    return (
+        f"-- {v}: run in SSMS with the admin login, as one script (F5). It records itself in "  # noqa: S608
+        f"{SCHEMA}.schema_migration,\n"
+        "-- so the deploy needs no mark_applied. All or nothing: on any error nothing is kept. Run twice: it stops.\n"
+        "SET XACT_ABORT ON;\n"
+        f"IF EXISTS (SELECT 1 FROM {SCHEMA}.schema_migration WHERE version = N'{v}')\n"
+        f"    THROW 50001, N'{v} is already applied: nothing done', 1;\n"
+        "BEGIN TRANSACTION;\n"
+        "-- ---------------------------------------------------------------- the migration file, unchanged\n"
+        f"{sql.rstrip()}\n"
+        "-- ---------------------------------------------------------------- end of the migration file\n"
+        f"INSERT INTO {SCHEMA}.schema_migration (version, applied_at) VALUES (N'{v}', SYSUTCDATETIME());\n"
+        "COMMIT;\n"
+        f"PRINT N'{v} applied and recorded';\n"
+    )
+
+
+def write_ssms_scripts(out_dir: Path, migrations_dir: Path = AZURE_MIGRATIONS) -> list[Path]:
+    """Write the SSMS copy of every migration into out_dir (the release's migrations.zip)."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written = []
+    for path in sorted(migrations_dir.glob("*.sql")):
+        target = out_dir / path.name
+        target.write_text(ssms_script(path), encoding="utf-8")
+        written.append(target)
+    return written
+
+
+def main_ssms(args: list[str]) -> int:
+    """deploy/build.sh: python -m canonical.migrate ssms <out dir>"""
+    if len(args) != 2 or args[0] != "ssms":
+        print("usage: python -m canonical.migrate ssms <out dir>")
+        return 2
+    print(f"{len(write_ssms_scripts(Path(args[1])))} SSMS migration scripts written to {args[1]}")
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(main_ssms(sys.argv[1:]))

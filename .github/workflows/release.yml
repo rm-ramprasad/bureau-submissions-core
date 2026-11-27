@@ -51,10 +51,11 @@ jobs:
             elif [ -n "$new" ]; then
               echo "## New migrations: run in SSMS before deploying"
               echo
-              echo "Run each file in rarfinmisdb (admin login), then deploy this release with **mark_applied** set to:"
+              echo "Run each file below from this release's **migrations.zip** in rarfinmisdb (admin login), in order."
+              echo "Each runs all or nothing and records itself, so deploy with **mark_applied** left empty:"
               echo
               echo '```'
-              echo "$new" | paste -sd, -
+              echo "$new"
               echo '```'
             else
               echo "No new migrations."

@@ -3,7 +3,7 @@
 #   dist/function.zip   the Function App package: function_app.py, host.json and every package as Linux / Python 3.14
 #                       wheels installed into .python_packages (no remote build), exactly the locked versions
 #   dist/web.zip        the pages as they are: config.json and the CSP addresses are written per install at deploy
-#   dist/migrations.zip the SQL migrations (the owner runs new ones in SSMS; the deploy only records them)
+#   dist/migrations.zip the SQL migrations as SSMS scripts (the owner runs new ones; each records itself)
 # Only the shell's packages go in (CONVERGENCE-PLAN.md section 2, control 1): the workspace packages it depends on, read
 # from the lock, never --all-packages. Check the result with deploy/check_package.py <shell> dist.
 # The same steps as deploy/deploy.ps1 (the Windows fallback). Usage: deploy/build.sh [version] [shell: azure]
@@ -44,5 +44,7 @@ PY
 }
 zipdir dist/function dist/function.zip
 zipdir frontend dist/web.zip "**/*" config.json
-zipdir "packages/canonical/src/canonical/migrations/$shell" dist/migrations.zip "*.sql"
+# the migrations as the owner runs them in SSMS: each wrapped to run all or nothing and record itself (no mark_applied)
+uv run --no-sync python -m canonical.migrate ssms dist/migrations
+zipdir dist/migrations dist/migrations.zip "*.sql"
 ls -l dist/*.zip

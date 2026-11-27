@@ -232,3 +232,44 @@ def test_the_lms_procedures_feed_the_position_view(mssql_migrated: Engine) -> No
     with engine.connect() as conn:
         reasons = conn.execute(select(lms_cr_consumer.c.SelectionReason)).scalars().all()
     assert reasons == (["stand-in"] if engine.dialect.name == "mssql" else [None])
+
+
+def test_the_ssms_scripts_run_once_all_or_nothing_and_record_themselves(mssql_migrated: Engine, tmp_path) -> None:
+    """The release's migrations.zip files (canonical.migrate.ssms_script) as the owner runs them in SSMS: one batch."""
+    from canonical.migrate import run_batch, ssms_script
+
+    def run(path) -> Exception | None:
+        try:
+            # autocommit, as SSMS runs a script: the script's own BEGIN/COMMIT is the only transaction
+            with mssql_migrated.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+                run_batch(conn, ssms_script(path))
+        except Exception as exc:
+            return exc
+        return None
+
+    def recorded(version: str) -> bool:
+        with mssql_migrated.connect() as conn:
+            sql = text("SELECT COUNT(*) FROM automn.schema_migration WHERE version = :v")
+            return conn.execute(sql, {"v": version}).scalar() == 1
+
+    def exists(table: str) -> bool:
+        with mssql_migrated.connect() as conn:
+            return conn.execute(text(f"SELECT OBJECT_ID('automn.{table}')")).scalar() is not None
+
+    latest = sorted(AZURE_MIGRATIONS.glob("*.sql"))[-1]
+    assert "already applied" in str(run(latest))  # applied by the fixture: stops, changes nothing
+
+    good = tmp_path / "998_ssms_probe.sql"
+    good.write_text("CREATE TABLE automn.t_ssms_probe (id INT NOT NULL);\n", encoding="utf-8")
+    assert run(good) is None
+    assert exists("t_ssms_probe") and recorded("998_ssms_probe")
+    assert "already applied" in str(run(good))
+
+    bad = tmp_path / "999_ssms_fails.sql"
+    bad.write_text("CREATE TABLE automn.t_ssms_half (id INT);\nSELECT 1 / 0;\n", encoding="utf-8")
+    assert run(bad) is not None
+    assert not exists("t_ssms_half") and not recorded("999_ssms_fails")  # all or nothing
+
+    with mssql_migrated.begin() as conn:  # leave the database as the other tests expect it
+        conn.execute(text("DROP TABLE automn.t_ssms_probe"))
+        conn.execute(text("DELETE FROM automn.schema_migration WHERE version = '998_ssms_probe'"))
