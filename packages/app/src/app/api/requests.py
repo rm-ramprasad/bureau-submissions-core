@@ -165,6 +165,8 @@ def generate_from_validation(batch_id: str):
         source = s.requests.get(int(b["request_id"]))
     except KeyError, TypeError, ValueError, RequestNotFoundError:
         fail("Choose the validation to generate from")
+    if s.tenant and source.tenant_id != s.tenant:
+        fail("Choose the validation to generate from")  # another NBFC's request: as if it did not exist (#35)
     if source.batch_id != batch_id or source.run_mode is not RunMode.VALIDATE or source.snapshot_id is None:
         fail("That is not a validation of this request")
     bureaus = b.get("bureau_codes") or []
@@ -217,10 +219,22 @@ def generate_from_validation(batch_id: str):
     return message("File generation queued from the validated snapshot.", 201, batch_id=new_batch)
 
 
-def _row_action(request_id: int, action: str):
+def _own_request(request_id: int):
+    """The request, or 404 when it does not exist or belongs to another NBFC than the deployment's (#35)."""
     s = svc()
     try:
         req = s.requests.get(request_id)
+    except RequestNotFoundError:
+        fail(f"No request {request_id}", 404)
+    if s.tenant and req.tenant_id != s.tenant:
+        fail(f"No request {request_id}", 404)
+    return req
+
+
+def _row_action(request_id: int, action: str):
+    s = svc()
+    req = _own_request(request_id)
+    try:
         getattr(s.requests, action)(request_id)
     except RequestNotFoundError:
         fail(f"No request {request_id}", 404)
@@ -346,10 +360,7 @@ def download(request_id: int, kind: str):
     s = svc()
     if kind not in DOWNLOADS:
         fail("Unknown download", 404)
-    try:
-        req = s.requests.get(request_id)
-    except RequestNotFoundError:
-        fail(f"No request {request_id}", 404)
+    req = _own_request(request_id)
     uri = getattr(req, DOWNLOADS[kind])
     allowed = (RequestStatus.SUCCEEDED, RequestStatus.FAILED) if kind == "review" else (RequestStatus.SUCCEEDED,)
     if req.status not in allowed or not uri:

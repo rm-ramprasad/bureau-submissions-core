@@ -37,9 +37,10 @@ from typing import Any, NoReturn, cast
 
 import jwt
 from flask import abort, current_app, g, request
+from sqlalchemy.exc import IntegrityError
 
 from app import audit
-from app.users import UserRepository
+from app.users import UserError, UserRepository
 
 LOGIN = "https://login.microsoftonline.com"
 
@@ -93,6 +94,28 @@ class Groups:
     @property
     def enabled(self) -> bool:
         return bool(self.user or self.admin)
+
+
+def _add_on_first_sign_in(repo: UserRepository, engine, email: str, name: str, is_admin: bool):
+    """A new group member's first page load sends several requests at once, and each may try to add the user. The
+    first one wins; the others find the user it added instead of failing (#35)."""
+    try:
+        user = repo.add(_new_username(repo, email), name, email, is_admin=is_admin)
+    except UserError, IntegrityError:
+        existing = repo.find_by_email(email)
+        if existing is None:
+            raise
+        return existing
+    audit.record(
+        engine,
+        "sign-in",
+        "USER_ADDED",
+        target=user.username,
+        email=email,
+        reason="member of the sign-in group",
+        ip=request.remote_addr,
+    )
+    return user
 
 
 def current_user() -> str:
@@ -202,16 +225,7 @@ def identify(config: OidcConfig | None, groups: Groups = Groups()) -> Identity:
                 if not email:
                     _deny(engine, email, claims, "no e-mail in the token")
                 name = (claims.get("name") or email.split("@")[0]).strip()
-                user = repo.add(_new_username(repo, email), name, email, is_admin=is_admin)
-                audit.record(
-                    engine,
-                    "sign-in",
-                    "USER_ADDED",
-                    target=user.username,
-                    email=email,
-                    reason="member of the sign-in group",
-                    ip=request.remote_addr,
-                )
+                user = _add_on_first_sign_in(repo, engine, email, name, is_admin)
             return Identity(user.username, user.display_name, user.email, is_admin)
         if user is None or not groups.fallback:
             _deny(engine, email, claims, log_reason)

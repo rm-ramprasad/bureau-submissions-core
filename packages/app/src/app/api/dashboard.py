@@ -28,8 +28,16 @@ from app.requests import (
 from app.requests.stages import Period, Stage
 from canonical.db import utcnow
 
-
 # ---------------------------------------------------------------- dashboard / tracker / files
+IST = timedelta(hours=5, minutes=30)  # India Standard Time: no daylight saving, so a fixed offset is exact
+
+
+def _ist_midnight_utc(day: date) -> datetime:
+    """The start of an Indian calendar day as the naive UTC the database stores (#35: a request raised between 00:00
+    and 05:30 IST belongs to that day, not the one before)."""
+    return datetime.combine(day, time()) - IST
+
+
 def _period() -> Period:
     try:
         return Period(request.args.get("period") or Period.THIS_MONTH.value)
@@ -130,8 +138,8 @@ def batches():
     try:
         sub_type = SubmissionType(flt["type"]) if flt["type"] else None
         bureau = BureauCode(flt["bureau"]) if flt["bureau"] else None
-        start = datetime.combine(date.fromisoformat(flt["from"]), time()) if flt["from"] else None
-        end = datetime.combine(date.fromisoformat(flt["to"]) + timedelta(days=1), time()) if flt["to"] else None
+        start = _ist_midnight_utc(date.fromisoformat(flt["from"])) if flt["from"] else None
+        end = _ist_midnight_utc(date.fromisoformat(flt["to"]) + timedelta(days=1)) if flt["to"] else None
     except ValueError:
         fail("Check the filters (dates as YYYY-MM-DD)")
     if start is None and request.args.get("period"):
