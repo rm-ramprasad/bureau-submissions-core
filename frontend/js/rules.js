@@ -8,6 +8,7 @@ const EMPTY_RULE = { editing: "", name: "", field: "", check: "range", values: "
 document.addEventListener("alpine:init", () => {
   Alpine.data("rulesPage", () => ({
     data: null,
+    checks: null,             // the type's upload checks with this NBFC's settings
     type: F.param("type") || "CONSUMER",
     q: F.param("q") || "",
     onlyChanged: false,
@@ -21,7 +22,16 @@ document.addEventListener("alpine:init", () => {
     canEdit() { return !!(this.data?.tenant_id && this.$store.app.user?.is_admin); },
 
     async load() {
-      try { this.data = await Api.get("/rules", { type: this.type }); } catch (e) { App.error(e); }
+      try {
+        [this.data, this.checks] = await Promise.all([
+          Api.get("/rules", { type: this.type }),
+          Api.get("/rules/input-checks", { type: this.type }),
+        ]);
+      } catch (e) { App.error(e); }
+    },
+
+    saveCheck(c, enabled, severity, reason) {
+      return this.post(`/rules/input-checks/${encodeURIComponent(c.check_id)}`, { enabled, severity, reason });
     },
 
     tenantName() {

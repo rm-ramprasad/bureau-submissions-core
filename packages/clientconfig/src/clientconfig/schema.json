@@ -54,6 +54,22 @@
       "propertyNames": { "$ref": "#/$defs/submission_type" },
       "additionalProperties": { "type": "array", "items": { "$ref": "#/$defs/custom_rule" } }
     },
+    "input_checks": {
+      "description": "submission type -> upload check id -> the client's setting (absent: keep the current ones; null keeps the check's own value)",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["is_enabled", "severity"],
+          "properties": {
+            "is_enabled": { "type": ["boolean", "null"] },
+            "severity": { "enum": ["warn", "block", null] }
+          }
+        }
+      }
+    },
     "settings": {
       "description": "the client's settings with no table of their own (absent: keep the current ones)",
       "type": "object",

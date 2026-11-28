@@ -21,6 +21,8 @@ from app.validation import settings as rules
 from bureau_core.types import descriptor
 from bureau_core.validation.parameters import ParameterError, builtin_parameters
 from canonical.db import utcnow
+from canonical.staging import check_policy
+from canonical.staging.checks import load_checks
 from clientconfig.document import SCHEMA_VERSION, ConfigDocumentError, changes, dumps, settings_only, validate
 
 __all__ = [
@@ -84,6 +86,14 @@ def document(engine: Engine, tenant_id: str) -> dict[str, Any]:
         },
         "rule_parameters": params,
         "custom_rules": rules_by_type,
+        "input_checks": {
+            str(st): {
+                cid: {"is_enabled": p["is_enabled"], "severity": p["severity"]}
+                for cid, p in sorted(check_policy.policies(engine, tenant_id, str(st)).items())
+            }
+            for st in types
+            if check_policy.policies(engine, tenant_id, str(st))
+        },
         "settings": dict(sorted(client_settings.get_all(engine, tenant_id).items())),
     }
 
@@ -279,6 +289,20 @@ def import_document(engine: Engine, tenant_id: str, raw: object, user: str, reas
         except ValueError as exc:
             problems.append(f"settings: {exc}")
 
+    # upload check settings (only when the document has them: older exports keep the current ones)
+    new_checks: dict[str, dict[str, dict[str, Any]]] | None = doc.get("input_checks")
+    for st_name, entries in (new_checks or {}).items():
+        if st_name not in {str(t) for t in types.values()}:
+            problems.append(f"upload checks: unknown submission type {st_name}")
+            continue
+        check_set = load_checks(st_name)
+        defined = {c.id: c for c in check_set.checks} if check_set else {}
+        for cid in entries:
+            if cid not in defined:
+                problems.append(f"upload check {st_name}/{cid}: no such check")
+            elif check_policy.is_locked(defined[cid]):
+                problems.append(f"upload check {st_name}/{cid}: locked (the bureau needs it)")
+
     if problems:
         more = f" (and {len(problems) - 10} more)" if len(problems) > 10 else ""
         raise ConfigDocumentError("The configuration was not imported: " + "; ".join(problems[:10]) + more)
@@ -306,6 +330,9 @@ def import_document(engine: Engine, tenant_id: str, raw: object, user: str, reas
             rules.clear_policy(engine, tenant_id, rule_id)
     for rule_id, p in policies.items():
         rules.set_policy(engine, tenant_id, rule_id, is_enabled=p["is_enabled"], outcome=p["outcome"])
+    if new_checks is not None:
+        for st in types.values():
+            check_policy.replace_all(engine, tenant_id, str(st), new_checks.get(str(st), {}), user, reason)
     if new_settings is not None:
         for name in client_settings.NAMES:
             client_settings.put(engine, tenant_id, name, new_settings.get(name), user)

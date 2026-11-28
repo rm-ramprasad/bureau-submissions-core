@@ -30,6 +30,8 @@ from app.validation import settings as rule_parameters
 from app.validation import settings as rules
 from app.validation.tables import validation_finding
 from bureau_core.validation.parameters import ParameterError, builtin_parameters, render_message
+from canonical.staging import check_policy
+from canonical.staging.checks import load_checks
 
 
 # ---------------------------------------------------------------- admin: rules & policies (per NBFC)
@@ -382,3 +384,87 @@ def reset_rule_policy(rule_id: str):
         )
     versioned(tenant_id, "RULE_POLICY_RESET", rule_id, (body().get("reason") or "").strip()[:500] or None)
     return message(f"{rule_id}: back to the default for {tenant_id}.")
+
+
+# ---------------------------------------------------------------- admin: upload (input) checks per NBFC (#19 part 2)
+def _input_checks(sub_type: SubmissionType):
+    checks = load_checks(sub_type.value)
+    return {c.id: c for c in checks.checks} if checks else {}
+
+
+@bp.get("/rules/input-checks")
+def input_checks_page():
+    """The type's upload checks with the chosen NBFC's settings. Everyone may read them; admins change them."""
+    s, sub_type, tenant_id = svc(), _rules_type(), selected_tenant()
+    pol = check_policy.policies(s.engine, tenant_id, sub_type.value) if tenant_id else {}
+    out = []
+    for c in _input_checks(sub_type).values():
+        p = None if check_policy.is_locked(c) else pol.get(c.id)
+        eff = check_policy.effective(c, p)
+        out.append(
+            {
+                "check_id": c.id,
+                "kind": c.check,
+                "columns": list(c.columns),
+                "message": c.message,
+                "locked": check_policy.is_locked(c),
+                "default": {"enabled": True, "severity": c.severity},
+                "enabled": eff is not None,
+                "severity": eff.severity if eff else c.severity,
+                "changed": p is not None,
+                "policy": {k: p[k] for k in ("reason", "updated_by", "updated_at")} if p else None,
+            }
+        )
+    return jsonify(tenant_id=tenant_id, submission_type=sub_type, checks=out, severities=list(check_policy.SEVERITIES))
+
+
+@bp.post("/rules/input-checks/<check_id>")
+@admin_only
+def save_input_check(check_id: str):
+    s, b = svc(), body()
+    tenant_id = _tenant_required("upload check settings")
+    sub_type = _rules_type()
+    check = _input_checks(sub_type).get(check_id)
+    if check is None:
+        fail(f"No upload check {check_id}", 404)
+    enabled, severity = bool(b.get("enabled")), str(b.get("severity") or check.severity)
+    reason = (b.get("reason") or "").strip()
+    try:
+        changed = check_policy.set_policy(
+            s.engine, tenant_id, sub_type.value, check, enabled=enabled, severity=severity, reason=reason,
+            user=current_user(),
+        )  # fmt: skip
+    except check_policy.CheckPolicyError as exc:
+        fail(str(exc), 409 if check_policy.is_locked(check) else 400)
+    if not changed:
+        return message(f"{check_id}: nothing changed.")
+    audit.record(
+        s.engine,
+        current_user(),
+        "INPUT_CHECK_CHANGED",
+        tenant_id=tenant_id,
+        target=check_id,
+        submission_type=sub_type.value,
+        enabled=enabled,
+        severity=severity,
+        reason=reason or None,
+    )
+    versioned(tenant_id, "INPUT_CHECK_CHANGED", check_id, reason or None)
+    state = f"on, {severity}" if enabled else "off"
+    return message(f"{check_id}: {state} for {tenant_id} (from the next upload check).")
+
+
+@bp.post("/rules/input-checks/<check_id>/reset")
+@admin_only
+def reset_input_check(check_id: str):
+    s = svc()
+    tenant_id = _tenant_required("upload check settings")
+    sub_type = _rules_type()
+    reason = (body().get("reason") or "").strip()[:500] or None
+    if check_policy.clear_policy(s.engine, tenant_id, sub_type.value, check_id):
+        audit.record(
+            s.engine, current_user(), "INPUT_CHECK_RESET", tenant_id=tenant_id, target=check_id,
+            submission_type=sub_type.value, reason=reason,
+        )  # fmt: skip
+        versioned(tenant_id, "INPUT_CHECK_RESET", check_id, reason)
+    return message(f"{check_id}: back to the default for {tenant_id}.")

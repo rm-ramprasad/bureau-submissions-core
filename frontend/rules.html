@@ -244,6 +244,47 @@
           </tbody>
         </table></div>
       </div>
+
+      <div class="panel flush" x-show="checks">
+        <div class="panel-head"><h2>Upload checks</h2>
+          <span class="muted">Run on each uploaded workbook. Warn: reported only · Block: the request cannot be submitted until a corrected workbook passes</span></div>
+        <div class="table-wrap"><table class="rules">
+          <thead><tr><th>Check</th><th>What it checks</th><th>Default</th><th x-text="checks?.tenant_id ? 'This NBFC' : 'Setting'"></th></tr></thead>
+          <tbody>
+            <template x-for="c in checks?.checks || []" :key="c.check_id + checks.tenant_id + c.enabled + c.severity">
+              <tr :class="[c.changed && 'changed', !c.enabled && 'off']" x-data="{ enabled: c.enabled, severity: c.severity, reason: '' }">
+                <td class="mono"><span x-text="c.check_id"></span>
+                  <div class="hint" x-text="c.kind + ' · ' + c.columns.join(', ')"></div></td>
+                <td x-text="c.message"></td>
+                <td class="nowrap" x-text="c.default.severity === 'block' ? 'Block' : 'Warn'"></td>
+                <td>
+                  <div x-show="c.locked" title="Protects what the bureau file needs: it cannot be switched off or changed">
+                    <span aria-hidden="true">🔒</span> <span x-text="'On · ' + (c.severity === 'block' ? 'Block' : 'Warn')"></span>
+                    <div class="hint">Required by the bureau</div></div>
+                  <template x-if="canEdit() && !c.locked">
+                    <div>
+                      <form class="rule-form" @submit.prevent="saveCheck(c, enabled, severity, reason)">
+                        <label class="toggle"><input type="checkbox" x-model="enabled"> On</label>
+                        <select x-model="severity" aria-label="Severity">
+                          <option value="warn" :selected="severity === 'warn'">Warn</option>
+                          <option value="block" :selected="severity === 'block'">Block</option>
+                        </select>
+                        <input type="text" x-model="reason" placeholder="Reason for the change" maxlength="500" size="22">
+                        <button class="small" :disabled="busy">Save</button>
+                      </form>
+                      <div class="hint" x-show="c.changed">Changed <span x-text="F.dt(c.policy?.updated_at)"></span> ·
+                        <a :href="'audit.html?target=' + encodeURIComponent(c.check_id)">history</a> ·
+                        <button class="linkish" @click="post(`/rules/input-checks/${encodeURIComponent(c.check_id)}/reset`)">reset to default</button></div>
+                    </div>
+                  </template>
+                  <span x-show="!canEdit() && !c.locked" x-text="(c.enabled ? 'On' : 'Off') + ' · ' + (c.severity === 'block' ? 'Block' : 'Warn')"></span>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="!(checks?.checks || []).length"><td colspan="4" class="muted">This type has no upload checks.</td></tr>
+          </tbody>
+        </table></div>
+      </div>
     </div>
   </template>
 </main>

@@ -416,6 +416,17 @@ class _Run:
                 yield r["source_row"], code_col, f"code {code} but label '{label}'"
 
 
+def _client_settings(engine: Engine, load_id: int, submission_type: str, checks: CheckSet) -> CheckSet:
+    """The checks with the upload's NBFC's settings applied (Admin page; canonical.staging.check_policy)."""
+    from canonical.staging import check_policy
+
+    with engine.connect() as conn:
+        tenant_id = conn.execute(select(input_load.c.tenant_id).where(input_load.c.load_id == load_id)).scalar()
+    if tenant_id is None:
+        return checks
+    return check_policy.apply(checks, check_policy.policies(engine, tenant_id, submission_type))
+
+
 def run_checks(
     engine: Engine,
     load_id: int,
@@ -433,6 +444,7 @@ def run_checks(
     checks = load_checks(submission_type)
     if checks is None:
         return result
+    checks = _client_settings(engine, load_id, submission_type, checks)
     tables, loaded = staging_tables(load_spec(submission_type)), {}
 
     def rows_of(sheet: str) -> list[dict]:

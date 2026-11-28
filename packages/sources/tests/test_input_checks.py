@@ -433,3 +433,55 @@ def test_a_reference_missing_from_the_view_is_a_note(engine):
         },
     )
     assert result.passed and ("SANCTION_REF_NOT_IN_VIEW", 2, "sanction_reference_number") in found(result)
+
+
+# ---------------------------------------------------------------- an NBFC's settings for the checks (#19 part 2)
+def _pan(engine) -> object:
+    return next(c for c in load_checks("CONSUMER").checks if c.id == "PAN_FORMAT")
+
+
+def test_an_nbfc_can_switch_a_check_off_or_make_it_block(engine):
+    from canonical.staging import check_policy
+
+    bad = [{**ROW, "income_tax_id_number": "BIVPA906Q"}]
+    before = checks(engine, bad)
+    assert ("PAN_FORMAT", 2, "income_tax_id_number") in found(before) and before.passed  # a warning by default
+
+    pan = _pan(engine)
+    kw = dict(reason="PAN often missing in our LMS", user="admin")
+    assert check_policy.set_policy(engine, "nbfc_001", "CONSUMER", pan, enabled=True, severity="block", **kw)
+    blocked = run_checks(engine, load(engine, bad), "CONSUMER", AS_OF, record=False)
+    assert not blocked.passed and blocked.by_check["PAN_FORMAT"] == 1
+
+    assert check_policy.set_policy(engine, "nbfc_001", "CONSUMER", pan, enabled=False, severity="warn", **kw)
+    off = run_checks(engine, load(engine, bad), "CONSUMER", AS_OF, record=False)
+    assert "PAN_FORMAT" not in off.by_check and off.passed
+
+    assert check_policy.set_policy(engine, "nbfc_001", "CONSUMER", pan, enabled=True, severity="warn", **kw)
+    assert check_policy.policies(engine, "nbfc_001", "CONSUMER") == {}  # back to its own values: no setting kept
+
+
+def test_locked_checks_and_reasons(engine):
+    from canonical.staging import check_policy
+
+    checks_by_id = {c.id: c for c in load_checks("CONSUMER").checks}
+    required = checks_by_id["REQUIRED"]
+    assert check_policy.is_locked(required) and not check_policy.is_locked(checks_by_id["PAN_FORMAT"])
+    with pytest.raises(check_policy.CheckPolicyError, match="bureau file needs"):
+        check_policy.set_policy(
+            engine, "nbfc_001", "CONSUMER", required, enabled=False, severity="block", reason="x", user="a"
+        )
+    with pytest.raises(check_policy.CheckPolicyError, match="give a reason"):
+        check_policy.set_policy(engine, "nbfc_001", "CONSUMER", _pan(engine), enabled=False, severity="warn",
+                                reason=" ", user="a")  # fmt: skip
+    with pytest.raises(check_policy.CheckPolicyError, match="Severity"):
+        check_policy.set_policy(engine, "nbfc_001", "CONSUMER", _pan(engine), enabled=True, severity="loud",
+                                reason="r", user="a")  # fmt: skip
+    # a setting stored for a locked check (e.g. imported by hand) is ignored when the checks run
+    check_policy.replace_all(engine, "nbfc_001", "CONSUMER", {"REQUIRED": {"is_enabled": False, "severity": None}},
+                             "a", "r")  # fmt: skip
+    add_view_accounts(engine, AS_OF, "A1")
+    result = run_checks(engine, load(engine, [{**ROW, "gender_label": None}]), "CONSUMER", AS_OF, record=False)
+    assert result.blocking == 1 and result.by_check["REQUIRED"] == 1
+    assert check_policy.clear_policy(engine, "nbfc_001", "CONSUMER", "REQUIRED")
+    assert not check_policy.clear_policy(engine, "nbfc_001", "CONSUMER", "REQUIRED")
